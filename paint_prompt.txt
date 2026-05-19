@@ -1,0 +1,66 @@
+Build a self-contained paint.html file with no installation with plain vanilla javascript in it which could be used as a powerful drawing app, similar to windows paint or microsoft onenote, or even ms powerpoint. The main idea is that the user would be allowed to draw by mouse pointer, pick objects to place in the canvas, modify colors, sizes, borders and alpha channels of each drawn/placed object.
+The .html file would actively work with the indexedDB so that each drawing can be stored, or loaded later. The saving behavior would be fully automatic after each change.
+
+Strategy for HTML/JS drawing app with IndexedDB storage, gallery, autosave, thumbnails, and switching between drawings:
+- Use JSON to store all shapes and metadata
+- Thumbnails will be needed for fast gallery rendering. Follow this form to store data:
+{
+  id: 'uuid-123',                  // unique drawing ID
+  name: 'My Sketch',               // user-friendly name
+  shapes: [...],                    // array of shapes/paths (JSON)
+  width: 800,                       // canvas width
+  height: 600,                      // canvas height
+  thumbnail: 'data:image/png;base64,...', // low-res thumbnail
+  updatedAt: 1710000000000          // timestamp for sorting
+}
+Thumbnails need reduced resolution
+- Items (thumbnails) in gallery should be scaled down drawings with fixed width 150px and locked aspect ration according to the drawing
+- Frequency of thumbnail generation should be on every significant change (debounced, 500ms)
+- Saving workflow:
+1. User edits drawing → 'shapes' JSON array updated
+2. Debounce: wait ~300ms after last change
+3. Generate thumbnail (small offscreen canvas → PNG Base64)
+4. Save record to IndexedDB (IndexedDB is asynchronous → does not block UI)
+- Loading behavior:
+1. User clicks gallery item
+2. Load 'shapes' JSON array and canvas size from IndexedDB
+3. Render shapes onto canvas (transform JSON structure into SVG)
+- Gallery items will be sorted by modification timestamp (most recent as first)
+- Export workflow:
+1. Export button for full-resolution SVG output of currently active drawing
+- Autosave without losing work
+- Editable shapes preserved
+- Smooth switching between drawings
+
+
+Front-end design:
+- There would be a thin top horizontal ribbon with functional icons going from the left, with editable name of the drawing in the right (named initially as "drawing_<number>" and with an icon to export current drawing into .svg file.
+- from the left side, there would be a vertical ribbon that would show/hide based on user click on an icon. Once shown, there would be a gallery of existing drawings where the user can pick a previously drawn drawing.
+- main drawing canvas would span rest of the browser.
+- Implement undo/redo per drawing (store history array in IndexedDB)
+
+Canvas itself should always be be Canvas color can also be changed (default white, optionally we would have rgba editable via modal dialog).
+
+Shapes implemented and their creation via mouse:
+- draw by mouse press and move,
+- insert basic shapes at current mouse position (rectangle, circle, arrow)
+- insert Text area at current mouse position.
+- Enable other shape types that you find relevant
+
+Keyboard shortcuts to implement:
+- Up/down arrow pressed: increase/decrease stroke size, or object size of the most recently modified object, or the one that is currenly selected (apply increase/decrease size by 5 pixels on each press), if OPTION+up/down is pressed, increase or decrease by only 1 px (finetuning)
+- SHIFT+arrow will move the most recently modified (or selected) object by 5 px step (SHIFT+OPTION+arrow) will move by 1 px only in the direction of the arrow pressed
+- 't' pressed: insert a text area at current mouse cursor position, enter edit mode directly (consequently all letters will be typed and not recognized as keyboard shortcuts), SHIFT+ENTER types end-of-line character, once ENTER is pressed edit mode exits
+- each object type will have a unique one-letter keyboard shortcut for creation at mouse cursor position
+- Selection of existing shapes will be done by a mose click, if there are more shapes overlaid on top of each other, 'tab' press will iterate through all objects that have been drawn at currently clicked pixel. Selected object will have a visible rectangle around it.
+- User can also change layers of individual objects (bring to front/back, pick suitable one-letter shortcuts for such behavior).
+- 'z' and SHIFT+'z' key press will result in undo/redo behavior.
+
+Other general requirements:
+- Proper text editing (like PowerPoint)
+- Object rotation
+- Alpha + color picker UI
+- Multi-select + grouping
+- True SVG-native rendering instead of Canvas
+
+Give me a clean plain-text version of an .html file which reflects the above requirements.

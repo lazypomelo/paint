@@ -1,0 +1,4528 @@
+<!doctype html>
+<html lang='en'>
+<head>
+  <meta charset='utf-8' />
+  <meta name='viewport' content='width=device-width, initial-scale=1' />
+  <title>paint.html (SVG + IndexedDB)</title>
+  <style>
+    :root{
+      --bg: #0f1115;
+      --panel: #151a22;
+      --panel2: #0f141c;
+      --text: #e7eaf0;
+      --muted: #9aa3b2;
+      --accent: #4ea1ff;
+      --danger: #ff5a6a;
+      --border: rgba(255,255,255,0.10);
+      --shadow: 0 10px 30px rgba(0,0,0,0.35);
+      --sel: #4ea1ff;
+      --handle: #ffffff;
+      --handleStroke: rgba(0,0,0,0.55);
+      --grid: rgba(255,255,255,0.06);
+      --font: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, 'Apple Color Emoji', 'Segoe UI Emoji';
+      /* --font: 'ui-rounded', 'Liberation Sans', Roboto, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, 'Noto Sans', sans-serif; */
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+      --galleryW: 280px;  /* fixed gallery width */
+      --cardH: 240px;     /* fixed card height */
+    }
+    *{ box-sizing: border-box; }
+    html, body{ height: 100%; margin: 0; background: var(--bg); color: var(--text); font-family: var(--font); }
+    button, input, select{ font: inherit; }
+    .app{
+      height: 100%;
+      display: grid;
+      grid-template-rows: 44px 1fr;
+      grid-template-columns: 1fr;
+    }
+    .topbar{
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 10px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02));
+      border-bottom: 1px solid var(--border);
+      position: relative;
+      z-index: 5;
+    }
+    .topbar .group{ display: flex; align-items: center; gap: 6px; padding-right: 10px; border-right: 1px solid var(--border); }
+    .topbar .group:last-child{ border-right: none; }
+    .btn{
+      height: 30px;
+      padding: 0 10px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,0.04);
+      color: var(--text);
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      user-select: none;
+    }
+    .btn:hover{ background: rgba(255,255,255,0.07); }
+    .btn:active{ transform: translateY(1px); }
+    .btn.primary{ border-color: rgba(78,161,255,0.45); background: rgba(78,161,255,0.12); }
+    .btn.danger{ border-color: rgba(255,90,106,0.45); background: rgba(255,90,106,0.10); }
+    .btn.icon{ width: 34px; padding: 0; justify-content: center; }
+    .btn.iconWide{
+      width: 92px;
+      padding: 0 8px;
+      justify-content: center;
+      gap: 6px;
+      flex-shrink: 0;
+    }
+    .pill{
+      height: 30px;
+      padding: 0 10px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,0.03);
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--muted);
+    }
+    #saveState{
+      min-width: calc(9ch + 20px); /* reserve space for "Saving..." + pill padding */
+      justify-content: center;
+      white-space: nowrap;
+    }
+    .sep{ width: 1px; height: 26px; background: var(--border); margin: 0 6px; }
+    .nameWrap{
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 260px;
+    }
+    .nameInput{
+      height: 30px;
+      width: 260px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,0.03);
+      color: var(--text);
+      padding: 0 10px;
+      outline: none;
+    }
+    .nameInput:focus{ border-color: rgba(78,161,255,0.55); box-shadow: 0 0 0 3px rgba(78,161,255,0.15); }
+    .main{
+      display: grid;
+      grid-template-columns: 0px 1fr;
+      height: 100%;
+      overflow: hidden;
+    }
+    .main.galleryOpen{ grid-template-columns: var(--galleryW) 1fr; }
+    .sidebar{
+      background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02));
+      border-right: 1px solid var(--border);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+    .sidebarHeader{
+      padding: 10px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      border-bottom: 1px solid var(--border);
+    }
+    .sidebarHeader .title{ font-weight: 600; }
+    .sidebarHeader .hint{ color: var(--muted); font-size: 12px; margin-left: auto; }
+    .gallery{
+      padding: 10px;
+      overflow: auto;
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 10px;
+    }
+    .card{
+      height: var(--cardH);
+      display: grid;
+      grid-template-rows: 150px 1fr; /* thumb + meta */
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: rgba(255,255,255,0.03);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      cursor: default;
+    }
+    .card:hover{ border-color: rgba(78,161,255,0.35); }
+    .card.active{
+      border-color: rgba(255,90,106,0.45);
+      /* box-shadow: 0 0 0 5px rgba(255,90,106,0.25), var(--shadow); */
+    }
+    .card.active .cardName{
+      color: var(--text);
+    }
+    .thumb{
+      width: 100%;
+      height: 150px;
+      padding-top: 10px;
+      background: repeating-linear-gradient(45deg, rgba(255,255,255,0.03), rgba(255,255,255,0.03) 10px, rgba(255,255,255,0.01) 10px, rgba(255,255,255,0.01) 20px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      cursor: pointer;
+    }
+    .thumb img{
+      /* max-width: 100%;
+      max-height: 100%;
+      width: auto;
+      height: auto;
+      object-fit: contain; */
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      background: rgba(0,0,0,0.15);
+    }
+    .cardMeta{
+      /* padding: 10px;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 6px 10px;
+      align-items: center; */
+  padding: 10px;
+  display: grid;
+  grid-template-columns: 1fr;   /* single column */
+  grid-template-rows: auto auto 1fr;
+  gap: 6px;
+  align-items: start;
+  min-height: 0;
+  overflow: hidden;
+    }
+    .cardName{ font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .cardTime{ color: var(--muted); font-size: 12px; text-align: left; }
+    .cardActions{
+      grid-column: 1 / -1;
+      display: flex;
+      gap: 8px;
+      margin-left: 10px;
+    }
+    .canvasWrap{
+      position: relative;
+      overflow: hidden;
+      background:
+        radial-gradient(circle at 1px 1px, var(--grid) 1px, transparent 0) 0 0 / 20px 20px,
+        linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+    }
+    .stage{
+      position: absolute;
+      inset: 0;
+      display: grid;
+      justify-items: center;
+      align-items: center;
+      /* Keep room on the right for floating properties panel, then center paper in the remaining width. */
+      padding-right: var(--propsReserve, 0px);
+      overflow: auto;
+    }
+    .paper{
+      position: relative;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.45);
+      border-radius: 10px;
+      overflow: hidden;
+      border: 1px solid rgba(255,255,255,0.10);
+      background: #fff;
+      touch-action: none;
+    }
+    .paper.showGrid::after{
+      content: '';
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 3; /* above svg */
+      background:
+        linear-gradient(to right, rgba(0,0,0,0.12) 1px, transparent 1px) 0 0 / var(--gridSize, 20px) var(--gridSize, 20px),
+        linear-gradient(to bottom, rgba(0,0,0,0.12) 1px, transparent 1px) 0 0 / var(--gridSize, 20px) var(--gridSize, 20px);
+      mix-blend-mode: multiply; /* optional: looks nicer on light bg */
+      opacity: 0.6; /* tweak */
+    }
+    svg#svg{
+      display: block;
+      width: 100%;
+      height: 100%;
+      user-select: none;
+    }
+    .hud{
+      position: absolute;
+      left: 12px;
+      bottom: 12px;
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      padding: 8px 10px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: rgba(10,12,16,0.55);
+      backdrop-filter: blur(8px);
+      color: var(--text);
+      z-index: 4;
+    }
+    .hud .k{ font-family: var(--mono); font-size: 12px; color: var(--muted); }
+    .hud .v{ font-size: 12px; }
+    .floatingPanel{
+      position: absolute;
+      right: 12px;
+      top: 12px;
+      width: 325px;
+      border-radius: 14px;
+      border: 1px solid var(--border);
+      background: rgba(10,12,16,0.65);
+      backdrop-filter: blur(10px);
+      box-shadow: var(--shadow);
+      z-index: 4;
+      overflow: hidden;
+    }
+    .panelHeader{
+      padding: 10px 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      border-bottom: 1px solid var(--border);
+    }
+    .panelHeader .title{ font-weight: 700; }
+    .panelBody{
+      padding: 12px;
+      display: grid;
+      gap: 10px;
+    }
+    .panelBody.hidden{
+      display: none;
+    }
+    .row{
+      display: grid;
+      grid-template-columns: 120px 1fr;
+      gap: 10px;
+      align-items: center;
+    }
+    .row label{ color: var(--muted); font-size: 12px; }
+    .row input[type='range']{ width: 100%; }
+    .row input[type='number'], .row input[type='text'], .row select{
+      width: 100%;
+      height: 30px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,0.04);
+      color: var(--text);
+      padding: 0 8px;
+      outline: none;
+    }
+    .row input[type='color']{
+      width: 100%;
+      height: 30px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,0.04);
+      padding: 0;
+    }
+    .mini{
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.35;
+    }
+    .kbd{
+      font-family: var(--mono);
+      font-size: 11px;
+      padding: 2px 6px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,0.04);
+      color: var(--text);
+    }
+    .hidden{ display: none !important; }
+
+    /* Selection visuals (SVG) */
+    .selBox{ fill: none; stroke: var(--sel); stroke-width: 1.5; stroke-dasharray: 6 4; vector-effect: non-scaling-stroke; }
+    .handle{ fill: var(--handle); stroke: var(--handleStroke); stroke-width: 1; vector-effect: non-scaling-stroke; }
+    .hit{ fill: transparent; stroke: transparent; pointer-events: stroke; }
+    .shape{ cursor: default; }
+    .shape.selected{ filter: drop-shadow(0 0 0 rgba(0,0,0,0)); }
+    .textEdit{
+      position: absolute;
+      min-width: 40px;
+      min-height: 24px;
+      padding: 2px 4px;
+      border: 1px dashed rgba(78,161,255,0.9);
+      outline: none;
+      background: rgba(255,255,255,0.85);
+      color: #111;
+      font: 16px/1.2 var(--font);
+      white-space: pre-wrap;
+      overflow: hidden;
+      resize: none;
+    }
+    .toast{
+      position: absolute;
+      left: 50%;
+      top: 10px;
+      transform: translateX(-50%);
+      padding: 8px 10px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: rgba(10,12,16,0.65);
+      backdrop-filter: blur(10px);
+      color: var(--text);
+      z-index: 10;
+      font-size: 12px;
+      opacity: 0;
+      transition: opacity 160ms ease;
+      pointer-events: none;
+    }
+    .toast.show{ opacity: 1; }
+  </style>
+</head>
+<body>
+  <div class='app'>
+    <div class='topbar'>
+      <div class='group'>
+        <button class='btn icon' id='btnGallery' title='Toggle gallery'>☰</button>
+        <button class='btn icon' id='btnNew' title='New drawing (N)'>＋</button>
+      </div>
+
+      <div class='group'>
+        <!-- <div class='sep'></div> -->
+        <button class='btn' id='toolPen' title='Pen (P)'>Pen <span class='kbd'>P</span></button>
+        <button class='btn' id='toolRect' title='Rectangle (R)'>Rect <span class='kbd'>R</span></button>
+        <button class='btn' id='toolEllipse' title='Ellipse (C)'>Circle <span class='kbd'>C</span></button>
+        <button class='btn' id='toolArrow' title='Arrow (A)'>Arrow <span class='kbd'>A</span></button>
+        <button class='btn' id='toolLine' title='Line (L)'>Line <span class='kbd'>L</span></button>
+        <button class='btn' id='toolText' title='Text (T)'>Text <span class='kbd'>T</span></button>
+      </div>
+
+      <div class='group'>
+        <button class='btn' id='btnSendBack' title='Send to back ([)'>Back <span class='kbd'>[</span></button>        
+        <button class='btn' id='btnBringFront' title='Bring to front (])'>Front <span class='kbd'>]</span></button>               
+        <button class='btn' id='btnGroup' title='Group (G)'>Group <span class='kbd'>G</span></button>
+        <button class='btn' id='btnUngroup' title='Ungroup (U)'>Ungroup <span class='kbd'>U</span></button>
+      </div>
+
+      <div class='group'>
+        <button class='btn' id='btnExportPng' title='Export PNG'>Export&nbsp;PNG</button>
+      </div>
+
+      <div class='nameWrap'>
+        <span class='pill' id='saveState'>Saved</span>
+        <input class='nameInput' id='drawingName' value='drawing_1' />
+      </div>
+    </div>
+
+    <div class='main' id='main'>
+      <div class='sidebar' id='sidebar'>
+        <div class='sidebarHeader'>
+          <div class='title'>Gallery</div>
+          <div class='hint'>Autosave • IndexedDB</div>
+        </div>
+        <div class='gallery' id='gallery'></div>
+      </div>
+
+      <div class='canvasWrap' id='canvasWrap'>
+        <div class='toast' id='toast'></div>
+
+        <div class='floatingPanel' id='propsPanel'>
+          <div class='panelHeader'>
+            <div class='title'>Properties</div>
+            <div style='margin-left:auto; display:flex; gap:6px; align-items:center;'>
+              <span style='position:relative; display:inline-block; width:34px; height:30px;'>
+                <button class='btn icon' id='btnCanvasBg' title='Canvas background' type='button'
+                  style='position:absolute; inset:0;'>
+                  <svg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24' role='img' aria-hidden='true'>
+                    <!-- back (darker) rectangle -->
+                    <rect x='9' y='9' width='12' height='12' rx='2' fill='#4b5563'/>
+
+                    <!-- front (white) rectangle -->
+                    <rect x='3' y='3' width='12' height='12' rx='2' fill='#ffffff'/>
+
+                    <!-- optional outline so white shows on white backgrounds -->
+                    <rect x='3' y='3' width='12' height='12' rx='2' fill='none' stroke='#111827' stroke-width='1'/>
+                  </svg>
+                </button>
+
+                <input
+                  type='color'
+                  id='canvasBgPicker'
+                  value='#ffffff'
+                  aria-label='Canvas background color'
+                  style='position:absolute; inset:0; opacity:0; cursor:pointer;'
+                />
+              </span>
+
+              <button class='btn icon' id='btnPaperSize' title='Paper size' type='button'>⤢</button>
+              <button class='btn icon' id='btnGrid' title='Toggle grid' type='button'>▦</button>
+            </div>
+
+          </div>
+          <div class='panelBody' id='panelBody'>
+            <div class='row' id='rowTool'>
+              <label>Type</label>
+              <div id='selectedTypeDisplay' style='padding: 0 8px; height: 30px; display: flex; align-items: center; border-radius: 8px; border: 1px solid var(--border); background: rgba(255,255,255,0.04); color: var(--text); font-size: 14px; font-family: var(--mono);'>none</div>
+            </div>
+
+            <!-- Rectangle Properties Sections -->
+            <div class='row hidden' id='rowRectGeneralHeader' style='margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--border);'>
+              <label style='font-weight: 600; color: var(--text);'>General</label>
+              <div></div>
+            </div>
+            <div class='row hidden' id='rowRectBorderHeader' style='margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--border);'>
+              <label style='font-weight: 600; color: var(--text);'>Border</label>
+              <div></div>
+            </div>
+            <div class='row hidden' id='rowRectFillHeader' style='margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--border);'>
+              <label style='font-weight: 600; color: var(--text);'>Fill</label>
+              <div></div>
+            </div>
+
+            <!-- Circle Properties Sections -->
+            <div class='row hidden' id='rowCircleGeneralHeader' style='margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--border);'>
+              <label style='font-weight: 600; color: var(--text);'>General</label>
+              <div></div>
+            </div>
+            <div class='row hidden' id='rowCircleStrokeHeader' style='margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--border);'>
+              <label style='font-weight: 600; color: var(--text);'>Stroke</label>
+              <div></div>
+            </div>
+            <div class='row hidden' id='rowCircleFillHeader' style='margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--border);'>
+              <label style='font-weight: 600; color: var(--text);'>Fill</label>
+              <div></div>
+            </div>
+            <div class='row hidden' id='rowCircleLockAspect'>
+              <label>Lock aspect ratio</label>
+              <input type='checkbox' id='circleLockAspect' checked />
+            </div>
+
+            <div class='row' id='rowStroke'>
+              <label id='labelStrokeColor'>Stroke</label>
+              <input type='color' id='strokeColor' value='#111111' />
+            </div>
+            <div class='row' id='rowFill'>
+              <label id='labelFillColor'>Fill</label>
+              <input type='color' id='fillColor' value='#ffffff' />
+            </div>
+            <div class='row' id='rowStrokeWidth'>
+              <label id='labelStrokeWidth'>Stroke width</label>
+              <input type='range' id='strokeWidth' min='0' max='60' step='1' value='3' />
+            </div>
+            <div class='row' id='rowStrokeAlpha'>
+              <label id='labelStrokeAlpha'>Stroke alpha</label>
+              <input type='range' id='strokeAlpha' min='0' max='1' step='0.01' value='1' />
+            </div>
+            <div class='row hidden' id='rowArrowHeadSize'>
+              <label>Arrow head size</label>
+              <input type='range' id='arrowHeadSize' min='0' max='80' step='1' value='12' />
+            </div>
+            <div class='row' id='rowFillAlpha'>
+              <label>Fill alpha</label>
+              <input type='range' id='fillAlpha' min='0' max='1' step='0.01' value='0' />
+            </div>
+            <!-- Textarea Text Properties Section -->
+            <div class='row hidden' id='rowTextareaTextHeader' style='margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--border);'>
+              <label style='font-weight: 600; color: var(--text);'>Text</label>
+              <div></div>
+            </div>
+            <div class='row hidden' id='rowTextareaFontSize'>
+              <label>Font size</label>
+              <input type='number' id='textareaFontSize' min='6' max='200' step='1' value='18' />
+            </div>
+            <div class='row hidden' id='rowTextareaTextColor'>
+              <label>Text color</label>
+              <input type='color' id='textareaTextColor' value='#111111' />
+            </div>
+            <div class='row hidden' id='rowTextareaTextAlpha'>
+              <label>Text alpha</label>
+              <input type='range' id='textareaTextAlpha' min='0' max='1' step='0.01' value='1' />
+            </div>
+
+            <!-- Textarea Border Section -->
+            <div class='row hidden' id='rowTextareaBorderHeader' style='margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--border);'>
+              <label style='font-weight: 600; color: var(--text);'>Border</label>
+              <div></div>
+            </div>
+            <div class='row hidden' id='rowTextareaBorderWidth'>
+              <label>Border width</label>
+              <input type='range' id='textareaBorderWidth' min='0' max='20' step='0.5' value='0' />
+            </div>
+            <div class='row hidden' id='rowTextareaBorderColor'>
+              <label>Border color</label>
+              <input type='color' id='textareaBorderColor' value='#111111' />
+            </div>
+            <div class='row hidden' id='rowTextareaBorderAlpha'>
+              <label>Border alpha</label>
+              <input type='range' id='textareaBorderAlpha' min='0' max='1' step='0.01' value='1' />
+            </div>
+            <div class='row hidden' id='rowTextareaPadding'>
+              <label>Text spacing</label>
+              <input type='range' id='textareaPadding' min='0' max='20' step='1' value='5' />
+            </div>
+
+            <!-- Textarea Background Section -->
+            <div class='row hidden' id='rowTextareaBackgroundHeader' style='margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--border);'>
+              <label style='font-weight: 600; color: var(--text);'>Background</label>
+              <div></div>
+            </div>
+            <div class='row hidden' id='rowTextareaBackgroundColor'>
+              <label>Background color</label>
+              <input type='color' id='textareaBackgroundColor' value='#ffffff' />
+            </div>
+            <div class='row hidden' id='rowTextareaBackgroundAlpha'>
+              <label>Background alpha</label>
+              <input type='range' id='textareaBackgroundAlpha' min='0' max='1' step='0.01' value='0' />
+            </div>
+
+            <!-- Keep old rowFontSize for backward compatibility with existing text selection code -->
+            <div class='row hidden' id='rowFontSize'>
+              <label>Font size</label>
+              <input type='number' id='fontSize' min='6' max='200' step='1' value='18' />
+            </div>
+            <div class='row hidden' id='rowTextBorderEnabled'>
+              <label>Text border</label>
+              <input type='checkbox' id='textBorderEnabled' />
+            </div>
+            <div class='row hidden' id='rowTextBorderColor'>
+              <label>Border color</label>
+              <input type='color' id='textBorderColor' value='#111111' />
+            </div>
+            <div class='row hidden' id='rowTextBorderAlpha'>
+              <label>Border alpha</label>
+              <input type='range' id='textBorderAlpha' min='0' max='1' step='0.01' value='1' />
+            </div>
+            <div class='row hidden' id='rowTextBorderWidth'>
+              <label>Border width</label>
+              <input type='range' id='textBorderWidth' min='0' max='20' step='0.5' value='1' />
+            </div>
+
+            <div class='row hidden' id='rowImageGeneralHeader' style='margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--border);'>
+              <label style='font-weight: 600; color: var(--text);'>General</label>
+              <div></div>
+            </div>
+            <div class='row hidden' id='rowImageLockAspect'>
+              <label>Lock aspect ratio</label>
+              <input type='checkbox' id='imageLockAspect' checked />
+            </div>
+            <div class='row hidden' id='rowImageFlip'>
+              <label>Flip</label>
+              <div style='display:flex; gap:8px;'>
+                <button class='btn icon' id='btnFlipH' type='button' aria-label='Flip horizontally' aria-pressed='false' title='Flip horizontally'>↔</button>
+                <button class='btn icon' id='btnFlipV' type='button' aria-label='Flip vertically' aria-pressed='false' title='Flip vertically'>↕</button>
+              </div>
+            </div>
+            <div class='row hidden' id='rowImageCrop'>
+              <label>Crop</label>
+              <button class='btn icon' id='btnCropMode' type='button' title='Toggle crop mode'>✂</button>
+            </div>
+            <div class='row' id='rowRotation'>
+              <label>Rotation (deg)</label>
+              <input type='number' id='rotation' min='-360' max='360' step='1' value='0' />
+            </div>
+
+            <div class='row hidden' id='rowImageBorderHeader' style='margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--border);'>
+              <label style='font-weight: 600; color: var(--text);'>Border</label>
+              <div></div>
+            </div>
+            <div class='row hidden' id='rowImageBorderWidth'>
+              <label>Border width</label>
+              <input type='range' id='imageBorderWidth' min='0' max='20' step='0.5' value='0' />
+            </div>
+            <div class='row hidden' id='rowImageBorderColor'>
+              <label>Border color</label>
+              <input type='color' id='imageBorderColor' value='#111111' />
+            </div>
+            <div class='row hidden' id='rowImageBorderAlpha'>
+              <label>Border alpha</label>
+              <input type='range' id='imageBorderAlpha' min='0' max='1' step='0.01' value='1' />
+            </div>
+
+            <!-- Image Transparency Section -->
+            <div class='row hidden' id='rowImageTransparencyHeader' style='margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--border);'>
+              <label style='font-weight: 600; color: var(--text);'>Transparency</label>
+              <div></div>
+            </div>
+            <div class='row hidden' id='rowImageAlpha'>
+              <label>Image alpha</label>
+              <input type='range' id='imageAlpha' min='0' max='1' step='0.01' value='1' />
+            </div>
+            <div class='row hidden' id='rowImageTransparencyEnabled'>
+              <label>Color-specific</label>
+              <input type='checkbox' id='imageTransparencyEnabled' />
+            </div>
+            <div class='row hidden' id='rowImageTransparencyColor'>
+              <label>Color</label>
+              <input type='color' id='imageTransparencyColor' value='#ffffff' />
+            </div>
+            <div class='row hidden' id='rowImageTransparencyTolerance'>
+              <label>Tolerance</label>
+              <input type='range' id='imageTransparencyTolerance' min='0' max='1' step='0.01' value='0' />
+            </div>
+
+            <div class='row' id='rowShortcutsHeader' style='margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--border);'>
+              <label style='font-weight: 600; color: var(--text);'>Shortcuts</label>
+              <div></div>
+            </div>
+            <div class='mini' id='rowShortcuts'>
+              <div id='shortcutsList' style='margin-top:6px; display:grid; gap:4px;'>
+                <div><span class='kbd'>↑/↓</span> object size ±5, <span class='kbd'>Alt+↑/↓</span> object size ±1</div>
+                <div><span class='kbd'>Shift+Arrows</span> move ±10, <span class='kbd'>Shift+Alt+Arrows</span> ±1</div>
+                <div><span class='kbd'>Tab</span>/<span class='kbd'>Shift+Tab</span> cycle through objects at selection</div>
+                <div><span class='kbd'>Del</span> Delete, <span class='kbd'>Z</span> undo, <span class='kbd'>Shift+Z</span> redo</div>
+                <div><span class='kbd'>[</span>/<span class='kbd'>]</span> send back / bring front</div>
+                <div><span class='kbd'>D</span> duplicate, <span class='kbd'>E</span> edit text</div>
+                <div><span class='kbd'>G</span> group, <span class='kbd'>U</span> ungroup</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class='hud'>
+          <div class='k'>Mode</div><div class='v' id='hudMode'>select</div>
+          <div class='k'>Selected</div><div class='v' id='hudSel'>none</div>
+          <div class='k'>Autosave</div><div class='v' id='hudSave'>idle</div>
+        </div>
+
+        <div class='stage' id='stage'>
+          <div class='paper' id='paper'>
+            <svg id='svg' xmlns='http://www.w3.org/2000/svg'></svg>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    ;(() => {
+      'use strict'
+
+      /* =========================
+         Utilities
+      ========================= */
+      const $ = (sel, el = document) => el.querySelector(sel)
+      const $$ = (sel, el = document) => Array.from(el.querySelectorAll(sel))
+      const clamp = (v, a, b) => Math.max(a, Math.min(b, v))
+      const LINE_SNAP_TOLERANCE = 10 // pixels
+      const LINK_ATTACH_RADIUS = 36 // pixels
+      const now = () => Date.now()
+      const uuid = () => {
+        if (crypto && crypto.randomUUID) return crypto.randomUUID()
+        return 'id-' + Math.random().toString(16).slice(2) + '-' + Date.now().toString(16)
+      }
+      const fmtTime = (ts) => {
+        const d = new Date(ts)
+        return d.toLocaleString(undefined, { year: 'numeric', month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+      }
+      const debounce = (fn, ms) => {
+        let t = null
+        return (...args) => {
+          clearTimeout(t)
+          t = setTimeout(() => fn(...args), ms)
+        }
+      }
+      const svgEl = (name, attrs = {}) => {
+        const el = document.createElementNS('http://www.w3.org/2000/svg', name)
+        for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, String(v))
+        return el
+      }
+      const setInputValue = (id, value) => {
+        const el = $('#' + id)
+        if (!el) return
+        el.value = value
+      }
+      const setCheckedValue = (id, value) => {
+        const el = $('#' + id)
+        if (!el) return
+        el.checked = !!value
+      }
+      const downloadBlob = (filename, blob) => {
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = filename
+        document.body.appendChild(a)
+        a.click()
+        a.remove()
+        URL.revokeObjectURL(url)
+      }
+      const toast = (msg, ms = 1200) => {
+        const el = $('#toast')
+        el.textContent = msg
+        el.classList.add('show')
+        setTimeout(() => el.classList.remove('show'), ms)
+      }
+
+      /* =========================
+         IndexedDB
+      ========================= */
+      const DB_NAME = 'paint_html_db'
+      const DB_VERSION = 1
+      const STORE = 'drawings'
+
+      const idbOpen = () => new Promise((resolve, reject) => {
+        const req = indexedDB.open(DB_NAME, DB_VERSION)
+        req.onupgradeneeded = () => {
+          const db = req.result
+          if (!db.objectStoreNames.contains(STORE)) {
+            const st = db.createObjectStore(STORE, { keyPath: 'id' })
+            st.createIndex('updatedAt', 'updatedAt', { unique: false })
+          }
+        }
+        req.onsuccess = () => resolve(req.result)
+        req.onerror = () => reject(req.error)
+      })
+
+      const idbTx = (db, mode = 'readonly') => db.transaction(STORE, mode).objectStore(STORE)
+
+      const idbPut = async (db, rec) => new Promise((resolve, reject) => {
+        const st = idbTx(db, 'readwrite')
+        const req = st.put(rec)
+        req.onsuccess = () => resolve(true)
+        req.onerror = () => reject(req.error)
+      })
+
+      const idbGet = async (db, id) => new Promise((resolve, reject) => {
+        const st = idbTx(db, 'readonly')
+        const req = st.get(id)
+        req.onsuccess = () => resolve(req.result || null)
+        req.onerror = () => reject(req.error)
+      })
+
+      const idbDelete = async (db, id) => new Promise((resolve, reject) => {
+        const st = idbTx(db, 'readwrite')
+        const req = st.delete(id)
+        req.onsuccess = () => resolve(true)
+        req.onerror = () => reject(req.error)
+      })
+
+      const idbList = async (db) => new Promise((resolve, reject) => {
+        const st = idbTx(db, 'readonly')
+        const idx = st.index('updatedAt')
+        const req = idx.openCursor(null, 'prev')
+        const out = []
+        req.onsuccess = () => {
+          const cur = req.result
+          if (!cur) return resolve(out)
+          out.push(cur.value)
+          cur.continue()
+        }
+        req.onerror = () => reject(req.error)
+      })
+
+      /* =========================
+         App state
+      ========================= */
+      const app = {
+        db: null,
+        galleryOpen: false,
+
+        activeId: null,
+        drawing: null, // current record (in-memory)
+        shapes: [],
+
+        // selection
+        selectedIds: new Set(),
+        lastHitStack: [],
+        lastHitIndex: 0,
+        lastPointer: { x: 0, y: 0 },
+        lastClick: { x: 0, y: 0 },
+
+        // tool
+        tool: 'select', // select|pen|rect|ellipse|arrow|line|text
+        isPointerDown: false,
+        dragMode: null, // 'draw'|'move'|'resize'|'rotate'|'marquee'
+        activeHandle: null,
+        activeShapeId: null,
+        startPt: null,
+        startBox: null,
+        startAngle: 0,
+        lineResizeState: null,
+        cropModeId: null,
+        marqueeBox: null,
+        linkPreview: null,
+        alignGuides: null, // { vLines: [x,...], hLines: [y,...] } active during move drag
+
+        // view
+        canvas: { width: 1200, height: 800, bg: 'rgb(255,255,255)' },
+        grid: { enabled: false, cm: 0.5 },
+
+        // style defaults
+        style: {
+          stroke: '#111111',
+          strokeAlpha: 1,
+          strokeWidth: 3,
+          arrowHeadSize: 12,
+          fill: '#ffffff',
+          fillAlpha: 0,
+          fontSize: 18,
+          textColor: '#111111',
+          textAlpha: 1,
+          textBorderWidth: 0,
+          textBorderColor: '#111111',
+          textBorderAlpha: 1,
+          textPadding: 5,
+          textBackgroundEnabled: false,
+          textBackground: '#ffffff',
+          textBackgroundAlpha: 0,
+          textBorderEnabled: false,
+          textBorder: '#111111',
+          circleLockAspect: true,
+          imageAlpha: 1,
+          imageLockAspect: true,
+          imageBorder: '#111111',
+          imageBorderAlpha: 1,
+          imageBorderWidth: 0,
+          imageFlipH: false,
+          imageFlipV: false,
+          imageTransparencyEnabled: false,
+          imageTransparencyColor: '#ffffff',
+          imageTransparencyTolerance: 0
+        },
+
+        // history (per drawing, stored in record)
+        history: [],
+        historyIndex: -1,
+
+        // autosave
+        dirty: false,
+        saving: false
+      }
+
+      const defaultDrawingName = (n) => `drawing_${n}`
+
+      const newDrawingRecord = (name) => ({
+        id: uuid(),
+        name,
+        shapes: [],
+        width: 1200,
+        height: 800,
+        canvasBg: 'rgb(255,255,255)',
+        gridEnabled: false,
+        thumbnail: '',
+        updatedAt: now(),
+        history: [],
+        historyIndex: -1
+      })
+
+      /* =========================
+         Shape model
+      =========================
+        Common:
+          id, type, x,y,w,h, rot, style{stroke,strokeAlpha,strokeWidth,arrowHeadSize,fill,fillAlpha}
+        Types:
+          pen: points[{x,y}], closed? (no), bbox computed
+          rect: x,y,w,h
+          ellipse: x,y,w,h
+          line: x1,y1,x2,y2 (also bbox)
+          arrow: x1,y1,x2,y2
+          text: x,y,w,h, text, fontSize, fontFamily
+          image: x,y,w,h, src
+          group: childrenIds[]
+      ========================= */
+
+      const shapeDefaults = () => ({
+        id: uuid(),
+        type: 'rect',
+        x: 100, y: 100, w: 200, h: 120,
+        rot: 0,
+        style: {
+          stroke: app.style.stroke,
+          strokeAlpha: app.style.strokeAlpha,
+          strokeWidth: app.style.strokeWidth,
+          arrowHeadSize: app.style.arrowHeadSize,
+          fill: app.style.fill,
+          fillAlpha: app.style.fillAlpha
+        }
+      })
+
+      const rgbaFromHexAlpha = (hex, a) => {
+        const h = hex.replace('#', '').trim()
+        const r = parseInt(h.slice(0, 2), 16)
+        const g = parseInt(h.slice(2, 4), 16)
+        const b = parseInt(h.slice(4, 6), 16)
+        return `rgba(${r},${g},${b},${clamp(a, 0, 1)})`
+      }
+
+      const rgbStringToHex = (rgb) => {
+        const m = String(rgb || '').trim().match(/^rgb\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*\)$/i)
+        if (!m) return '#ffffff'
+        const r = clamp(Number(m[1]), 0, 255)
+        const g = clamp(Number(m[2]), 0, 255)
+        const b = clamp(Number(m[3]), 0, 255)
+        const toHex = (n) => n.toString(16).padStart(2, '0')
+        return `#${toHex(r)}${toHex(g)}${toHex(b)}`
+      }
+
+      const hexToRgbString = (hex) => {
+        const h = String(hex || '#ffffff').replace('#', '').trim()
+        const r = parseInt(h.slice(0, 2), 16)
+        const g = parseInt(h.slice(2, 4), 16)
+        const b = parseInt(h.slice(4, 6), 16)
+        return `rgb(${isNaN(r) ? 255 : r},${isNaN(g) ? 255 : g},${isNaN(b) ? 255 : b})`
+      }
+
+      const getShapeById = (id) => app.shapes.find(s => s.id === id) || null
+
+      const computeBBoxForPen = (pts) => {
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
+        for (const p of pts) {
+          minX = Math.min(minX, p.x)
+          minY = Math.min(minY, p.y)
+          maxX = Math.max(maxX, p.x)
+          maxY = Math.max(maxY, p.y)
+        }
+        if (!isFinite(minX)) return { x: 0, y: 0, w: 0, h: 0 }
+        return { x: minX, y: minY, w: maxX - minX, h: maxY - minY }
+      }
+
+      const rotatePoint = (x, y, cx, cy, rad) => {
+        const dx = x - cx
+        const dy = y - cy
+        const cos = Math.cos(rad)
+        const sin = Math.sin(rad)
+        return {
+          x: cx + dx * cos - dy * sin,
+          y: cy + dx * sin + dy * cos
+        }
+      }
+
+      const bboxFromPoints = (pts) => {
+        if (!pts.length) return { x: 0, y: 0, w: 0, h: 0 }
+        const xs = pts.map(p => p.x)
+        const ys = pts.map(p => p.y)
+        const minX = Math.min(...xs)
+        const minY = Math.min(...ys)
+        const maxX = Math.max(...xs)
+        const maxY = Math.max(...ys)
+        return { x: minX, y: minY, w: maxX - minX, h: maxY - minY }
+      }
+
+      const rotateBBox = (bb, deg) => {
+        if (!bb || !bb.w && !bb.h) return bb || { x: 0, y: 0, w: 0, h: 0 }
+        const a = ((deg || 0) % 360) * Math.PI / 180
+        if (!a) return bb
+        const cx = bb.x + bb.w / 2
+        const cy = bb.y + bb.h / 2
+        const corners = [
+          rotatePoint(bb.x, bb.y, cx, cy, a),
+          rotatePoint(bb.x + bb.w, bb.y, cx, cy, a),
+          rotatePoint(bb.x + bb.w, bb.y + bb.h, cx, cy, a),
+          rotatePoint(bb.x, bb.y + bb.h, cx, cy, a)
+        ]
+        return bboxFromPoints(corners)
+      }
+
+      const shapeBBox = (s, opts = {}) => {
+        const { includeRotation = true } = opts
+        let bb
+        if (s.type === 'pen') {
+          bb = computeBBoxForPen(s.points || [])
+        } else if (s.type === 'line') {
+          const sw = Number((s.style && s.style.strokeWidth) ?? 3)
+          const hw = sw / 2
+          const x = Math.min(s.x1, s.x2) - hw
+          const y = Math.min(s.y1, s.y2) - hw
+          const w = Math.abs(s.x2 - s.x1) + sw
+          const h = Math.abs(s.y2 - s.y1) + sw
+          bb = { x, y, w, h }
+        } else if (s.type === 'text') {
+          bb = { x: s.x, y: s.y, w: s.w, h: s.h }
+        } else if (s.type === 'group') {
+          const kids = (s.childrenIds || []).map(getShapeById).filter(Boolean)
+          if (!kids.length) return { x: 0, y: 0, w: 0, h: 0 }
+          const boxes = kids.map(k => shapeBBox(k))
+          const minX = Math.min(...boxes.map(b => b.x))
+          const minY = Math.min(...boxes.map(b => b.y))
+          const maxX = Math.max(...boxes.map(b => b.x + b.w))
+          const maxY = Math.max(...boxes.map(b => b.y + b.h))
+          bb = { x: minX, y: minY, w: maxX - minX, h: maxY - minY }
+        } else {
+          bb = { x: s.x, y: s.y, w: s.w, h: s.h }
+        }
+
+        if (!includeRotation || !s.rot) return bb
+        return rotateBBox(bb, s.rot)
+      }
+
+      const moveLineBy = (s, dx, dy) => {
+        s.x1 += dx
+        s.y1 += dy
+        s.x2 += dx
+        s.y2 += dy
+      }
+
+      const moveShapeBy = (s, dx, dy) => {
+        if (!s) return
+        if (s.type === 'line') {
+          moveLineBy(s, dx, dy)
+          return
+        }
+        if (s.type === 'pen') {
+          s.points = (s.points || []).map(pt => ({ x: pt.x + dx, y: pt.y + dy }))
+          return
+        }
+        s.x += dx
+        s.y += dy
+      }
+
+      const shapeBBoxLocal = (s) => {
+        if (s.type === 'pen') return computeBBoxForPen(s.points || [])
+        if (s.type === 'line') {
+          const sw = Number((s.style && s.style.strokeWidth) ?? 3)
+          const hw = sw / 2
+          const x = Math.min(s.x1, s.x2) - hw
+          const y = Math.min(s.y1, s.y2) - hw
+          const w = Math.abs(s.x2 - s.x1) + sw
+          const h = Math.abs(s.y2 - s.y1) + sw
+          return { x, y, w, h }
+        }
+        if (s.type === 'text') return { x: s.x, y: s.y, w: s.w, h: s.h }
+        if (s.type === 'group') {
+          const kids = (s.childrenIds || []).map(getShapeById).filter(Boolean)
+          if (!kids.length) return { x: 0, y: 0, w: 0, h: 0 }
+          const boxes = kids.map(shapeBBox)
+          const minX = Math.min(...boxes.map(b => b.x))
+          const minY = Math.min(...boxes.map(b => b.y))
+          const maxX = Math.max(...boxes.map(b => b.x + b.w))
+          const maxY = Math.max(...boxes.map(b => b.y + b.h))
+          return { x: minX, y: minY, w: maxX - minX, h: maxY - minY }
+        }
+        return { x: s.x, y: s.y, w: s.w, h: s.h }
+      }
+
+      const normalizeRect = (x1, y1, x2, y2) => {
+        const x = Math.min(x1, x2)
+        const y = Math.min(y1, y2)
+        const w = Math.abs(x2 - x1)
+        const h = Math.abs(y2 - y1)
+        return { x, y, w, h }
+      }
+
+      const isLinkableTargetShape = (shape, excludeShapeId = null) => {
+        if (!shape) return false
+        if (shape.id === excludeShapeId) return false
+        if (shape.type === 'group') return false
+        return true
+      }
+
+      const closestPointOnBox = (bb, x, y) => {
+        return {
+          x: clamp(x, bb.x, bb.x + bb.w),
+          y: clamp(y, bb.y, bb.y + bb.h)
+        }
+      }
+
+      const makeAnchorFromPointOnShape = (shape, x, y) => {
+        const bb = shapeBBox(shape)
+        const w = Math.max(1, bb.w)
+        const h = Math.max(1, bb.h)
+        return {
+          u: clamp((x - bb.x) / w, 0, 1),
+          v: clamp((y - bb.y) / h, 0, 1)
+        }
+      }
+
+      const resolveAnchorOnShape = (shape, anchor) => {
+        const bb = shapeBBox(shape)
+        const u = clamp(Number(anchor?.u ?? 0.5), 0, 1)
+        const v = clamp(Number(anchor?.v ?? 0.5), 0, 1)
+        return {
+          x: bb.x + bb.w * u,
+          y: bb.y + bb.h * v
+        }
+      }
+
+      const findNearbyLinkTarget = (x, y, excludeShapeId = null) => {
+        let best = null
+        for (const s of app.shapes) {
+          if (!isLinkableTargetShape(s, excludeShapeId)) continue
+          const bb = shapeBBox(s)
+          const p = closestPointOnBox(bb, x, y)
+          const dist = Math.hypot(p.x - x, p.y - y)
+          if (dist > LINK_ATTACH_RADIUS) continue
+          if (!best || dist < best.distance) {
+            best = {
+              targetId: s.id,
+              point: p,
+              anchor: makeAnchorFromPointOnShape(s, p.x, p.y),
+              distance: dist
+            }
+          }
+        }
+        return best
+      }
+
+      const ensureLineLinks = (line) => {
+        if (!line.links || typeof line.links !== 'object') line.links = {}
+        return line.links
+      }
+
+      const cleanupLineLinks = (line) => {
+        if (!line || !line.links) return
+        if (!line.links.start) delete line.links.start
+        if (!line.links.end) delete line.links.end
+        if (!line.links.start && !line.links.end) delete line.links
+      }
+
+      const clearLineLinks = (line) => {
+        if (!line || line.type !== 'line') return
+        delete line.links
+      }
+
+      const setLineEndpointLink = (line, endpoint, candidate) => {
+        if (!line || line.type !== 'line' || !candidate?.targetId || !candidate?.anchor) return
+        const links = ensureLineLinks(line)
+        links[endpoint] = { targetId: candidate.targetId, anchor: structuredClone(candidate.anchor) }
+        if (endpoint === 'start') {
+          line.x1 = candidate.point.x
+          line.y1 = candidate.point.y
+        } else {
+          line.x2 = candidate.point.x
+          line.y2 = candidate.point.y
+        }
+      }
+
+      const syncLineEndpointToLink = (line, endpoint) => {
+        if (!line || line.type !== 'line') return false
+        const link = line.links?.[endpoint]
+        if (!link?.targetId || !link?.anchor) return false
+        const target = getShapeById(link.targetId)
+        if (!target) {
+          line.links[endpoint] = null
+          cleanupLineLinks(line)
+          return false
+        }
+        const p = resolveAnchorOnShape(target, link.anchor)
+        if (endpoint === 'start') {
+          line.x1 = p.x
+          line.y1 = p.y
+        } else {
+          line.x2 = p.x
+          line.y2 = p.y
+        }
+        return true
+      }
+
+      const clearLinksForTargetIds = (targetIds) => {
+        if (!targetIds || !targetIds.size) return
+        for (const s of app.shapes) {
+          if (s.type !== 'line' || !s.links) continue
+          if (s.links.start && targetIds.has(s.links.start.targetId)) s.links.start = null
+          if (s.links.end && targetIds.has(s.links.end.targetId)) s.links.end = null
+          cleanupLineLinks(s)
+        }
+      }
+
+      const updateLinkedEndpointsForTargets = (targetIds) => {
+        if (!targetIds || !targetIds.size) return
+        for (const s of app.shapes) {
+          if (s.type !== 'line' || !s.links) continue
+          const startTarget = s.links.start?.targetId
+          const endTarget = s.links.end?.targetId
+          if (startTarget && targetIds.has(startTarget)) syncLineEndpointToLink(s, 'start')
+          if (endTarget && targetIds.has(endTarget)) syncLineEndpointToLink(s, 'end')
+        }
+      }
+
+      /* =========================
+         Rendering (SVG-native)
+      ========================= */
+      const svg = $('#svg')
+      const paper = $('#paper')
+
+      const updateStageReservedSpace = () => {
+        const stageEl = $('#stage')
+        const panelEl = $('#propsPanel')
+        if (!stageEl || !panelEl) return
+
+        const panelWidth = panelEl.offsetWidth || 0
+        const panelRight = Number.parseFloat(getComputedStyle(panelEl).right || '0') || 0
+        const panelGap = 12
+        const reserve = Math.max(0, Math.round(panelWidth + panelRight + panelGap))
+        stageEl.style.setProperty('--propsReserve', reserve + 'px')
+      }
+
+      const setPaperSize = (w, h) => {
+        const stageEl = $('#stage')
+        stageEl.style.setProperty('--paperW', w + 'px')
+        updateStageReservedSpace()
+        paper.style.width = w + 'px'
+        paper.style.height = h + 'px'
+        svg.setAttribute('viewBox', `0 0 ${w} ${h}`)
+        svg.setAttribute('width', w)
+        svg.setAttribute('height', h)
+      }
+
+      const ensureDefs = () => {
+        let defs = svg.querySelector('defs')
+        if (!defs) {
+          defs = svgEl('defs')
+          svg.prepend(defs)
+        }
+      }
+
+      const applyStyleAttrs = (el, s) => {
+        const st = s.style || {}
+        const stroke = rgbaFromHexAlpha(st.stroke || '#111111', st.strokeAlpha ?? 1)
+        const fill = rgbaFromHexAlpha(st.fill || '#ffffff', st.fillAlpha ?? 0)
+        el.setAttribute('stroke', stroke)
+        el.setAttribute('stroke-width', st.strokeWidth ?? 3)
+        el.setAttribute('fill', fill)
+        el.setAttribute('stroke-linecap', 'round')
+        el.setAttribute('stroke-linejoin', 'round')
+        el.setAttribute('vector-effect', 'non-scaling-stroke')
+      }
+
+      const lineToArrowPath = (s) => {
+        const st = s.style || {}
+        const x1 = s.x1, y1 = s.y1, x2 = s.x2, y2 = s.y2
+        const strokeWidth = Number(st.strokeWidth ?? 3)
+        const arrowHeadSize = Math.max(0, Number(st.arrowHeadSize ?? 0))
+        
+        // Direction vector
+        const dx = x2 - x1, dy = y2 - y1
+        const lineLen = Math.sqrt(dx * dx + dy * dy)
+        
+        if (lineLen === 0) {
+          // Degenerate case: point
+          return `M ${x1} ${y1}`
+        }
+        
+        // Unit direction vector
+        const ux = dx / lineLen, uy = dy / lineLen
+        // Unit perpendicular vector
+        const px = -uy, py = ux
+        
+        // Half-width of line
+        const hw = strokeWidth / 2
+        
+        // Arrow head start distance from endpoint
+        const arrowLen = Math.min(arrowHeadSize, lineLen * 0.5)
+        const arrowStartDist = lineLen - arrowLen
+        
+        // Point where arrow transitions to wings
+        const arrowX = x1 + ux * arrowStartDist
+        const arrowY = y1 + uy * arrowStartDist
+        
+        // Rectangle corners for line body
+        const bodyTopLeftX = x1 + px * hw, bodyTopLeftY = y1 + py * hw
+        const bodyBottomLeftX = x1 - px * hw, bodyBottomLeftY = y1 - py * hw
+        const bodyTopRightX = arrowX + px * hw, bodyTopRightY = arrowY + py * hw
+        const bodyBottomRightX = arrowX - px * hw, bodyBottomRightY = arrowY - py * hw
+        
+        // Wing spread at arrow head
+        const wingSpread = arrowHeadSize > 0 ? arrowHeadSize * 0.5 : 0
+        const topWingX = arrowX + px * (hw + wingSpread)
+        const topWingY = arrowY + py * (hw + wingSpread)
+        const bottomWingX = arrowX - px * (hw + wingSpread)
+        const bottomWingY = arrowY - py * (hw + wingSpread)
+        
+        // Path: goes around rectangle body, then fans out for arrow wings to tip
+        const pathData = [
+          `M ${bodyTopLeftX} ${bodyTopLeftY}`,
+          `L ${bodyTopRightX} ${bodyTopRightY}`,
+          `L ${topWingX} ${topWingY}`,
+          `L ${x2} ${y2}`,
+          `L ${bottomWingX} ${bottomWingY}`,
+          `L ${bodyBottomRightX} ${bodyBottomRightY}`,
+          `L ${bodyBottomLeftX} ${bodyBottomLeftY}`,
+          `Z`
+        ].join(' ')
+        
+        return pathData
+      }
+
+      const shapeToSvg = (s) => {
+        const g = svgEl('g', { 'data-id': s.id, class: 'shape' })
+        // rotation about center of bbox
+        const bb = shapeBBoxLocal(s)
+        const cx = bb.x + bb.w / 2
+        const cy = bb.y + bb.h / 2
+        const rot = s.rot || 0
+        if (rot) g.setAttribute('transform', `rotate(${rot} ${cx} ${cy})`)
+
+        let el = null
+        if (s.type === 'rect') {
+          el = svgEl('rect', { x: s.x, y: s.y, width: s.w, height: s.h, rx: 2, ry: 2 })
+          applyStyleAttrs(el, s)
+        } else if (s.type === 'ellipse') {
+          el = svgEl('ellipse', { cx: s.x + s.w / 2, cy: s.y + s.h / 2, rx: Math.abs(s.w / 2), ry: Math.abs(s.h / 2) })
+          applyStyleAttrs(el, s)
+        } else if (s.type === 'line') {
+          const pathData = lineToArrowPath(s)
+          el = svgEl('path', { d: pathData })
+          const st = s.style || {}
+          // For line/arrow paths, fill with stroke color and don't stroke the path itself
+          el.setAttribute('fill', rgbaFromHexAlpha(st.stroke || '#111111', st.strokeAlpha ?? 1))
+          el.setAttribute('stroke', 'none')
+        } else if (s.type === 'pen') {
+          const pts = s.points || []
+          const d = pts.map((p, i) => (i === 0 ? `M ${p.x} ${p.y}` : `L ${p.x} ${p.y}`)).join(' ')
+          el = svgEl('path', { d })
+          applyStyleAttrs(el, s)
+          el.setAttribute('fill', 'none')
+        } else if (s.type === 'image') {
+          const st = s.style || {}
+          const imageWrap = svgEl('g')
+          const flipH = !!(st.imageFlipH ?? app.style.imageFlipH)
+          const flipV = !!(st.imageFlipV ?? app.style.imageFlipV)
+          if (flipH || flipV) {
+            const sx = flipH ? -1 : 1
+            const sy = flipV ? -1 : 1
+            const tx = flipH ? (2 * s.x + Math.max(1, s.w)) : 0
+            const ty = flipV ? (2 * s.y + Math.max(1, s.h)) : 0
+            imageWrap.setAttribute('transform', `matrix(${sx} 0 0 ${sy} ${tx} ${ty})`)
+          }
+          const img = svgEl('image', {
+            x: s.x,
+            y: s.y,
+            width: Math.max(1, s.w),
+            height: Math.max(1, s.h),
+            href: getImageProcessedSrc(s)
+          })
+          img.setAttribute('preserveAspectRatio', 'none')
+          img.setAttribute('opacity', String(clamp(Number(st.imageAlpha ?? app.style.imageAlpha ?? 1), 0, 1)))
+          imageWrap.appendChild(img)
+
+          // Trigger async processing of transparency if needed
+          if (st.imageTransparencyEnabled) {
+            processImageTransparencyAsync(s)
+          }
+
+          // Non-destructive crop via SVG clipPath (in SVG coordinate space, independent of flip)
+          const imgCrop = s.crop || { left: 0, top: 0, right: 0, bottom: 0 }
+          const hasCrop = imgCrop.left || imgCrop.top || imgCrop.right || imgCrop.bottom
+          const visX = s.x + imgCrop.left
+          const visY = s.y + imgCrop.top
+          const visW = Math.max(1, s.w - imgCrop.left - imgCrop.right)
+          const visH = Math.max(1, s.h - imgCrop.top - imgCrop.bottom)
+
+          // Wrap image in clip if needed
+          const outerEl = svgEl('g')
+          if (hasCrop) {
+            const defsEl = svg.querySelector('defs')
+            if (defsEl) {
+              const clipId = `imgCrop-${s.id}`
+              const cp = svgEl('clipPath', { id: clipId })
+              cp.appendChild(svgEl('rect', { x: visX, y: visY, width: visW, height: visH }))
+              defsEl.appendChild(cp)
+              const clipWrapper = svgEl('g', { 'clip-path': `url(#${clipId})` })
+              clipWrapper.appendChild(imageWrap)
+              outerEl.appendChild(clipWrapper)
+            } else {
+              outerEl.appendChild(imageWrap)
+            }
+          } else {
+            outerEl.appendChild(imageWrap)
+          }
+
+          // Border drawn over the visible (crop-adjusted) area, outside the clip so it's never cut
+          const borderW = Math.max(0, Number(st.imageBorderWidth ?? app.style.imageBorderWidth ?? 0))
+          if (borderW > 0) {
+            const border = svgEl('rect', { x: visX, y: visY, width: visW, height: visH })
+            border.setAttribute('fill', 'none')
+            border.setAttribute('stroke', rgbaFromHexAlpha(st.imageBorder || app.style.imageBorder || '#111111', st.imageBorderAlpha ?? app.style.imageBorderAlpha ?? 1))
+            border.setAttribute('stroke-width', String(borderW))
+            border.setAttribute('stroke-linejoin', 'round')
+            border.setAttribute('vector-effect', 'non-scaling-stroke')
+            outerEl.appendChild(border)
+          }
+
+          el = outerEl
+        } else if (s.type === 'text') {
+          // Render optional text background, border, and text content.
+          const fontSize = s.fontSize || app.style.fontSize
+          const lineHeight = fontSize * 1.2
+          const st = s.style || {}
+          const textPadding = clamp(Number(st.textPadding ?? app.style.textPadding ?? 5), 0, 20)
+          // Snap anchors to the pixel grid to reduce sub-pixel rendering jitter.
+          const textX = Math.round(s.x + textPadding)
+          const baseY = Math.round(s.y + textPadding + fontSize)
+
+          const textWrap = svgEl('g')
+
+          // Render background if enabled (alpha > 0)
+          const bgAlpha = st.textBackgroundAlpha ?? app.style.textBackgroundAlpha ?? 0
+          if (bgAlpha > 0) {
+            const background = svgEl('rect', {
+              x: s.x,
+              y: s.y,
+              width: Math.max(0, s.w),
+              height: Math.max(0, s.h),
+              rx: 2,
+              ry: 2
+            })
+            background.setAttribute('fill', rgbaFromHexAlpha(st.textBackground || app.style.textBackground || '#ffffff', bgAlpha))
+            background.setAttribute('stroke', 'none')
+            textWrap.appendChild(background)
+          }
+
+          // Render border if enabled (width > 0)
+          const borderWidth = st.textBorderWidth ?? app.style.textBorderWidth ?? 0
+          if (borderWidth > 0) {
+            const border = svgEl('rect', {
+              x: s.x,
+              y: s.y,
+              width: Math.max(0, s.w),
+              height: Math.max(0, s.h),
+              rx: 2,
+              ry: 2
+            })
+            border.setAttribute('fill', 'none')
+            border.setAttribute('stroke', rgbaFromHexAlpha(st.textBorderColor || app.style.textBorderColor || '#111111', st.textBorderAlpha ?? app.style.textBorderAlpha ?? 1))
+            border.setAttribute('stroke-width', String(borderWidth))
+            border.setAttribute('vector-effect', 'non-scaling-stroke')
+            textWrap.appendChild(border)
+          }
+
+          const textEl = svgEl('text', { x: textX, y: baseY, 'xml:space': 'preserve' })
+          textEl.setAttribute('fill', rgbaFromHexAlpha(st.textColor || app.style.textColor || '#111111', st.textAlpha ?? app.style.textAlpha ?? 1))
+          textEl.setAttribute('font-size', fontSize)
+          textEl.setAttribute('font-family', s.fontFamily || 'inherit')
+          textEl.setAttribute('stroke', 'none')
+          const lines = String(s.text || '').split('\n')
+          lines.forEach((line, idx) => {
+            const y = Math.round(baseY + idx * lineHeight)
+            const tspan = svgEl('tspan', { x: textX, y })
+            // Use non-breaking spaces in SVG text to preserve visible indentation exactly.
+            tspan.textContent = line.replace(/ /g, '\u00A0')
+            textEl.appendChild(tspan)
+          })
+          textWrap.appendChild(textEl)
+          el = textWrap
+        } else if (s.type === 'group') {
+          // group is logical; render children in place (no extra visuals)
+          // (We still create a g wrapper so selection can target group)
+          el = svgEl('g')
+          const kids = (s.childrenIds || []).map(getShapeById).filter(Boolean)
+          for (const k of kids) {
+            const kidNode = shapeToSvg(k)
+            el.appendChild(kidNode)
+          }
+        } else {
+          el = svgEl('g')
+        }
+
+        // Hit target (improves selection for thin strokes)
+        const hit = svgEl('rect', { class: 'hit', x: bb.x - 6, y: bb.y - 6, width: bb.w + 12, height: bb.h + 12 })
+        g.appendChild(el)
+        g.appendChild(hit)
+        return g
+      }
+
+      const renderSelectionOverlay = () => {
+        // Remove old overlay
+        $$('.selOverlay', svg).forEach(n => n.remove())
+
+        const drawLinkPreviewOverlay = (overlay) => {
+          const preview = app.linkPreview
+          if (!preview) return
+          const target = getShapeById(preview.targetId)
+          if (!target) return
+          const bb = shapeBBox(target)
+
+          const box = svgEl('rect', {
+            x: bb.x,
+            y: bb.y,
+            width: bb.w,
+            height: bb.h
+          })
+          box.setAttribute('fill', 'none')
+          box.setAttribute('stroke', 'rgba(76, 217, 100, 0.95)')
+          box.setAttribute('stroke-width', '1.5')
+          box.setAttribute('stroke-dasharray', '4 3')
+          box.setAttribute('vector-effect', 'non-scaling-stroke')
+          overlay.appendChild(box)
+
+          const dot = svgEl('circle', { cx: preview.point.x, cy: preview.point.y, r: 5 })
+          dot.setAttribute('fill', 'rgba(76, 217, 100, 0.95)')
+          dot.setAttribute('stroke', 'rgba(0,0,0,0.55)')
+          dot.setAttribute('stroke-width', '1')
+          dot.setAttribute('vector-effect', 'non-scaling-stroke')
+          overlay.appendChild(dot)
+        }
+
+        // Render marquee if active
+        if (app.marqueeBox) {
+          const overlay = svgEl('g', { class: 'selOverlay' })
+          const mb = app.marqueeBox
+          const box = svgEl('rect', { class: 'selBox', x: mb.x, y: mb.y, width: mb.w, height: mb.h })
+          overlay.appendChild(box)
+          drawLinkPreviewOverlay(overlay)
+          svg.appendChild(overlay)
+          return
+        }
+
+        if (!app.selectedIds.size && !app.linkPreview) return
+
+        const overlay = svgEl('g', { class: 'selOverlay' })
+        for (const id of app.selectedIds) {
+          const s = getShapeById(id)
+          if (!s) continue
+
+          if (app.cropModeId === id && s.type === 'image') {
+            // Crop mode: show visible-area selection box + 4 mid-edge handles + faint full-image outline
+            const crop = s.crop || { left: 0, top: 0, right: 0, bottom: 0 }
+            const visX = s.x + crop.left
+            const visY = s.y + crop.top
+            const visW = Math.max(1, s.w - crop.left - crop.right)
+            const visH = Math.max(1, s.h - crop.top - crop.bottom)
+
+            // Faint dashed outline of full image extent
+            const fullOutline = svgEl('rect', { x: s.x, y: s.y, width: s.w, height: s.h })
+            fullOutline.setAttribute('fill', 'none')
+            fullOutline.setAttribute('stroke', 'rgba(78,161,255,0.35)')
+            fullOutline.setAttribute('stroke-width', '1')
+            fullOutline.setAttribute('stroke-dasharray', '5 4')
+            fullOutline.setAttribute('vector-effect', 'non-scaling-stroke')
+            overlay.appendChild(fullOutline)
+
+            // Solid blue selection box over visible (cropped) area
+            const visBox = svgEl('rect', { class: 'selBox', x: visX, y: visY, width: visW, height: visH })
+            overlay.appendChild(visBox)
+
+            // 4 mid-edge crop drag handles
+            const cropHandles = [
+              { k: 'crop-n', x: visX + visW / 2, y: visY },
+              { k: 'crop-s', x: visX + visW / 2, y: visY + visH },
+              { k: 'crop-w', x: visX,             y: visY + visH / 2 },
+              { k: 'crop-e', x: visX + visW,      y: visY + visH / 2 }
+            ]
+            for (const h of cropHandles) {
+              const r = svgEl('rect', { class: 'handle', 'data-handle': h.k, x: h.x - 5, y: h.y - 5, width: 10, height: 10, rx: 2, ry: 2 })
+              overlay.appendChild(r)
+            }
+          } else {
+            // Normal selection: corner handles + rotate handle
+            const bb = shapeBBox(s)
+            const box = svgEl('rect', { class: 'selBox', x: bb.x, y: bb.y, width: bb.w, height: bb.h })
+            overlay.appendChild(box)
+
+            const hs = [
+              { k: 'nw', x: bb.x, y: bb.y },
+              { k: 'ne', x: bb.x + bb.w, y: bb.y },
+              { k: 'se', x: bb.x + bb.w, y: bb.y + bb.h },
+              { k: 'sw', x: bb.x, y: bb.y + bb.h }
+            ]
+            for (const h of hs) {
+              const r = svgEl('rect', { class: 'handle', 'data-handle': h.k, x: h.x - 5, y: h.y - 5, width: 10, height: 10, rx: 2, ry: 2 })
+              overlay.appendChild(r)
+            }
+            const rot = svgEl('circle', { class: 'handle', 'data-handle': 'rot', cx: bb.x + bb.w / 2, cy: bb.y - 18, r: 6 })
+            overlay.appendChild(rot)
+            const link = svgEl('line', { x1: bb.x + bb.w / 2, y1: bb.y, x2: bb.x + bb.w / 2, y2: bb.y - 18, stroke: 'rgba(78,161,255,0.8)', 'stroke-width': 1.5, 'vector-effect': 'non-scaling-stroke' })
+            overlay.appendChild(link)
+          }
+        }
+        drawLinkPreviewOverlay(overlay)
+        svg.appendChild(overlay)
+
+        // Draw alignment guide lines on top of everything
+        const guides = app.alignGuides
+        if (guides && (guides.activeVLines?.length || guides.activeHLines?.length)) {
+          const guideOverlay = svgEl('g', { class: 'selOverlay alignGuides' })
+          const canvasH = app.canvas.height
+          const canvasW = app.canvas.width
+          for (const g of (guides.activeVLines || [])) {
+            const alpha = g.snapped ? 0.90 : 0.40
+            const line = svgEl('line', { x1: g.x, y1: 0, x2: g.x, y2: canvasH })
+            line.setAttribute('stroke', `rgba(255, 80, 155, ${alpha})`)
+            line.setAttribute('stroke-width', g.snapped ? '1.5' : '1')
+            line.setAttribute('stroke-dasharray', '6 4')
+            line.setAttribute('vector-effect', 'non-scaling-stroke')
+            guideOverlay.appendChild(line)
+          }
+          for (const g of (guides.activeHLines || [])) {
+            const alpha = g.snapped ? 0.90 : 0.40
+            const line = svgEl('line', { x1: 0, y1: g.y, x2: canvasW, y2: g.y })
+            line.setAttribute('stroke', `rgba(70, 185, 255, ${alpha})`)
+            line.setAttribute('stroke-width', g.snapped ? '1.5' : '1')
+            line.setAttribute('stroke-dasharray', '6 4')
+            line.setAttribute('vector-effect', 'non-scaling-stroke')
+            guideOverlay.appendChild(line)
+          }
+          svg.appendChild(guideOverlay)
+        }
+      }
+
+      const render = () => {
+        ensureDefs()
+        svg.style.background = app.canvas.bg
+        setPaperSize(app.canvas.width, app.canvas.height)
+
+        // Clear all except defs
+        const defs = svg.querySelector('defs')
+        svg.innerHTML = ''
+        if (defs) svg.appendChild(defs)
+        if (defs) defs.innerHTML = ''
+
+        // Build set of all child IDs from groups to avoid rendering them twice
+        const groupChildIds = new Set()
+        for (const s of app.shapes) {
+          if (s.type === 'group' && s.childrenIds) {
+            for (const cid of s.childrenIds) {
+              groupChildIds.add(cid)
+            }
+          }
+        }
+
+        // Render shapes in order (layers), skipping children that belong to groups
+        for (const s of app.shapes) {
+          // Skip rendering shapes that are children of groups (they're rendered within the group)
+          if (groupChildIds.has(s.id)) continue
+
+          // groups are logical; still render as wrapper so selection can target group
+          const node = shapeToSvg(s)
+          if (app.selectedIds.has(s.id)) node.classList.add('selected')
+          svg.appendChild(node)
+        }
+
+        renderSelectionOverlay()
+        updateHud()
+      }
+
+      /* =========================
+         History (undo/redo)
+      ========================= */
+      const snapshot = () => ({
+        shapes: structuredClone(app.shapes),
+        selectedIds: Array.from(app.selectedIds),
+        canvas: structuredClone(app.canvas)
+      })
+
+      const restoreSnapshot = (snap) => {
+        app.shapes = structuredClone(snap.shapes || [])
+        app.selectedIds = new Set(snap.selectedIds || [])
+        app.canvas = structuredClone(snap.canvas || app.canvas)
+        render()
+        markDirty()
+      }
+
+      const pushHistory = () => {
+        // truncate redo
+        if (app.historyIndex < app.history.length - 1) {
+          app.history = app.history.slice(0, app.historyIndex + 1)
+        }
+        app.history.push(snapshot())
+        app.historyIndex = app.history.length - 1
+        syncHistoryToRecord()
+      }
+
+      const syncHistoryToRecord = () => {
+        if (!app.drawing) return
+        app.drawing.history = app.history
+        app.drawing.historyIndex = app.historyIndex
+      }
+
+      const undo = () => {
+        if (app.historyIndex <= 0) return
+        app.historyIndex -= 1
+        const snap = app.history[app.historyIndex]
+        restoreSnapshot(snap)
+        syncHistoryToRecord()
+        toast('Undo')
+      }
+
+      const redo = () => {
+        if (app.historyIndex >= app.history.length - 1) return
+        app.historyIndex += 1
+        const snap = app.history[app.historyIndex]
+        restoreSnapshot(snap)
+        syncHistoryToRecord()
+        toast('Redo')
+      }
+
+      /* =========================
+         Autosave + thumbnails
+      ========================= */
+      const setSaveState = (state) => {
+        const el = $('#saveState')
+        const hud = $('#hudSave')
+        if (state === 'saving') {
+          el.textContent = 'Saving...'
+          hud.textContent = 'saving'
+        } else if (state === 'dirty') {
+          el.textContent = 'Unsaved'
+          hud.textContent = 'pending'
+        } else {
+          el.textContent = 'Saved'
+          hud.textContent = 'idle'
+        }
+      }
+
+      const markDirty = () => {
+        app.dirty = true
+        setSaveState('dirty')
+        debouncedAutosave()
+      }
+
+      // const generateThumbnail = async () => {
+      //   // Render current SVG into an image, then draw to offscreen canvas at fixed width 150px
+      //   const targetW = 150
+      //   const w = app.canvas.width
+      //   const h = app.canvas.height
+      //   const scale = targetW / w
+      //   const targetH = Math.max(1, Math.round(h * scale))
+
+      //   const svgText = exportSvgString({ includeBg: true })
+      //   const svgBlob = new Blob([svgText], { type: 'image/svg+xml;charset=utf-8' })
+      //   const url = URL.createObjectURL(svgBlob)
+
+      //   const img = new Image()
+      //   img.decoding = 'async'
+      //   img.crossOrigin = 'anonymous'
+
+      //   await new Promise((resolve, reject) => {
+      //     img.onload = () => resolve(true)
+      //     img.onerror = () => reject(new Error('Thumbnail image load failed'))
+      //     img.src = url
+      //   })
+
+      //   const c = document.createElement('canvas')
+      //   c.width = targetW
+      //   c.height = targetH
+      //   const ctx = c.getContext('2d')
+      //   ctx.clearRect(0, 0, c.width, c.height)
+      //   ctx.drawImage(img, 0, 0, targetW, targetH)
+
+      //   URL.revokeObjectURL(url)
+      //   return c.toDataURL('image/png')
+      // }
+      const generateThumbnail = async () => {
+        if (document.fonts && document.fonts.ready) {
+          try { await document.fonts.ready } catch {}
+        }
+
+        const targetW = 150
+        const w = app.canvas.width
+        const h = app.canvas.height
+        const scale = targetW / w
+        const targetH = Math.max(1, Math.round(h * scale))
+
+        // Clone the live SVG DOM so we can safely tweak it for serialization
+        const svgNode = svg.cloneNode(true)
+
+        // Ensure required namespaces for standalone SVG
+        svgNode.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
+        svgNode.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink')
+        svgNode.setAttribute('width', String(w))
+        svgNode.setAttribute('height', String(h))
+        svgNode.setAttribute('viewBox', `0 0 ${w} ${h}`)
+
+        // Remove selection overlay / editor-only visuals from thumbnail
+        svgNode.querySelectorAll('.selOverlay').forEach(n => n.remove())
+        svgNode.querySelectorAll('.hit').forEach(n => n.remove())
+
+        // Make sure background is included (your live SVG uses CSS background)
+        // Put a rect as the first drawable element (after <defs> if present).
+        const bg = document.createElementNS('http://www.w3.org/2000/svg', 'rect')
+        bg.setAttribute('x', '0')
+        bg.setAttribute('y', '0')
+        bg.setAttribute('width', String(w))
+        bg.setAttribute('height', String(h))
+        bg.setAttribute('fill', app.canvas.bg || 'rgb(255,255,255)')
+
+        const defs = svgNode.querySelector('defs')
+        if (defs && defs.parentNode === svgNode) {
+          svgNode.insertBefore(bg, defs.nextSibling)
+        } else {
+          svgNode.insertBefore(bg, svgNode.firstChild)
+        }
+
+        // Serialize SVG DOM -> Blob URL -> Image -> Canvas -> PNG data URL
+        const xml = new XMLSerializer().serializeToString(svgNode)
+        const svgText = `<?xml version='1.0' encoding='UTF-8'?>\n${xml}`
+        const blob = new Blob([svgText], { type: 'image/svg+xml;charset=utf-8' })
+        const url = URL.createObjectURL(blob)
+
+        const img = new Image()
+        img.decoding = 'async'
+
+        try {
+          await new Promise((resolve, reject) => {
+            img.onload = () => resolve(true)
+            img.onerror = () => reject(new Error('Thumbnail image load failed'))
+            img.src = url
+          })
+
+          await img.decode().catch(() => {})
+
+          const c = document.createElement('canvas')
+          c.width = targetW
+          c.height = targetH
+          const ctx = c.getContext('2d')
+          ctx.clearRect(0, 0, c.width, c.height)
+          ctx.drawImage(img, 0, 0, targetW, targetH)
+
+          return c.toDataURL('image/png')
+        } finally {
+          URL.revokeObjectURL(url)
+        }
+      }
+
+      const saveToDb = async () => {
+        if (!app.db || !app.drawing) return
+        if (!app.dirty) return
+        if (app.saving) return
+
+        app.saving = true
+        setSaveState('saving')
+
+        try {
+          // Update record
+          app.drawing.name = $('#drawingName').value.trim() || app.drawing.name
+          app.drawing.shapes = structuredClone(app.shapes)
+          app.drawing.width = app.canvas.width
+          app.drawing.height = app.canvas.height
+          app.drawing.canvasBg = app.canvas.bg
+          app.drawing.gridEnabled = !!app.grid.enabled
+          app.drawing.updatedAt = now()
+          syncHistoryToRecord()
+
+          // Thumbnail (debounced separately, but we also ensure it exists)
+          try {
+            app.drawing.thumbnail = await generateThumbnail()
+          } catch (e) {
+            console.log(e)
+          }
+
+          await idbPut(app.db, app.drawing)
+
+          // Leave the name field so shortcuts work again - not used (allow slow typers to finish w/o leaving the input field)
+          // const nameEl = $('#drawingName')
+          // if (document.activeElement === nameEl) nameEl.blur()
+
+          app.dirty = false
+          setSaveState('saved')
+          await refreshGallery()
+        } catch (e) {
+          console.error(e)
+          toast('Save failed (see console)')
+          setSaveState('dirty')
+        } finally {
+          app.saving = false
+        }
+      }
+
+      const debouncedAutosave = debounce(async () => {
+        // Generate thumbnail on significant change (debounced 500ms)
+        try {
+          if (app.drawing) app.drawing.thumbnail = await generateThumbnail()
+        } catch (e) {
+          console.error('Thumbnail generation failed:', e)
+        }
+        await saveToDb()
+      }, 3000) // was 500ms, but increased to 3s to reduce CPU load
+
+      /* =========================
+         Gallery
+      ========================= */
+      const refreshGallery = async () => {
+        if (!app.db) return
+        const list = await idbList(app.db)
+        const el = $('#gallery')
+        el.innerHTML = ''
+
+        for (const rec of list) {
+          const card = document.createElement('div')
+          card.className = 'card'
+          card.dataset.id = rec.id
+
+          // Highlight active drawing
+          card.classList.toggle('active', rec.id === app.activeId)
+
+          const thumb = document.createElement('div')
+          thumb.className = 'thumb'
+          const img = document.createElement('img')
+          img.alt = rec.name
+          // img.src = rec.thumbnail || ''
+          img.src = rec.thumbnail ? `${rec.thumbnail}#${rec.updatedAt || 0}` : ''
+          thumb.appendChild(img)
+
+          const meta = document.createElement('div')
+          meta.className = 'cardMeta'
+          const name = document.createElement('div')
+          name.className = 'cardName'
+          name.textContent = rec.name || rec.id
+          const time = document.createElement('div')
+          time.className = 'cardTime'
+          time.textContent = fmtTime(rec.updatedAt || 0)
+
+          const actions = document.createElement('div')
+          actions.className = 'cardActions'
+          const dupBtn = document.createElement('button')
+          dupBtn.className = 'btn'
+          dupBtn.textContent = 'Clone'
+          const delBtn = document.createElement('button')
+          delBtn.className = 'btn danger'
+          delBtn.textContent = 'Delete'
+
+          actions.appendChild(dupBtn)
+          actions.appendChild(delBtn)
+
+          meta.appendChild(name)
+          meta.appendChild(time)
+          meta.appendChild(actions)
+
+          card.appendChild(thumb)
+          card.appendChild(meta)
+          el.appendChild(card)
+
+          const open = async () => loadDrawing(rec.id)
+          thumb.addEventListener('click', open)
+          dupBtn.addEventListener('click', async (ev) => {
+            ev.stopPropagation()
+            await duplicateDrawing(rec.id)
+          })
+          delBtn.addEventListener('click', async (ev) => {
+            ev.stopPropagation()
+            await deleteDrawing(rec.id)
+          })
+        }
+      }
+
+      const loadDrawing = async (id, opts = {}) => {
+        const { silent = false } = opts
+        if (!app.db) return
+        // Save current if dirty
+        await saveToDb()
+
+        const rec = await idbGet(app.db, id)
+        if (!rec) return
+
+        app.activeId = rec.id
+        app.drawing = rec
+        app.shapes = structuredClone(rec.shapes || [])
+        app.canvas.width = rec.width || 1200
+        app.canvas.height = rec.height || 800
+        app.canvas.bg = rec.canvasBg || 'rgb(255,255,255)'
+        app.grid.enabled = !!rec.gridEnabled
+        app.selectedIds = new Set()
+        app.history = rec.history || []
+        app.historyIndex = typeof rec.historyIndex === 'number' ? rec.historyIndex : -1
+
+        // If no history, seed it
+        if (!app.history.length) {
+          pushHistory()
+        }
+
+        $('#drawingName').value = rec.name || 'drawing'
+        app.dirty = false
+        setSaveState('saved')
+        applyGridUi()
+        render()
+        if (!silent) toast('Loaded')
+
+        await refreshGallery()
+      }
+
+      const createNewDrawing = async () => {
+        if (!app.db) return
+        await saveToDb()
+
+        const list = await idbList(app.db)
+        const n = list.length + 1
+        const rec = newDrawingRecord(defaultDrawingName(n))
+        // seed history
+        app.activeId = rec.id
+        app.drawing = rec
+        app.shapes = []
+        app.canvas.width = rec.width
+        app.canvas.height = rec.height
+        app.canvas.bg = rec.canvasBg
+        app.grid.enabled = !!rec.gridEnabled
+        app.selectedIds = new Set()
+        app.history = []
+        app.historyIndex = -1
+        $('#drawingName').value = rec.name
+        pushHistory()
+        applyGridUi()
+        render()
+        markDirty()
+        await saveToDb()
+        await refreshGallery()
+        toast('New drawing')
+      }
+
+      const duplicateDrawing = async (id) => {
+        const rec = await idbGet(app.db, id)
+        if (!rec) return
+        const copy = structuredClone(rec)
+        copy.id = uuid()
+        copy.name = (rec.name || 'drawing') + ' (copy)'
+        copy.updatedAt = now()
+        // history reset to avoid huge copies
+        copy.history = []
+        copy.historyIndex = -1
+        await idbPut(app.db, copy)
+        await loadDrawing(copy.id, { silent: true })
+        toast('Duplicated')
+      }
+
+      const deleteDrawing = async (id) => {
+        const rec = await idbGet(app.db, id)
+        const drawingName = rec?.name || 'Untitled'
+        if (!confirm(`Delete "${drawingName}"? This cannot be undone.`)) return
+
+        const deletedWasActive = app.activeId === id
+        await idbDelete(app.db, id)
+
+        const list = await idbList(app.db)
+        if (!list.length) {
+          await createNewDrawing()
+          toast('Deleted')
+          return
+        }
+
+        // After any delete, keep the editor focused on the most recently updated drawing.
+        const mostRecentId = list[0].id
+        if (deletedWasActive || app.activeId !== mostRecentId || !app.drawing) {
+          await loadDrawing(mostRecentId, { silent: true })
+        } else {
+          await refreshGallery()
+        }
+
+        toast('Deleted')
+      }
+
+      /* =========================
+         Tools + interaction
+      ========================= */
+      const setTool = (tool) => {
+        app.tool = tool
+        $('#hudMode').textContent = tool
+        // button highlight
+        const map = {
+          pen: '#toolPen',
+          rect: '#toolRect',
+          ellipse: '#toolEllipse',
+          arrow: '#toolArrow',
+          line: '#toolLine',
+          text: '#toolText'
+        }
+        for (const [k, sel] of Object.entries(map)) {
+          const b = $(sel)
+          if (!b) continue
+          b.classList.toggle('primary', k === tool)
+        }
+      }
+
+      const updateHud = () => {
+        $('#hudMode').textContent = app.tool
+        const ids = Array.from(app.selectedIds)
+        $('#hudSel').textContent = ids.length ? `${ids.length} (${ids[0].slice(0, 6)}…)` : 'none'
+      }
+
+      const clientToSvgPoint = (clientX, clientY) => {
+        const pt = svg.createSVGPoint()
+        pt.x = clientX
+        pt.y = clientY
+        const ctm = svg.getScreenCTM()
+        if (!ctm) return { x: 0, y: 0 }
+        const p = pt.matrixTransform(ctm.inverse())
+        return { x: p.x, y: p.y }
+      }
+
+      const hitTest = (x, y) => {
+        // Return list of shape ids under point, topmost first.
+        // We approximate by bbox hit (fast). For pen/line, bbox is ok for selection cycling.
+        const hits = []
+        for (let i = app.shapes.length - 1; i >= 0; i--) {
+          const s = app.shapes[i]
+          const bb = shapeBBox(s)
+          const pad = 6
+          if (x >= bb.x - pad && x <= bb.x + bb.w + pad && y >= bb.y - pad && y <= bb.y + bb.h + pad) {
+            hits.push(s.id)
+          }
+        }
+        return hits
+      }
+
+      const bboxesIntersect = (a, b) => {
+        return !(a.x + a.w < b.x || a.x > b.x + b.w || a.y + a.h < b.y || a.y > b.y + b.h)
+      }
+
+      const buildCycleStackForShapeArea = (shapeId) => {
+        const target = getShapeById(shapeId)
+        if (!target) return []
+        const targetBb = shapeBBox(target)
+
+        // Build from top-most to bottom-most to match visual z-order.
+        const interfering = []
+        for (let i = app.shapes.length - 1; i >= 0; i--) {
+          const s = app.shapes[i]
+          const bb = shapeBBox(s)
+          if (bboxesIntersect(targetBb, bb)) interfering.push(s.id)
+        }
+
+        // Keep currently selected shape first, then the rest in z-order.
+        return [shapeId, ...interfering.filter(id => id !== shapeId)]
+      }
+
+      const selectSingle = (id) => {
+        app.selectedIds = new Set(id ? [id] : [])
+        render()
+        syncPropsFromSelection()
+      }
+
+      const toggleSelect = (id) => {
+        if (!id) return
+        if (app.selectedIds.has(id)) app.selectedIds.delete(id)
+        else app.selectedIds.add(id)
+        render()
+        syncPropsFromSelection()
+      }
+
+      const cycleHitStack = (direction = 1) => {
+        if (app.selectedIds.size !== 1) return
+        const selectedId = Array.from(app.selectedIds)[0]
+
+        // Keep a stable cycle set once established. Rebuild only when missing/stale.
+        let stack = (app.lastHitStack || []).filter(id => !!getShapeById(id))
+        if (!stack.length || !stack.includes(selectedId)) {
+          stack = buildCycleStackForShapeArea(selectedId)
+          app.lastHitStack = stack
+          app.lastHitIndex = 0
+        }
+        if (!stack.length) return
+
+        const curIdx = Math.max(0, stack.indexOf(selectedId))
+        const step = direction < 0 ? -1 : 1
+        app.lastHitIndex = (curIdx + step + stack.length) % stack.length
+        selectSingle(stack[app.lastHitIndex])
+        toast('Cycle selection')
+      }
+
+      const bringToFront = () => {
+        const ids = Array.from(app.selectedIds)
+        if (!ids.length) return
+        const keep = app.shapes.filter(s => !app.selectedIds.has(s.id))
+        const moved = app.shapes.filter(s => app.selectedIds.has(s.id))
+        app.shapes = keep.concat(moved)
+        pushHistory()
+        render()
+        markDirty()
+      }
+
+      const sendToBack = () => {
+        const ids = Array.from(app.selectedIds)
+        if (!ids.length) return
+        const keep = app.shapes.filter(s => !app.selectedIds.has(s.id))
+        const moved = app.shapes.filter(s => app.selectedIds.has(s.id))
+        app.shapes = moved.concat(keep)
+        pushHistory()
+        render()
+        markDirty()
+      }
+
+      const groupSelection = () => {
+        if (app.selectedIds.size < 2) return
+
+        const ids = Array.from(app.selectedIds)
+        const nonGroupIds = []
+        const allChildrenIds = []
+
+        for (const id of ids) {
+          const s = getShapeById(id)
+          if (!s) continue
+          if (s.type === 'group') {
+            for (const cid of (s.childrenIds || [])) {
+              if (!allChildrenIds.includes(cid)) allChildrenIds.push(cid)
+            }
+            app.shapes = app.shapes.filter(x => x.id !== s.id)
+          } else {
+            nonGroupIds.push(id)
+          }
+        }
+
+        if (allChildrenIds.length) {
+          const finalIds = [...nonGroupIds, ...allChildrenIds]
+          app.selectedIds = new Set(finalIds)
+        }
+
+        const finalIds = Array.from(app.selectedIds)
+        const g = {
+          id: uuid(),
+          type: 'group',
+          childrenIds: finalIds.slice(),
+          rot: 0,
+          style: {}
+        }
+        app.shapes.push(g)
+        app.selectedIds = new Set([g.id])
+        pushHistory()
+        render()
+        markDirty()
+        toast('Grouped (logical)')
+      }
+
+      const ungroupSelection = () => {
+        const ids = Array.from(app.selectedIds)
+        if (ids.length !== 1) return
+        const s = getShapeById(ids[0])
+        if (!s || s.type !== 'group') return
+        app.shapes = app.shapes.filter(x => x.id !== s.id)
+        app.selectedIds = new Set(s.childrenIds || [])
+        pushHistory()
+        render()
+        markDirty()
+        toast('Ungrouped')
+      }
+
+      const duplicateSelection = () => {
+        const ids = Array.from(app.selectedIds)
+        if (!ids.length) return
+        
+        const offset = 15
+        const newIds = new Set()
+        
+        for (const id of ids) {
+          const s = getShapeById(id)
+          if (!s) continue
+          
+          const copy = structuredClone(s)
+          copy.id = uuid()
+
+          if (copy.type === 'line') {
+            clearLineLinks(copy)
+          }
+          
+          // Apply position offset based on shape type
+          if (copy.type === 'line') {
+            moveShapeBy(copy, offset, offset)
+          } else if (copy.type === 'pen') {
+            moveShapeBy(copy, offset, offset)
+          } else if (copy.type === 'group') {
+            // Offset group children (though they're still in main shapes array)
+            for (const cid of (copy.childrenIds || [])) {
+              const c = getShapeById(cid)
+              if (!c) continue
+              moveShapeBy(c, offset, offset)
+            }
+          } else {
+            moveShapeBy(copy, offset, offset)
+          }
+          
+          app.shapes.push(copy)
+          newIds.add(copy.id)
+        }
+        
+        app.selectedIds = newIds
+        pushHistory()
+        render()
+        markDirty()
+        toast('Duplicated')
+      }
+
+      // Bullet symbols for each indentation level
+      const bulletSymbols = {
+        1: '•',      // level 1: bullet
+        2: '-',      // level 2: dash
+        3: '◦',      // level 3: white circle
+        // level 4+ uses long dash
+      }
+
+      // Convert bullets to dashes for editing
+      const bulletsToEditableDashes = (text) => {
+        // Convert rendered symbols back to canonical editable dashes.
+        // Normalize indentation so same-level lines stay visually identical.
+        const lines = text.split('\n')
+        const processedLines = lines.map(line => {
+          // Level 1: •
+          if (line.match(/^\s*•\s+/)) {
+            return line.replace(/^\s*•\s+/, '- ')
+          }
+          // Level 2: -
+          if (line.match(/^\s*-\s+/)) {
+            return line.replace(/^\s*-\s+/, '-- ')
+          }
+          // Level 3: ◦
+          if (line.match(/^\s*◦\s+/)) {
+            return line.replace(/^\s*◦\s+/, '--- ')
+          }
+          // Level 4+: long dash –
+          if (line.match(/^\s*–\s+/)) {
+            return line.replace(/^\s*–\s+/, '---- ')
+          }
+          return line
+        })
+        return processedLines.join('\n')
+      }
+
+      // Convert dashes to bullets when exiting edit mode
+      const dashesToBullets = (text) => {
+        // Flexible syntax: leading dashes at start of line, with or without a space after them.
+        // Level is defined by dash count: -, --, ---, ---- ...
+        // Examples: "-item", "- item", "--item", "-- item"
+        // Not a list item: "  - item" (not leading dashes).
+        const lines = text.split('\n')
+        const processedLines = lines.map(line => {
+          const match = line.match(/^(-{1,})[ \t]*(.*)$/)
+          if (!match) return line
+          
+          const dashes = match[1]
+          const level = dashes.length
+          
+          let symbol, indentMultiplier
+          if (level === 1) {
+            symbol = bulletSymbols[1] // •
+            indentMultiplier = 1
+          } else if (level === 2) {
+            symbol = bulletSymbols[2] // -
+            indentMultiplier = 2
+          } else if (level === 3) {
+            symbol = bulletSymbols[3] // ◦
+            indentMultiplier = 3
+          } else {
+            // level 4+: use long dash
+            symbol = '–'
+            indentMultiplier = level
+          }
+          
+          // Level 1 uses 2 leading spaces; deeper levels keep existing spacing.
+          const indent = level === 1 ? '  ' : '    '.repeat(indentMultiplier)
+          const spacing = '  ' // wider spacing between bullet and text
+          
+          // Rebuild line from parsed pieces so level strictly follows dash count.
+          return indent + symbol + spacing + match[2]
+        })
+        return processedLines.join('\n')
+      }
+
+      const fitTextShapeToContent = (s) => {
+        if (!s || s.type !== 'text') return
+        const fontSize = s.fontSize || app.style.fontSize
+        const fontFamily = s.fontFamily || 'sans-serif'
+        const textPadding = clamp(Number(s.style?.textPadding ?? app.style.textPadding ?? 5), 0, 20)
+        const textLines = String(s.text || '').split('\n')
+        const lineCount = Math.max(1, textLines.length)
+
+        // Keep the text box as a tight envelope around rendered text.
+        const lineHeight = fontSize * 1.2
+        s.h = Math.max(24, fontSize + (lineCount - 1) * lineHeight + fontSize * 0.3 + textPadding * 2)
+
+        const measureCtx = document.createElement('canvas').getContext('2d')
+        measureCtx.font = `${fontSize}px ${fontFamily}`
+        const maxLineW = Math.max(...textLines.map(line => measureCtx.measureText(line).width))
+        s.w = Math.max(80, Math.ceil(maxLineW) + textPadding * 2)
+      }
+
+      const startTextEdit = (shapeId, clientX, clientY) => {
+        const s = getShapeById(shapeId)
+        if (!s || s.type !== 'text') return
+
+        // Create overlay textarea positioned over SVG
+        const ta = document.createElement('textarea')
+        ta.className = 'textEdit'
+        ta.wrap = 'off'
+        // Convert any bullets back to editable dashes when entering edit mode
+        ta.value = bulletsToEditableDashes(s.text || '')
+        ta.style.fontSize = (s.fontSize || app.style.fontSize) + 'px'
+        ta.style.fontFamily = s.fontFamily || 'inherit'
+        ta.style.padding = clamp(Number(s.style?.textPadding ?? app.style.textPadding ?? 5), 0, 20) + 'px'
+
+        const wrap = $('#canvasWrap')
+        wrap.appendChild(ta)
+
+        const svgRect = svg.getBoundingClientRect()
+        const x = svgRect.left + (s.x / app.canvas.width) * svgRect.width
+        const y = svgRect.top + (s.y / app.canvas.height) * svgRect.height
+        const w = Math.max(60, (s.w / app.canvas.width) * svgRect.width)
+        const h = Math.max(120, (s.h / app.canvas.height) * svgRect.height)
+
+        ta.style.left = (x - wrap.getBoundingClientRect().left) + 'px'
+        ta.style.top = (y - wrap.getBoundingClientRect().top) + 'px'
+        ta.style.width = w + 'px'
+        ta.style.height = h + 'px'
+
+        const measureCtx = document.createElement('canvas').getContext('2d')
+        const baseW = w
+        const baseH = h
+        const updateEditorSize = () => {
+          const wrapRect = wrap.getBoundingClientRect()
+          const left = parseFloat(ta.style.left) || 0
+          const cs = window.getComputedStyle(ta)
+          const pl = parseFloat(cs.paddingLeft) || 0
+          const pr = parseFloat(cs.paddingRight) || 0
+          const maxAllowedW = Math.max(baseW, wrapRect.width - left - 8)
+
+          measureCtx.font = `${ta.style.fontSize} ${ta.style.fontFamily || 'sans-serif'}`
+          const lines = ta.value.split('\n')
+          const maxLineW = Math.max(...lines.map(line => measureCtx.measureText(line || ' ').width))
+          const neededW = Math.ceil(maxLineW + pl + pr + 2)
+
+          ta.style.width = Math.min(maxAllowedW, Math.max(baseW, neededW)) + 'px'
+          ta.style.height = 'auto'
+          ta.style.height = Math.max(baseH, ta.scrollHeight) + 'px'
+        }
+        updateEditorSize()
+
+        // Hide the original SVG shape while editing so it doesn't show through
+        const shapeEl = svg.querySelector(`[data-id="${shapeId}"]`)
+        if (shapeEl) shapeEl.style.visibility = 'hidden'
+
+        ta.focus()
+        ta.setSelectionRange(ta.value.length, ta.value.length)
+
+        let didFinish = false
+        const finish = (commit) => {
+          if (didFinish) return
+          didFinish = true
+          if (shapeEl) shapeEl.style.visibility = ''
+          if (commit) {
+            // Convert dashes to bullets when exiting edit mode
+            const processedText = dashesToBullets(ta.value)
+            s.text = processedText
+            fitTextShapeToContent(s)
+
+            pushHistory()
+            render()
+            markDirty()
+          }
+          if (ta.parentNode) ta.remove()
+          setTool('select')
+        }
+
+        ta.addEventListener('keydown', (ev) => {
+          // Enter exits edit mode; Shift+Enter inserts newline.
+          // key='Enter' covers both regular Enter and Numpad Enter.
+          const isEnter = ev.key === 'Enter'
+
+          if (isEnter && !ev.shiftKey) {
+            // Regular enter without shift: exit edit mode.
+            ev.preventDefault()
+            ev.stopPropagation()
+            finish(true)
+            return
+          }
+
+          if (isEnter && ev.shiftKey) {
+            // Shift+Enter and Shift+NumpadEnter: insert a newline explicitly.
+            ev.preventDefault()
+            ev.stopPropagation()
+            const start = ta.selectionStart
+            const end = ta.selectionEnd
+            const next = ta.value.slice(0, start) + '\n' + ta.value.slice(end)
+            ta.value = next
+            const caret = start + 1
+            ta.setSelectionRange(caret, caret)
+            updateEditorSize()
+            return
+          }
+          
+          if (ev.key === 'Escape') {
+            ev.preventDefault()
+            ev.stopPropagation()
+            finish(false)
+            return
+          }
+          
+          ev.stopPropagation()
+        })
+
+        ta.addEventListener('input', updateEditorSize)
+
+        ta.addEventListener('blur', () => finish(true), { once: true })
+      }
+
+      const createTextAt = (x, y) => {
+        const s = shapeDefaults()
+        s.type = 'text'
+        s.x = x
+        s.y = y
+        s.w = 400
+        s.h = 120
+        s.text = ''
+        s.fontSize = app.style.fontSize
+        s.fontFamily = 'Verdana'
+        // text uses stroke color as fill
+        s.style.fillAlpha = 0
+        s.style.textBorderEnabled = app.style.textBorderEnabled
+        s.style.textBorder = app.style.textBorder
+        s.style.textBorderAlpha = app.style.textBorderAlpha
+        s.style.textBorderWidth = app.style.textBorderWidth
+        s.style.textPadding = app.style.textPadding
+        app.shapes.push(s)
+        selectSingle(s.id)
+        pushHistory()
+        render()
+        markDirty()
+        // enter edit mode
+        startTextEdit(s.id)
+      }
+
+      const createImageAt = (src, x, y, naturalW, naturalH) => {
+        if (!src) return
+
+        const s = shapeDefaults()
+        s.type = 'image'
+        s.src = src
+
+        const imgW = Math.max(1, Number(naturalW) || 1)
+        const imgH = Math.max(1, Number(naturalH) || 1)
+        const maxW = Math.max(80, app.canvas.width * 0.7)
+        const maxH = Math.max(80, app.canvas.height * 0.7)
+        const scale = Math.min(maxW / imgW, maxH / imgH, 1)
+        s.w = Math.max(40, Math.round(imgW * scale))
+        s.h = Math.max(40, Math.round(imgH * scale))
+
+        const left = clamp(x - s.w / 2, 0, Math.max(0, app.canvas.width - s.w))
+        const top = clamp(y - s.h / 2, 0, Math.max(0, app.canvas.height - s.h))
+        s.x = left
+        s.y = top
+
+        // Image defaults: specialized image object with optional border controls.
+        s.style.imageLockAspect = app.style.imageLockAspect
+        s.style.imageAlpha = app.style.imageAlpha
+        s.style.imageBorder = app.style.imageBorder
+        s.style.imageBorderAlpha = app.style.imageBorderAlpha
+        s.style.imageBorderWidth = app.style.imageBorderWidth
+        s.style.imageFlipH = app.style.imageFlipH
+        s.style.imageFlipV = app.style.imageFlipV
+        s.crop = { left: 0, top: 0, right: 0, bottom: 0 }
+
+        app.shapes.push(s)
+        selectSingle(s.id)
+        pushHistory()
+        render()
+        markDirty()
+      }
+
+      const pointerDown = (ev) => {
+        if (!app.drawing) return
+        if (ev.button !== 0) return
+        app.isPointerDown = true
+
+        const p = clientToSvgPoint(ev.clientX, ev.clientY)
+        app.startPt = { ...p }
+        app.lastPointer = { ...p }
+        app.lastClick = { ...p }
+
+        // If clicking on selection handles
+        const handle = ev.target && ev.target.getAttribute && ev.target.getAttribute('data-handle')
+        if (handle && handle.startsWith('crop-') && app.cropModeId && app.selectedIds.size === 1) {
+          app.dragMode = 'crop'
+          app.activeHandle = handle
+          ev.preventDefault()
+          return
+        }
+        if (handle && app.selectedIds.size === 1) {
+          app.dragMode = handle === 'rot' ? 'rotate' : 'resize'
+          app.activeHandle = handle
+          const id = Array.from(app.selectedIds)[0]
+          app.activeShapeId = id
+          const selectedShape = getShapeById(id)
+          app.startBox = shapeBBox(selectedShape)
+          app.startAngle = (selectedShape?.rot || 0)
+          app.lineResizeState = null
+
+          if (selectedShape && selectedShape.type === 'line' && handle !== 'rot') {
+            const corner = {
+              x: handle.includes('w') ? app.startBox.x : app.startBox.x + app.startBox.w,
+              y: handle.includes('n') ? app.startBox.y : app.startBox.y + app.startBox.h
+            }
+            const d1 = Math.hypot(selectedShape.x1 - corner.x, selectedShape.y1 - corner.y)
+            const d2 = Math.hypot(selectedShape.x2 - corner.x, selectedShape.y2 - corner.y)
+            const dragP1 = d1 <= d2
+            // Only clear the link on the endpoint being dragged; preserve the other end's link
+            const dragEpKey = dragP1 ? 'start' : 'end'
+            if (selectedShape.links?.[dragEpKey]) {
+              selectedShape.links[dragEpKey] = null
+              cleanupLineLinks(selectedShape)
+            }
+
+            app.lineResizeState = {
+              dragEndpoint: dragP1 ? 'p1' : 'p2',
+              anchor: dragP1
+                ? { x: selectedShape.x2, y: selectedShape.y2 }
+                : { x: selectedShape.x1, y: selectedShape.y1 }
+            }
+            app.linkPreview = null
+          }
+          ev.preventDefault()
+          return
+        }
+
+        if (app.tool === 'select') {
+          const hits = hitTest(p.x, p.y)
+          if (hits.length) {
+            let selectedId = hits[0]
+            // select topmost (or toggle with shift)
+            if (ev.shiftKey) toggleSelect(selectedId)
+            else {
+              // If currently selected object is in hits, keep it selected (respects Tab cycling).
+              // Otherwise, select the topmost (hits[0]).
+              if (app.selectedIds.size === 1) {
+                const currentId = Array.from(app.selectedIds)[0]
+                if (hits.includes(currentId)) selectedId = currentId
+              }
+              selectSingle(selectedId)
+              app.lastHitStack = buildCycleStackForShapeArea(selectedId)
+              app.lastHitIndex = 0
+            }
+            app.dragMode = 'move'
+            app.activeShapeId = selectedId
+            app.startBox = shapeBBox(getShapeById(selectedId))
+          } else {
+            if (!ev.shiftKey) selectSingle(null)
+            app.dragMode = 'marquee'
+          }
+          ev.preventDefault()
+          return
+        }
+
+        // Drawing tools
+        app.dragMode = 'draw'
+        if (app.tool === 'pen') {
+          const s = shapeDefaults()
+          s.type = 'pen'
+          s.points = [{ x: p.x, y: p.y }]
+          s.rot = 0
+          s.style.fillAlpha = 0
+          app.shapes.push(s)
+          app.activeShapeId = s.id
+          selectSingle(s.id)
+          render()
+          ev.preventDefault()
+          return
+        }
+
+        if (app.tool === 'rect' || app.tool === 'ellipse') {
+          const s = shapeDefaults()
+          s.type = app.tool
+          if (s.type === 'ellipse') s.style.circleLockAspect = app.style.circleLockAspect
+          s.x = p.x
+          s.y = p.y
+          s.w = 1
+          s.h = 1
+          app.shapes.push(s)
+          app.activeShapeId = s.id
+          selectSingle(s.id)
+          render()
+          ev.preventDefault()
+          return
+        }
+
+        if (app.tool === 'line' || app.tool === 'arrow') {
+          const s = shapeDefaults()
+          s.type = 'line'
+          s.x1 = p.x
+          s.y1 = p.y
+          s.style.arrowHeadSize = app.tool === 'line' ? 0 : Math.max(1, Number(app.style.arrowHeadSize || 12))
+          const startCandidate = findNearbyLinkTarget(p.x, p.y, s.id)
+          if (startCandidate) {
+            setLineEndpointLink(s, 'start', startCandidate)
+            app.linkPreview = { ...startCandidate, endpoint: 'start' }
+          } else {
+            app.linkPreview = null
+          }
+          s.x2 = s.x1
+          s.y2 = s.y1
+          // remove rect fields to avoid confusion
+          delete s.x; delete s.y; delete s.w; delete s.h
+          s.style.fillAlpha = 0
+          app.shapes.push(s)
+          app.activeShapeId = s.id
+          selectSingle(s.id)
+          render()
+          ev.preventDefault()
+          return
+        }
+
+        if (app.tool === 'text') {
+          createTextAt(p.x, p.y)
+          ev.preventDefault()
+          return
+        }
+      }
+
+      /* =========================
+         Alignment guides (snap during move)
+      ========================= */
+      const ALIGN_SNAP_THRESHOLD = 5   // SVG-space px – snap distance
+      const ALIGN_SHOW_THRESHOLD = 60  // SVG-space px – guide visibility distance
+
+      const isDirectlyAttachedToIds = (shape, targetIds) => {
+        if (!shape || shape.type !== 'line' || !shape.links || !targetIds?.size) return false
+        return !!(shape.links.start?.targetId && targetIds.has(shape.links.start.targetId)) ||
+               !!(shape.links.end?.targetId && targetIds.has(shape.links.end.targetId))
+      }
+
+      // Compute all vertical (x) and horizontal (y) snap positions from non-moving shapes.
+      const computeAlignGuidesForMove = () => {
+        const vLines = new Set() // x values
+        const hLines = new Set() // y values
+
+        // Collect IDs that are "moving" (selected + group children)
+        const movingIds = new Set()
+        for (const id of app.selectedIds) {
+          movingIds.add(id)
+          const s = getShapeById(id)
+          if (s && s.type === 'group') {
+            for (const cid of (s.childrenIds || [])) movingIds.add(cid)
+          }
+        }
+
+        for (const s of app.shapes) {
+          if (movingIds.has(s.id)) continue
+          if (isDirectlyAttachedToIds(s, movingIds)) continue
+          if (s.type === 'group') continue // handled via children
+          const bb = shapeBBox(s)
+          // left edge, center-x, right edge
+          vLines.add(bb.x)
+          vLines.add(bb.x + bb.w / 2)
+          vLines.add(bb.x + bb.w)
+          // top edge, center-y, bottom edge
+          hLines.add(bb.y)
+          hLines.add(bb.y + bb.h / 2)
+          hLines.add(bb.y + bb.h)
+        }
+        return { vLines: Array.from(vLines), hLines: Array.from(hLines), activeVLines: [], activeHLines: [] }
+      }
+
+      // Compute combined bounding box of currently selected/moving shapes.
+      const selectedBBox = () => {
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
+        for (const id of app.selectedIds) {
+          const s = getShapeById(id)
+          if (!s) continue
+          const bb = shapeBBox(s)
+          minX = Math.min(minX, bb.x)
+          minY = Math.min(minY, bb.y)
+          maxX = Math.max(maxX, bb.x + bb.w)
+          maxY = Math.max(maxY, bb.y + bb.h)
+        }
+        if (!isFinite(minX)) return null
+        return { x: minX, y: minY, w: maxX - minX, h: maxY - minY }
+      }
+
+      // After moving, check if the selection bbox is within threshold of a guide and snap.
+      const applyAlignSnap = (movedTargetIds) => {
+        const guides = app.alignGuides
+        if (!guides) return
+        const bb = selectedBBox()
+        if (!bb) return
+
+        let snapDx = null
+        let snapDy = null
+        let bestDistX = ALIGN_SNAP_THRESHOLD + 1
+        let bestDistY = ALIGN_SNAP_THRESHOLD + 1
+
+        // Check vertical guide lines against left edge, center, right edge of selection
+        const selXEdges = [bb.x, bb.x + bb.w / 2, bb.x + bb.w]
+        for (const gx of guides.vLines) {
+          for (const ex of selXEdges) {
+            const dist = Math.abs(gx - ex)
+            if (dist <= ALIGN_SNAP_THRESHOLD && dist < bestDistX) {
+              bestDistX = dist
+              snapDx = gx - ex
+            }
+          }
+        }
+
+        // Check horizontal guide lines against top edge, center, bottom edge of selection
+        const selYEdges = [bb.y, bb.y + bb.h / 2, bb.y + bb.h]
+        for (const gy of guides.hLines) {
+          for (const ey of selYEdges) {
+            const dist = Math.abs(gy - ey)
+            if (dist <= ALIGN_SNAP_THRESHOLD && dist < bestDistY) {
+              bestDistY = dist
+              snapDy = gy - ey
+            }
+          }
+        }
+
+        // Apply snap offsets
+        if (snapDx !== null || snapDy !== null) {
+          const sdx = snapDx || 0
+          const sdy = snapDy || 0
+          for (const id of app.selectedIds) {
+            const s = getShapeById(id)
+            if (!s) continue
+            if (s.type === 'group') {
+              for (const cid of (s.childrenIds || [])) {
+                const c = getShapeById(cid)
+                if (c) moveShapeBy(c, sdx, sdy)
+              }
+            } else {
+              moveShapeBy(s, sdx, sdy)
+            }
+          }
+          updateLinkedEndpointsForTargets(movedTargetIds)
+        }
+
+        // Compute which guides are visible (within show threshold of the snapped bbox)
+        const snappedBb = selectedBBox()
+        if (!snappedBb) return
+        const snappedXEdges = [snappedBb.x, snappedBb.x + snappedBb.w / 2, snappedBb.x + snappedBb.w]
+        const snappedYEdges = [snappedBb.y, snappedBb.y + snappedBb.h / 2, snappedBb.y + snappedBb.h]
+
+        const activeVLines = []
+        const activeHLines = []
+
+        for (const gx of guides.vLines) {
+          const minDist = Math.min(...snappedXEdges.map(ex => Math.abs(gx - ex)))
+          if (minDist <= ALIGN_SHOW_THRESHOLD) {
+            activeVLines.push({ x: gx, snapped: minDist < 0.5 })
+          }
+        }
+        for (const gy of guides.hLines) {
+          const minDist = Math.min(...snappedYEdges.map(ey => Math.abs(gy - ey)))
+          if (minDist <= ALIGN_SHOW_THRESHOLD) {
+            activeHLines.push({ y: gy, snapped: minDist < 0.5 })
+          }
+        }
+
+        app.alignGuides = { ...guides, activeVLines, activeHLines }
+      }
+
+      const clearAlignGuides = () => {
+        app.alignGuides = null
+      }
+
+      // Update which guide lines are visually highlighted based on current position (no snap).
+      const updateAlignGuideVisuals = () => {
+        const guides = app.alignGuides
+        if (!guides) return
+        const bb = selectedBBox()
+        if (!bb) return
+
+        const selXEdges = [bb.x, bb.x + bb.w / 2, bb.x + bb.w]
+        const selYEdges = [bb.y, bb.y + bb.h / 2, bb.y + bb.h]
+
+        const activeVLines = []
+        const activeHLines = []
+
+        for (const gx of guides.vLines) {
+          const minDist = Math.min(...selXEdges.map(ex => Math.abs(gx - ex)))
+          if (minDist <= ALIGN_SHOW_THRESHOLD) {
+            activeVLines.push({ x: gx, snapped: minDist <= ALIGN_SNAP_THRESHOLD })
+          }
+        }
+        for (const gy of guides.hLines) {
+          const minDist = Math.min(...selYEdges.map(ey => Math.abs(gy - ey)))
+          if (minDist <= ALIGN_SHOW_THRESHOLD) {
+            activeHLines.push({ y: gy, snapped: minDist <= ALIGN_SNAP_THRESHOLD })
+          }
+        }
+
+        app.alignGuides = { ...guides, activeVLines, activeHLines }
+      }
+
+      const pointerMove = (ev) => {
+        const p = clientToSvgPoint(ev.clientX, ev.clientY)
+        app.lastPointer = { ...p }
+
+        if (!app.isPointerDown) return
+        if (!app.dragMode) return
+
+        const dx = p.x - app.startPt.x
+        const dy = p.y - app.startPt.y
+
+        if (app.dragMode === 'draw') {
+          const s = getShapeById(app.activeShapeId)
+          if (!s) return
+
+          if (s.type === 'pen') {
+            const pts = s.points || []
+            const last = pts[pts.length - 1]
+            const dist2 = (p.x - last.x) ** 2 + (p.y - last.y) ** 2
+            if (dist2 > 1.5) pts.push({ x: p.x, y: p.y })
+            s.points = pts
+          } else if (s.type === 'rect') {
+            const r = normalizeRect(app.startPt.x, app.startPt.y, p.x, p.y)
+            s.x = r.x; s.y = r.y; s.w = r.w; s.h = r.h
+          } else if (s.type === 'ellipse') {
+            const lockAspect = s.style?.circleLockAspect ?? app.style.circleLockAspect
+            if (lockAspect) {
+              const ex = p.x - app.startPt.x
+              const ey = p.y - app.startPt.y
+              const side = Math.max(Math.abs(ex), Math.abs(ey))
+              s.x = app.startPt.x + (ex < 0 ? -side : 0)
+              s.y = app.startPt.y + (ey < 0 ? -side : 0)
+              s.w = side
+              s.h = side
+            } else {
+              const r = normalizeRect(app.startPt.x, app.startPt.y, p.x, p.y)
+              s.x = r.x; s.y = r.y; s.w = r.w; s.h = r.h
+            }
+          } else if (s.type === 'line') {
+            if (s.links?.start) syncLineEndpointToLink(s, 'start')
+
+            const endCandidate = findNearbyLinkTarget(p.x, p.y, s.id)
+            if (endCandidate) {
+              setLineEndpointLink(s, 'end', endCandidate)
+              app.linkPreview = { ...endCandidate, endpoint: 'end' }
+            } else {
+              s.x2 = p.x
+              s.y2 = p.y
+              if (s.links?.end) {
+                s.links.end = null
+                cleanupLineLinks(s)
+              }
+              app.linkPreview = null
+            }
+          }
+          render()
+          markDirty()
+          return
+        }
+
+        if (app.dragMode === 'move') {
+          const movedTargetIds = new Set()
+          // move selected shapes
+          for (const id of app.selectedIds) {
+            const s = getShapeById(id)
+            if (!s) continue
+            if (s.type === 'line') {
+              moveShapeBy(s, dx, dy)
+              movedTargetIds.add(s.id)
+            } else if (s.type === 'pen') {
+              moveShapeBy(s, dx, dy)
+              movedTargetIds.add(s.id)
+            } else if (s.type === 'group') {
+              // move children
+              for (const cid of (s.childrenIds || [])) {
+                const c = getShapeById(cid)
+                if (!c) continue
+                moveShapeBy(c, dx, dy)
+                movedTargetIds.add(c.id)
+              }
+            } else {
+              moveShapeBy(s, dx, dy)
+              movedTargetIds.add(s.id)
+            }
+          }
+          updateLinkedEndpointsForTargets(movedTargetIds)
+          app.startPt = { ...p }
+
+          // ---- Alignment guides (visual only during drag, snap on release) ----
+          app.alignGuides = computeAlignGuidesForMove()
+          updateAlignGuideVisuals()
+
+          render()
+          markDirty()
+          return
+        }
+
+        if (app.dragMode === 'crop') {
+          const id = Array.from(app.selectedIds)[0]
+          const s = getShapeById(id)
+          if (!s || s.type !== 'image') return
+          const edge = app.activeHandle
+          const crop = s.crop || { left: 0, top: 0, right: 0, bottom: 0 }
+          if (edge === 'crop-n') {
+            s.crop = { ...crop, top: Math.round(clamp(p.y - s.y, 0, s.h - (crop.bottom || 0) - 1)) }
+          } else if (edge === 'crop-s') {
+            s.crop = { ...crop, bottom: Math.round(clamp((s.y + s.h) - p.y, 0, s.h - (crop.top || 0) - 1)) }
+          } else if (edge === 'crop-w') {
+            s.crop = { ...crop, left: Math.round(clamp(p.x - s.x, 0, s.w - (crop.right || 0) - 1)) }
+          } else if (edge === 'crop-e') {
+            s.crop = { ...crop, right: Math.round(clamp((s.x + s.w) - p.x, 0, s.w - (crop.left || 0) - 1)) }
+          }
+          render()
+          markDirty()
+          return
+        }
+
+        if (app.dragMode === 'resize' && app.selectedIds.size === 1) {
+          const id = Array.from(app.selectedIds)[0]
+          const s = getShapeById(id)
+          if (!s) return
+          const handle = app.activeHandle
+          const bb0 = app.startBox
+          if (!bb0 || !handle) return
+
+          // Simple axis-aligned resize (ignores rotation for simplicity)
+          let x1 = bb0.x, y1 = bb0.y, x2 = bb0.x + bb0.w, y2 = bb0.y + bb0.h
+          if (handle === 'nw') { x1 = p.x; y1 = p.y }
+          if (handle === 'ne') { x2 = p.x; y1 = p.y }
+          if (handle === 'se') { x2 = p.x; y2 = p.y }
+          if (handle === 'sw') { x1 = p.x; y2 = p.y }
+          const r = normalizeRect(x1, y1, x2, y2)
+
+          if (s.type === 'rect' || s.type === 'ellipse' || s.type === 'text' || s.type === 'image') {
+            if (s.type === 'image' && (s.style?.imageLockAspect ?? app.style.imageLockAspect) && bb0.w > 0 && bb0.h > 0) {
+              const ratio = bb0.w / bb0.h
+              const anchorX = handle.includes('w') ? (bb0.x + bb0.w) : bb0.x
+              const anchorY = handle.includes('n') ? (bb0.y + bb0.h) : bb0.y
+              let w = Math.abs(p.x - anchorX)
+              let h = Math.abs(p.y - anchorY)
+              if (w / ratio > h) h = w / ratio
+              else w = h * ratio
+              s.w = Math.max(1, w)
+              s.h = Math.max(1, h)
+              s.x = handle.includes('w') ? (anchorX - s.w) : anchorX
+              s.y = handle.includes('n') ? (anchorY - s.h) : anchorY
+            } else if (s.type === 'ellipse' && (s.style?.circleLockAspect ?? app.style.circleLockAspect)) {
+              const ratio = (bb0.w > 0 && bb0.h > 0) ? (bb0.w / bb0.h) : 1
+              const anchorX = handle.includes('w') ? (bb0.x + bb0.w) : bb0.x
+              const anchorY = handle.includes('n') ? (bb0.y + bb0.h) : bb0.y
+              let w = Math.abs(p.x - anchorX)
+              let h = Math.abs(p.y - anchorY)
+              if (w / ratio > h) h = w / ratio
+              else w = h * ratio
+              s.w = Math.max(1, w)
+              s.h = Math.max(1, h)
+              s.x = handle.includes('w') ? (anchorX - s.w) : anchorX
+              s.y = handle.includes('n') ? (anchorY - s.h) : anchorY
+            } else {
+              s.x = r.x; s.y = r.y; s.w = r.w; s.h = r.h
+            }
+            updateLinkedEndpointsForTargets(new Set([s.id]))
+          } else if (s.type === 'line') {
+            const rs = app.lineResizeState
+            const dragEndpointKey = rs?.dragEndpoint === 'p1' ? 'start' : 'end'
+            const anchorEndpointKey = rs?.dragEndpoint === 'p1' ? 'end' : 'start'
+
+            if (rs) {
+              const candidate = findNearbyLinkTarget(p.x, p.y, s.id)
+              if (candidate) {
+                setLineEndpointLink(s, dragEndpointKey, candidate)
+                app.linkPreview = { ...candidate, endpoint: dragEndpointKey }
+              } else {
+                if (s.links?.[dragEndpointKey]) {
+                  s.links[dragEndpointKey] = null
+                  cleanupLineLinks(s)
+                }
+                app.linkPreview = null
+              }
+            }
+
+            if (rs && rs.dragEndpoint === 'p1') {
+              if (!s.links?.start) {
+                s.x1 = p.x
+                s.y1 = p.y
+              }
+              s.x2 = rs.anchor.x
+              s.y2 = rs.anchor.y
+            } else if (rs && rs.dragEndpoint === 'p2') {
+              if (!s.links?.end) {
+                s.x2 = p.x
+                s.y2 = p.y
+              }
+              s.x1 = rs.anchor.x
+              s.y1 = rs.anchor.y
+            } else {
+              // Fallback for unexpected state.
+              s.x2 = p.x
+              s.y2 = p.y
+            }
+          } else if (s.type === 'pen') {
+            // scale points within bbox
+            const bb = computeBBoxForPen(s.points || [])
+            const sx = bb.w ? (r.w / bb.w) : 1
+            const sy = bb.h ? (r.h / bb.h) : 1
+            s.points = (s.points || []).map(pt => ({
+              x: r.x + (pt.x - bb.x) * sx,
+              y: r.y + (pt.y - bb.y) * sy
+            }))
+          }
+          render()
+          markDirty()
+          return
+        }
+
+        if (app.dragMode === 'rotate' && app.selectedIds.size === 1) {
+          const id = Array.from(app.selectedIds)[0]
+          const s = getShapeById(id)
+          if (!s) return
+          const bb = shapeBBoxLocal(s)
+          const cx = bb.x + bb.w / 2
+          const cy = bb.y + bb.h / 2
+          const a0 = Math.atan2(app.startPt.y - cy, app.startPt.x - cx)
+          const a1 = Math.atan2(p.y - cy, p.x - cx)
+          const deg = (a1 - a0) * 180 / Math.PI
+          s.rot = app.startAngle + deg
+          updateLinkedEndpointsForTargets(new Set([s.id]))
+          render()
+          markDirty()
+          syncPropsFromSelection()
+          return
+        }
+
+        if (app.dragMode === 'marquee') {
+          app.marqueeBox = normalizeRect(app.startPt.x, app.startPt.y, p.x, p.y)
+          render()
+          return
+        }
+      }
+
+      const pointerUp = (ev) => {
+        if (!app.isPointerDown) return
+        app.isPointerDown = false
+
+        if (app.dragMode === 'draw') {
+          // Snap line/arrow to grid if width or height is within tolerance
+          const s = getShapeById(app.activeShapeId)
+          if (s && s.type === 'line') {
+            const width = Math.abs(s.x2 - s.x1)
+            const height = Math.abs(s.y2 - s.y1)
+            const endLinked = !!s.links?.end
+
+            if (width <= LINE_SNAP_TOLERANCE && height <= LINE_SNAP_TOLERANCE) {
+              // Both dimensions too small - discard the shape
+              app.shapes = app.shapes.filter(sh => sh.id !== s.id)
+              app.selectedIds.delete(s.id)
+              render()
+            } else if (width <= LINE_SNAP_TOLERANCE && !endLinked) {
+              // Width is close to zero - snap to vertical line (make x2 = x1)
+              s.x2 = s.x1
+              render()
+            } else if (height <= LINE_SNAP_TOLERANCE && !endLinked) {
+              // Height is close to zero - snap to horizontal line (make y2 = y1)
+              s.y2 = s.y1
+              render()
+            }
+          }
+
+          pushHistory()
+          setTool('select')
+        } else if (app.dragMode === 'crop') {
+          pushHistory()
+        } else if (app.dragMode === 'move' || app.dragMode === 'resize' || app.dragMode === 'rotate') {
+          if (app.dragMode === 'move') {
+            // Apply alignment snap on release
+            const movedTargetIds = new Set()
+            for (const id of app.selectedIds) {
+              movedTargetIds.add(id)
+              const s = getShapeById(id)
+              if (s && s.type === 'group') {
+                for (const cid of (s.childrenIds || [])) movedTargetIds.add(cid)
+              }
+            }
+            applyAlignSnap(movedTargetIds)
+            render()
+          }
+          if (app.dragMode === 'resize' && app.selectedIds.size === 1) {
+            const id = Array.from(app.selectedIds)[0]
+            const s = getShapeById(id)
+            if (s && s.type === 'line') {
+              const width = Math.abs(s.x2 - s.x1)
+              const height = Math.abs(s.y2 - s.y1)
+              const hasLinkedEndpoint = !!(s.links?.start || s.links?.end)
+
+              // Snap near-axis-aligned resized lines/arrows to exact axis alignment.
+              if (width <= LINE_SNAP_TOLERANCE && !hasLinkedEndpoint) s.x2 = s.x1
+              if (height <= LINE_SNAP_TOLERANCE && !hasLinkedEndpoint) s.y2 = s.y1
+              render()
+            }
+          }
+          pushHistory()
+        } else if (app.dragMode === 'marquee') {
+          // Select all shapes whose bbox intersects with marquee
+          if (app.marqueeBox) {
+            const mb = app.marqueeBox
+            const selected = new Set()
+            for (const s of app.shapes) {
+              const bb = shapeBBox(s)
+              // Check if bbox intersects with marquee box
+              if (!(bb.x + bb.w < mb.x || bb.x > mb.x + mb.w ||
+                    bb.y + bb.h < mb.y || bb.y > mb.y + mb.h)) {
+                selected.add(s.id)
+              }
+            }
+            app.selectedIds = selected
+            syncPropsFromSelection()
+          }
+          app.marqueeBox = null
+          render()
+        }
+        app.lineResizeState = null
+        app.linkPreview = null
+        app.dragMode = null
+        app.activeHandle = null
+        app.activeShapeId = null
+        app.startPt = null
+        app.startBox = null
+        clearAlignGuides()
+      }
+
+      /* =========================
+         Properties panel sync
+      ========================= */
+      const updateTextBorderControlState = (isText, isEnabled) => {
+        $('#textBorderEnabled').disabled = !isText
+        $('#textBorderColor').disabled = !isText || !isEnabled
+        $('#textBorderAlpha').disabled = !isText || !isEnabled
+        $('#textBorderWidth').disabled = !isText || !isEnabled
+      }
+
+      const setRowHidden = (rowId, hidden) => {
+        const row = $('#' + rowId)
+        if (!row) return
+        row.classList.toggle('hidden', !!hidden)
+      }
+
+      const setRowOrder = (rowId, order) => {
+        const row = $('#' + rowId)
+        if (!row) return
+        row.style.order = order == null ? '' : String(order)
+      }
+
+      const resetBaseRowOrder = () => {
+        const rowIds = [
+          'rowRectGeneralHeader',
+          'rowRectBorderHeader',
+          'rowRectFillHeader',
+          'rowCircleGeneralHeader',
+          'rowCircleStrokeHeader',
+          'rowCircleFillHeader',
+          'rowCircleLockAspect',
+          'rowShortcutsHeader',
+          'rowShortcuts',
+          'rowStroke',
+          'rowFill',
+          'rowStrokeWidth',
+          'rowStrokeAlpha',
+          'rowFillAlpha',
+          'rowRotation'
+        ]
+        for (const id of rowIds) setRowOrder(id, null)
+      }
+
+      const applyRectRowOrder = () => {
+        setRowOrder('rowRectGeneralHeader', 1)
+        setRowOrder('rowRotation', 2)
+        setRowOrder('rowRectBorderHeader', 3)
+        setRowOrder('rowStrokeWidth', 4)
+        setRowOrder('rowStroke', 5)
+        setRowOrder('rowStrokeAlpha', 6)
+        setRowOrder('rowRectFillHeader', 7)
+        setRowOrder('rowFill', 8)
+        setRowOrder('rowFillAlpha', 9)
+        setRowOrder('rowShortcutsHeader', 98)
+        setRowOrder('rowShortcuts', 99)
+      }
+
+      const applyCircleRowOrder = () => {
+        setRowOrder('rowCircleGeneralHeader', 1)
+        setRowOrder('rowCircleLockAspect', 2)
+        setRowOrder('rowRotation', 3)
+        setRowOrder('rowCircleStrokeHeader', 4)
+        setRowOrder('rowStrokeWidth', 5)
+        setRowOrder('rowStroke', 6)
+        setRowOrder('rowStrokeAlpha', 7)
+        setRowOrder('rowCircleFillHeader', 8)
+        setRowOrder('rowFill', 9)
+        setRowOrder('rowFillAlpha', 10)
+        setRowOrder('rowShortcutsHeader', 98)
+        setRowOrder('rowShortcuts', 99)
+      }
+
+      const SHORTCUTS_HTML_DEFAULT = `
+        <div><span class='kbd'>↑/↓</span> object size ±5, <span class='kbd'>Alt+↑/↓</span> object size ±1</div>
+        <div><span class='kbd'>Shift+Arrows</span> move ±10, <span class='kbd'>Shift+Alt+Arrows</span> ±1</div>
+        <div><span class='kbd'>Tab</span>/<span class='kbd'>Shift+Tab</span> cycle through objects at selection</div>
+        <div><span class='kbd'>Del</span> Delete, <span class='kbd'>Z</span> undo, <span class='kbd'>Shift+Z</span> redo</div>
+        <div><span class='kbd'>[</span>/<span class='kbd'>]</span> send back / bring front</div>
+        <div><span class='kbd'>D</span> duplicate, <span class='kbd'>E</span> edit text</div>
+        <div><span class='kbd'>G</span> group, <span class='kbd'>U</span> ungroup</div>
+      `
+
+      const SHORTCUTS_HTML_GROUP = `
+          <div><span class='kbd'>Tab</span>/<span class='kbd'>Shift+Tab</span> cycle through objects at selection</div>
+      `
+
+      const updateShortcutsList = (mode) => {
+        const shortcutsList = $('#shortcutsList')
+        if (!shortcutsList) return
+        shortcutsList.innerHTML = mode === 'group' ? SHORTCUTS_HTML_GROUP : SHORTCUTS_HTML_DEFAULT
+      }
+
+      const updatePropsPanelMode = (mode, hasSelection = false) => {
+        // Show/hide entire panelBody based on selection
+        const panelBody = $('#panelBody')
+        if (panelBody) {
+          panelBody.classList.toggle('hidden', !hasSelection)
+        }
+
+        resetBaseRowOrder()
+
+        const commonRows = ['rowStroke', 'rowFill', 'rowStrokeWidth', 'rowStrokeAlpha', 'rowFillAlpha', 'rowRotation']
+        const textRows = ['rowFontSize', 'rowTextBorderEnabled', 'rowTextBorderColor', 'rowTextBorderAlpha', 'rowTextBorderWidth']
+        const textareaRows = ['rowTextareaTextHeader', 'rowTextareaFontSize', 'rowTextareaTextColor', 'rowTextareaTextAlpha', 'rowTextareaBorderHeader', 'rowTextareaBorderWidth', 'rowTextareaBorderColor', 'rowTextareaBorderAlpha', 'rowTextareaPadding', 'rowTextareaBackgroundHeader', 'rowTextareaBackgroundColor', 'rowTextareaBackgroundAlpha']
+        const imageRows = ['rowImageGeneralHeader', 'rowImageLockAspect', 'rowImageAlpha', 'rowImageFlip', 'rowImageCrop', 'rowImageBorderHeader', 'rowImageBorderWidth', 'rowImageBorderColor', 'rowImageBorderAlpha', 'rowImageTransparencyHeader', 'rowImageTransparencyEnabled', 'rowImageTransparencyColor', 'rowImageTransparencyTolerance']
+        const lineLikeRows = ['rowArrowHeadSize']
+        const rectSectionRows = ['rowRectGeneralHeader', 'rowRectBorderHeader', 'rowRectFillHeader']
+        const circleSectionRows = ['rowCircleGeneralHeader', 'rowCircleStrokeHeader', 'rowCircleFillHeader', 'rowCircleLockAspect']
+        const groupOnlyRows = ['rowTool', 'rowShortcutsHeader', 'rowShortcuts']
+
+        updateShortcutsList(mode)
+
+        if (mode === 'group') {
+          const allRows = $$('#panelBody .row, #panelBody .mini')
+          for (const row of allRows) row.classList.add('hidden')
+          for (const id of groupOnlyRows) setRowHidden(id, false)
+          return
+        }
+
+        for (const id of commonRows) setRowHidden(id, mode === 'image' || mode === 'textarea')
+        setRowHidden('rowFill', mode === 'lineLike' || mode === 'pen' || mode === 'textarea' || mode === 'image')
+        setRowHidden('rowFillAlpha', mode === 'lineLike' || mode === 'pen' || mode === 'textarea' || mode === 'image')
+        // Rotation is supported for all shape types.
+        setRowHidden('rowRotation', false)
+        for (const id of textRows) setRowHidden(id, mode !== 'text')
+        for (const id of textareaRows) setRowHidden(id, mode !== 'textarea')
+        for (const id of imageRows) setRowHidden(id, mode !== 'image')
+        for (const id of lineLikeRows) setRowHidden(id, mode !== 'lineLike')
+        for (const id of rectSectionRows) setRowHidden(id, mode !== 'rect')
+        for (const id of circleSectionRows) setRowHidden(id, mode !== 'circle')
+
+        if (mode === 'rect') applyRectRowOrder()
+        if (mode === 'circle') applyCircleRowOrder()
+
+        const labelStrokeColor = $('#labelStrokeColor')
+        const labelStrokeAlpha = $('#labelStrokeAlpha')
+        const labelStrokeWidth = $('#labelStrokeWidth')
+        const labelFillColor = $('#labelFillColor')
+        if (labelStrokeColor) {
+          if (mode === 'lineLike') labelStrokeColor.textContent = 'Color'
+          else if (mode === 'rect') labelStrokeColor.textContent = 'Border color'
+          else labelStrokeColor.textContent = 'Stroke'
+        }
+        if (labelStrokeAlpha) {
+          if (mode === 'lineLike') labelStrokeAlpha.textContent = 'Alpha'
+          else if (mode === 'rect') labelStrokeAlpha.textContent = 'Border alpha'
+          else labelStrokeAlpha.textContent = 'Stroke alpha'
+        }
+        if (labelStrokeWidth) {
+          if (mode === 'lineLike') labelStrokeWidth.textContent = 'Line width'
+          else if (mode === 'rect') labelStrokeWidth.textContent = 'Border width'
+          else labelStrokeWidth.textContent = 'Stroke width'
+        }
+        if (labelFillColor) labelFillColor.textContent = (mode === 'rect' || mode === 'circle') ? 'Fill color' : 'Fill'
+      }
+
+      const getPropsSelectionKind = (shape) => {
+        if (!shape) return null
+        // Lines and arrows are represented by the same shape type and must be editable together.
+        if (shape.type === 'line') return 'lineLike'
+        return shape.type
+      }
+
+      const getPropsPanelModeForKind = (kind) => {
+        if (kind === 'lineLike') return 'lineLike'
+        if (kind === 'image') return 'image'
+        if (kind === 'text') return 'textarea'
+        if (kind === 'pen') return 'pen'
+        if (kind === 'group') return 'group'
+        if (kind === 'rect') return 'rect'
+        if (kind === 'ellipse') return 'circle'
+        return 'default'
+      }
+
+      const getSelectionPropsContext = () => {
+        const orderedIds = Array.from(app.selectedIds)
+        const selectedShapes = orderedIds.map(getShapeById).filter(Boolean)
+        if (!selectedShapes.length) {
+          return { hasSelection: false, compatible: false, selectedShapes: [], firstShape: null, kind: null }
+        }
+        const firstShape = selectedShapes[0]
+        const firstKind = getPropsSelectionKind(firstShape)
+        const compatible = selectedShapes.every(shape => getPropsSelectionKind(shape) === firstKind)
+        return { hasSelection: true, compatible, selectedShapes, firstShape, kind: firstKind }
+      }
+
+      const syncPropsFromSelection = () => {
+        // Exit crop mode automatically when selection changes to a different shape
+        const _syncSelId = app.selectedIds.size === 1 ? Array.from(app.selectedIds)[0] : null
+        if (app.cropModeId && app.cropModeId !== _syncSelId) {
+          app.cropModeId = null
+        }
+
+        const ctx = getSelectionPropsContext()
+        if (!ctx.hasSelection || !ctx.compatible) {
+          updatePropsPanelMode('default', false)
+          $('#selectedTypeDisplay').textContent = 'none'
+          updateTextBorderControlState(false, false)
+          return
+        }
+        const s = ctx.firstShape
+        if (!s) return
+        const st = s.style || {}
+        const mode = getPropsPanelModeForKind(ctx.kind)
+
+        if (s.type === 'image') {
+          updatePropsPanelMode(mode, true)
+          $('#selectedTypeDisplay').textContent = 'Image'
+          setInputValue('rotation', Math.round(s.rot || 0))
+          setCheckedValue('imageLockAspect', st.imageLockAspect ?? app.style.imageLockAspect)
+          setInputValue('imageAlpha', st.imageAlpha ?? app.style.imageAlpha)
+          setInputValue('imageBorderColor', st.imageBorder || app.style.imageBorder)
+          setInputValue('imageBorderAlpha', st.imageBorderAlpha ?? app.style.imageBorderAlpha)
+          setInputValue('imageBorderWidth', st.imageBorderWidth ?? app.style.imageBorderWidth)
+          const flipH = !!(st.imageFlipH ?? app.style.imageFlipH)
+          const flipV = !!(st.imageFlipV ?? app.style.imageFlipV)
+          const btnFlipH = $('#btnFlipH')
+          const btnFlipV = $('#btnFlipV')
+          btnFlipH.classList.toggle('primary', flipH)
+          btnFlipV.classList.toggle('primary', flipV)
+          btnFlipH.setAttribute('aria-pressed', String(flipH))
+          btnFlipV.setAttribute('aria-pressed', String(flipV))
+          $('#btnCropMode').classList.toggle('primary', app.cropModeId === s.id)
+          // Sync transparency properties
+          setCheckedValue('imageTransparencyEnabled', st.imageTransparencyEnabled ?? app.style.imageTransparencyEnabled)
+          setInputValue('imageTransparencyColor', st.imageTransparencyColor || app.style.imageTransparencyColor)
+          setInputValue('imageTransparencyTolerance', st.imageTransparencyTolerance ?? app.style.imageTransparencyTolerance)
+          updateTextBorderControlState(false, false)
+          return
+        }
+
+        if (s.type === 'line') {
+          updatePropsPanelMode(mode, true)
+          const headSize = Math.max(0, Number(st.arrowHeadSize ?? 0))
+          $('#selectedTypeDisplay').textContent = headSize > 0 ? 'arrow' : 'line'
+          setInputValue('strokeColor', st.stroke || app.style.stroke)
+          setInputValue('strokeWidth', st.strokeWidth ?? app.style.strokeWidth)
+          setInputValue('strokeAlpha', st.strokeAlpha ?? app.style.strokeAlpha)
+          setInputValue('arrowHeadSize', Math.max(0, Number(st.arrowHeadSize ?? (s.type === 'line' ? 0 : app.style.arrowHeadSize))))
+          setInputValue('rotation', s.rot || 0)
+          updateTextBorderControlState(false, false)
+          return
+        }
+
+        const typeDisplayMap = {
+          'rect': 'rectangle',
+          'ellipse': 'circle',
+          'line': 'line',
+          'pen': 'pen',
+          'text': 'text',
+          'group': 'group'
+        }
+        $('#selectedTypeDisplay').textContent = typeDisplayMap[s.type] || s.type
+        updatePropsPanelMode(mode, true)
+        setInputValue('strokeColor', st.stroke || app.style.stroke)
+        setInputValue('fillColor', st.fill || app.style.fill)
+        setInputValue('strokeWidth', st.strokeWidth ?? app.style.strokeWidth)
+        setInputValue('strokeAlpha', st.strokeAlpha ?? app.style.strokeAlpha)
+        setInputValue('fillAlpha', st.fillAlpha ?? app.style.fillAlpha)
+        setInputValue('rotation', s.rot || 0)
+        if (s.type === 'ellipse') {
+          setCheckedValue('circleLockAspect', st.circleLockAspect ?? app.style.circleLockAspect)
+        }
+        if (s.type === 'text') {
+          // Populate new textarea section properties
+          setInputValue('textareaFontSize', s.fontSize || app.style.fontSize)
+          setInputValue('textareaTextColor', st.textColor || app.style.textColor)
+          setInputValue('textareaTextAlpha', st.textAlpha ?? app.style.textAlpha)
+          setInputValue('textareaBorderWidth', st.textBorderWidth ?? app.style.textBorderWidth)
+          setInputValue('textareaBorderColor', st.textBorderColor || app.style.textBorderColor)
+          setInputValue('textareaBorderAlpha', st.textBorderAlpha ?? app.style.textBorderAlpha)
+          setInputValue('textareaPadding', st.textPadding ?? app.style.textPadding ?? 5)
+          setInputValue('textareaBackgroundColor', st.textBackground || app.style.textBackground)
+          setInputValue('textareaBackgroundAlpha', st.textBackgroundAlpha ?? app.style.textBackgroundAlpha)
+          // Keep old properties for backward compatibility
+          setInputValue('fontSize', s.fontSize || app.style.fontSize)
+          setCheckedValue('textBorderEnabled', st.textBorderWidth > 0)
+          setInputValue('textBorderColor', st.textBorderColor || app.style.textBorderColor)
+          setInputValue('textBorderAlpha', st.textBorderAlpha ?? app.style.textBorderAlpha)
+          setInputValue('textBorderWidth', st.textBorderWidth ?? app.style.textBorderWidth)
+          updateTextBorderControlState(false, false)
+        } else {
+          updateTextBorderControlState(false, false)
+        }
+      }
+
+      const applyPropsToSelection = () => {
+        const ctx = getSelectionPropsContext()
+        if (!ctx.hasSelection || !ctx.compatible) return
+        const ids = ctx.selectedShapes.map(s => s.id)
+        const hasTextSelection = ids.some(id => {
+          const s = getShapeById(id)
+          return !!s && s.type === 'text'
+        })
+        const textBorderEnabled = $('#textBorderEnabled').checked
+        const textBorderColor = $('#textBorderColor').value
+        const textBorderAlpha = Number($('#textBorderAlpha').value)
+        const textBorderWidth = Number($('#textBorderWidth').value)
+        // New textarea properties
+        const textareaFontSize = Number($('#textareaFontSize').value) || app.style.fontSize
+        const textareaTextColor = $('#textareaTextColor').value
+        const textareaTextAlpha = Number($('#textareaTextAlpha').value)
+        const textareaBorderWidth = Number($('#textareaBorderWidth').value)
+        const textareaBorderColor = $('#textareaBorderColor').value
+        const textareaBorderAlpha = Number($('#textareaBorderAlpha').value)
+        const textareaPadding = Number($('#textareaPadding').value)
+        const textareaBackgroundColor = $('#textareaBackgroundColor').value
+        const textareaBackgroundAlpha = Number($('#textareaBackgroundAlpha').value)
+        const imageLockAspect = $('#imageLockAspect').checked
+        const circleLockAspect = $('#circleLockAspect').checked
+        const imageAlpha = Number($('#imageAlpha').value)
+        const imageBorderColor = $('#imageBorderColor').value
+        const imageBorderAlpha = Number($('#imageBorderAlpha').value)
+        const imageBorderWidth = Number($('#imageBorderWidth').value)
+        const imageFlipH = $('#btnFlipH').getAttribute('aria-pressed') === 'true'
+        const imageFlipV = $('#btnFlipV').getAttribute('aria-pressed') === 'true'
+        const imageTransparencyEnabled = $('#imageTransparencyEnabled').checked
+        const imageTransparencyColor = $('#imageTransparencyColor').value
+        const imageTransparencyTolerance = Number($('#imageTransparencyTolerance').value)
+        const arrowHeadSize = Number($('#arrowHeadSize').value)
+        for (const id of ids) {
+          const s = getShapeById(id)
+          if (!s) continue
+          s.style = s.style || {}
+
+          if (s.type === 'image') {
+            s.rot = Math.round(Number($('#rotation').value) || 0)
+            s.style.imageLockAspect = imageLockAspect
+            s.style.imageAlpha = imageAlpha
+            s.style.imageBorder = imageBorderColor
+            s.style.imageBorderAlpha = imageBorderAlpha
+            s.style.imageBorderWidth = imageBorderWidth
+            s.style.imageFlipH = imageFlipH
+            s.style.imageFlipV = imageFlipV
+            s.style.imageTransparencyEnabled = imageTransparencyEnabled
+            s.style.imageTransparencyColor = imageTransparencyColor
+            s.style.imageTransparencyTolerance = imageTransparencyTolerance
+            // Invalidate all cache entries for this image when transparency settings change
+            for (const key of imageTransparencyCache.keys()) {
+              if (key.startsWith(s.id + ':')) {
+                imageTransparencyCache.delete(key)
+              }
+            }
+            continue
+          }
+
+          if (s.type === 'line') {
+            s.style.stroke = $('#strokeColor').value
+            s.style.strokeWidth = Number($('#strokeWidth').value)
+            s.style.strokeAlpha = Number($('#strokeAlpha').value)
+            s.style.arrowHeadSize = Math.max(0, arrowHeadSize)
+            s.rot = Number($('#rotation').value) || 0
+            continue
+          }
+
+          s.rot = Number($('#rotation').value) || 0
+          if (s.type === 'text') {
+            s.fontSize = textareaFontSize
+            s.style.textColor = textareaTextColor
+            s.style.textAlpha = textareaTextAlpha
+            s.style.textBorderWidth = textareaBorderWidth
+            s.style.textBorderColor = textareaBorderColor
+            s.style.textBorderAlpha = textareaBorderAlpha
+            s.style.textPadding = clamp(textareaPadding, 0, 20)
+            s.style.textBackground = textareaBackgroundColor
+            s.style.textBackgroundAlpha = textareaBackgroundAlpha
+            s.style.textBorderEnabled = textareaBorderWidth > 0
+            s.style.textBorder = textareaBorderColor
+            // Keep text shape as a tight envelope when textarea spacing/font changes.
+            fitTextShapeToContent(s)
+          } else {
+            if (s.type === 'ellipse') {
+              s.style.circleLockAspect = circleLockAspect
+            }
+            s.style.stroke = $('#strokeColor').value
+            s.style.fill = $('#fillColor').value
+            s.style.strokeWidth = Number($('#strokeWidth').value)
+            s.style.strokeAlpha = Number($('#strokeAlpha').value)
+            s.style.fillAlpha = Number($('#fillAlpha').value)
+          }
+        }
+        updateLinkedEndpointsForTargets(new Set(ids))
+        updateTextBorderControlState(hasTextSelection, hasTextSelection && textBorderEnabled)
+        render()
+        markDirty()
+      }
+
+      const focusMainDrawing = () => {
+        // Keep text editor focus intact while editing text content.
+        const active = document.activeElement
+        if (active && active.classList && active.classList.contains('textEdit')) return
+        if (active && typeof active.blur === 'function') active.blur()
+        svg.focus({ preventScroll: true })
+      }
+
+      const isPropsPanelShortcutKey = (ev) => {
+        const k = String(ev.key || '').toLowerCase()
+        return (
+          ev.key === 'Delete' ||
+          ev.key === 'Backspace' ||
+          ev.key === 'Tab' ||
+          ev.key === '[' ||
+          ev.key === ']' ||
+          (ev.shiftKey && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(ev.key)) ||
+          (!ev.shiftKey && (ev.key === 'ArrowUp' || ev.key === 'ArrowDown')) ||
+          ['z', 'v', 'p', 'r', 'c', 'a', 'l', 'e', 't', 'g', 'u', 'd', 'n'].includes(k)
+        )
+      }
+
+      /* =========================
+         Utilities for Color Processing  
+      ========================= */
+      const hexToRgbArray = (hex) => {
+        const h = String(hex || '#ffffff').replace('#', '').trim()
+        const r = parseInt(h.slice(0, 2), 16)
+        const g = parseInt(h.slice(2, 4), 16)
+        const b = parseInt(h.slice(4, 6), 16)
+        return [isNaN(r) ? 255 : r, isNaN(g) ? 255 : g, isNaN(b) ? 255 : b]
+      }
+
+      /* =========================
+         Image Transparency Processing
+      ========================= */
+      // Cache for processed images with transparency
+      const imageTransparencyCache = new Map()
+
+      const getImageProcessedSrc = (shape) => {
+        const st = shape.style || {}
+        const hasTransparency = st.imageTransparencyEnabled && st.imageTransparencyColor && shape.src
+
+        if (!hasTransparency) {
+          // No transparency, use original src
+          return shape.src
+        }
+
+        // Create cache key from shape id and transparency settings
+        const cacheKey = `${shape.id}:${st.imageTransparencyColor}:${st.imageTransparencyTolerance}`
+
+        // Check cache
+        if (imageTransparencyCache.has(cacheKey)) {
+          return imageTransparencyCache.get(cacheKey)
+        }
+
+        // If not cached and src is available, we'll mark it for processing
+        // Return original src for now and process asynchronously
+        return shape.src
+      }
+
+      const processImageTransparencyAsync = async (shape) => {
+        const st = shape.style || {}
+        if (!st.imageTransparencyEnabled || !st.imageTransparencyColor || !shape.src) return
+
+        const cacheKey = `${shape.id}:${st.imageTransparencyColor}:${st.imageTransparencyTolerance}`
+        if (imageTransparencyCache.has(cacheKey)) return
+
+        try {
+          // Load image from src
+          const img = new Image()
+          img.crossOrigin = 'anonymous'
+
+          await new Promise((resolve, reject) => {
+            img.onload = () => resolve(true)
+            img.onerror = () => reject(new Error('Failed to load image for transparency processing'))
+            img.src = shape.src
+          })
+
+          // Create canvas and draw image
+          const c = document.createElement('canvas')
+          c.width = img.width
+          c.height = img.height
+          const ctx = c.getContext('2d')
+          ctx.drawImage(img, 0, 0)
+
+          // Apply transparency to the canvas (optimized: avoid sqrt, process in chunks)
+          const transparencyColor = hexToRgbArray(st.imageTransparencyColor)
+          // Max distance in RGB space is sqrt(255²+255²+255²) ≈ 442, so multiply by 442 for full range
+          const tolerance = (st.imageTransparencyTolerance ?? 0) * 442
+          const toleranceSq = tolerance * tolerance // squared for faster comparison
+
+          const imageData = ctx.getImageData(0, 0, c.width, c.height)
+          const data = imageData.data
+          const [tr, tg, tb] = transparencyColor
+
+          // Process in chunks to avoid blocking the main thread
+          const chunkSize = 10000 // process 10000 pixels (40KB) at a time
+          const totalPixels = data.length / 4
+
+          const processChunk = (startPixel) => {
+            const endPixel = Math.min(startPixel + chunkSize, totalPixels)
+
+            for (let p = startPixel; p < endPixel; p++) {
+              const i = p * 4
+              const r = data[i]
+              const g = data[i + 1]
+              const b = data[i + 2]
+
+              const dr = r - tr
+              const dg = g - tg
+              const db = b - tb
+              const distanceSq = dr * dr + dg * dg + db * db
+
+              if (distanceSq <= toleranceSq) {
+                data[i + 3] = 0 // Set alpha to 0
+              }
+            }
+
+            if (endPixel < totalPixels) {
+              // Yield to browser, then process next chunk
+              return new Promise(resolve => setTimeout(() => resolve(processChunk(endPixel)), 0))
+            }
+          }
+
+          await processChunk(0)
+
+          ctx.putImageData(imageData, 0, 0)
+
+          // Convert to data URL and cache
+          const processedSrc = c.toDataURL('image/png')
+          imageTransparencyCache.set(cacheKey, processedSrc)
+
+          // Trigger re-render to use the new processed image
+          render()
+        } catch (e) {
+          console.error('Error processing image transparency:', e)
+        }
+      }
+
+      /* =========================
+         Export
+      ========================= */
+      const applyBackgroundTransparency = (ctx, w, h) => {
+        // Check if any image shape has transparency enabled
+        const transparencyConfigs = app.shapes
+          .filter(s => s.type === 'image' && s.style?.imageTransparencyEnabled)
+          .map(s => ({
+            color: hexToRgbArray(s.style?.imageTransparencyColor || '#ffffff'),
+            // Max distance in RGB space is sqrt(255²+255²+255²) ≈ 442, so multiply by 442 for full range
+            tolerance: (s.style?.imageTransparencyTolerance ?? 0) * 442
+          }))
+
+        if (!transparencyConfigs.length) return
+
+        const imageData = ctx.getImageData(0, 0, w, h)
+        const data = imageData.data
+
+        // Process pixels: for each pixel, check if it's close to any transparency color
+        // Use squared distances to avoid expensive sqrt calculations
+        const configsWithSqTolerance = transparencyConfigs.map(cfg => ({
+          color: cfg.color,
+          toleranceSq: cfg.tolerance * cfg.tolerance
+        }))
+
+        for (let i = 0; i < data.length; i += 4) {
+          const r = data[i]
+          const g = data[i + 1]
+          const b = data[i + 2]
+
+          // Check if this pixel is close to any of the transparency colors
+          for (const config of configsWithSqTolerance) {
+            const [tr, tg, tb] = config.color
+            const toleranceSq = config.toleranceSq
+
+            const dr = r - tr
+            const dg = g - tg
+            const db = b - tb
+            const distanceSq = dr * dr + dg * dg + db * db
+
+            // If within tolerance (using squared distance), make transparent
+            if (distanceSq <= toleranceSq) {
+              data[i + 3] = 0 // Set alpha to 0
+              break // No need to check other colors for this pixel
+            }
+          }
+        }
+
+        ctx.putImageData(imageData, 0, 0)
+      }
+
+      const exportPng = async () => {
+        if (document.fonts && document.fonts.ready) {
+          try { await document.fonts.ready } catch {}
+        }
+
+        const w = app.canvas.width
+        const h = app.canvas.height
+
+        // Clone live SVG DOM
+        const svgNode = svg.cloneNode(true)
+
+        // Ensure namespaces + sizing
+        svgNode.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
+        svgNode.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink')
+        svgNode.setAttribute('width', String(w))
+        svgNode.setAttribute('height', String(h))
+        svgNode.setAttribute('viewBox', `0 0 ${w} ${h}`)
+
+        // Remove editor-only visuals
+        svgNode.querySelectorAll('.selOverlay').forEach(n => n.remove())
+        svgNode.querySelectorAll('.hit').forEach(n => n.remove())
+
+        // Inject background rect (CSS background won’t reliably rasterize)
+        const bg = document.createElementNS('http://www.w3.org/2000/svg', 'rect')
+        bg.setAttribute('x', '0')
+        bg.setAttribute('y', '0')
+        bg.setAttribute('width', String(w))
+        bg.setAttribute('height', String(h))
+        bg.setAttribute('fill', app.canvas.bg || 'rgb(255,255,255)')
+
+        const defs = svgNode.querySelector('defs')
+        if (defs && defs.parentNode === svgNode) {
+          svgNode.insertBefore(bg, defs.nextSibling)
+        } else {
+          svgNode.insertBefore(bg, svgNode.firstChild)
+        }
+
+        const xml = new XMLSerializer().serializeToString(svgNode)
+        const svgText = `<?xml version='1.0' encoding='UTF-8'?>\n${xml}`
+        const svgBlob = new Blob([svgText], { type: 'image/svg+xml;charset=utf-8' })
+        const url = URL.createObjectURL(svgBlob)
+
+        const img = new Image()
+        img.decoding = 'async'
+
+        try {
+          await new Promise((resolve, reject) => {
+            img.onload = () => resolve(true)
+            img.onerror = () => reject(new Error('PNG export image load failed'))
+            img.src = url
+          })
+
+          await img.decode().catch(() => {})
+
+          const c = document.createElement('canvas')
+          c.width = w
+          c.height = h
+          const ctx = c.getContext('2d')
+          ctx.clearRect(0, 0, w, h)
+          ctx.drawImage(img, 0, 0)
+
+          // Apply color-based background transparency if any image has it enabled
+          applyBackgroundTransparency(ctx, w, h)
+
+          const blob = await new Promise((resolve) => c.toBlob(resolve, 'image/png'))
+          downloadBlob((app.drawing?.name || 'drawing') + '.png', blob)
+        } finally {
+          URL.revokeObjectURL(url)
+        }
+      }
+
+
+      // Deletion of objects
+      const deleteSelection = () => {
+        if (!app.selectedIds.size) return
+
+        const toDelete = new Set(app.selectedIds)
+
+        // If a group is selected, delete the group AND its children
+        for (const id of app.selectedIds) {
+          const s = getShapeById(id)
+          if (s && s.type === 'group') {
+            for (const cid of (s.childrenIds || [])) toDelete.add(cid)
+          }
+        }
+
+        clearLinksForTargetIds(toDelete)
+
+        // Remove shapes
+        app.shapes = app.shapes.filter(s => !toDelete.has(s.id))
+
+        // Clean up group references that might still point to deleted children
+        for (const s of app.shapes) {
+          if (s.type === 'group') {
+            s.childrenIds = (s.childrenIds || []).filter(cid => !toDelete.has(cid))
+          }
+        }
+
+        app.selectedIds = new Set()
+        pushHistory()
+        render()
+        markDirty()
+        toast('Deleted')
+      }
+
+      /* =========================
+         Keyboard shortcuts
+      ========================= */
+      const isMac = () => /Mac|iPhone|iPad|iPod/.test(navigator.platform)
+      const modKey = (ev) => isMac() ? ev.metaKey : ev.ctrlKey
+
+      const nudgeSelection = (dx, dy) => {
+        if (!app.selectedIds.size) return
+        const movedTargetIds = new Set()
+        for (const id of app.selectedIds) {
+          const s = getShapeById(id)
+          if (!s) continue
+          if (s.type === 'line') {
+            moveShapeBy(s, dx, dy)
+            movedTargetIds.add(s.id)
+          } else if (s.type === 'pen') {
+            moveShapeBy(s, dx, dy)
+            movedTargetIds.add(s.id)
+          } else if (s.type === 'group') {
+            for (const cid of (s.childrenIds || [])) {
+              const c = getShapeById(cid)
+              if (!c) continue
+              moveShapeBy(c, dx, dy)
+              movedTargetIds.add(c.id)
+            }
+          } else {
+            moveShapeBy(s, dx, dy)
+            movedTargetIds.add(s.id)
+          }
+        }
+        updateLinkedEndpointsForTargets(movedTargetIds)
+        pushHistory()
+        render()
+        markDirty()
+      }
+
+      const changeSize = (delta) => {
+        // If selection exists, resize bbox; else change default stroke width
+        if (!app.selectedIds.size) {
+          app.style.strokeWidth = clamp(app.style.strokeWidth + delta, 0, 200)
+          $('#strokeWidth').value = app.style.strokeWidth
+          toast(`Stroke width: ${app.style.strokeWidth}`)
+          return
+        }
+
+        if (app.selectedIds.size !== 1) return
+        const id = Array.from(app.selectedIds)[0]
+        const s = getShapeById(id)
+        if (!s) return
+
+        if (s.type === 'text') {
+          // Resize text by font size, then keep bbox as tight text envelope.
+          const nextFs = clamp((s.fontSize || app.style.fontSize) + delta, 6, 200)
+          s.fontSize = nextFs
+          fitTextShapeToContent(s)
+          $('#fontSize').value = nextFs
+          $('#textareaFontSize').value = nextFs
+        } else if (s.type === 'image') {
+          const keepAspect = s.style?.imageLockAspect ?? app.style.imageLockAspect
+          if (keepAspect && s.w > 0 && s.h > 0) {
+            const ratio = s.w / s.h
+            const nextW = Math.max(1, s.w + delta)
+            const nextH = Math.max(1, nextW / ratio)
+            s.w = nextW
+            s.h = nextH
+          } else {
+            s.w = Math.max(1, s.w + delta)
+            s.h = Math.max(1, s.h + delta)
+          }
+        } else if (s.type === 'rect' || s.type === 'ellipse') {
+          if (s.type === 'ellipse' && (s.style?.circleLockAspect ?? app.style.circleLockAspect)) {
+            const ratio = (s.w > 0 && s.h > 0) ? (s.w / s.h) : 1
+            const nextW = Math.max(1, s.w + delta)
+            const nextH = Math.max(1, nextW / ratio)
+            s.w = nextW
+            s.h = nextH
+          } else {
+            s.w = Math.max(1, s.w + delta)
+            s.h = Math.max(1, s.h + delta)
+          }
+        } else if (s.type === 'line') {
+          clearLineLinks(s)
+          const lineDelta = Math.abs(delta) > 1 ? delta * 2 : delta
+          const dx = s.x2 - s.x1
+          const dy = s.y2 - s.y1
+          const len = Math.hypot(dx, dy)
+
+          if (len > 0) {
+            const ux = dx / len
+            const uy = dy / len
+            const nextLen = Math.max(1, len + lineDelta)
+            s.x2 = s.x1 + ux * nextLen
+            s.y2 = s.y1 + uy * nextLen
+          } else {
+            // Degenerate line: grow horizontally by default.
+            const nextLen = Math.max(1, 1 + lineDelta)
+            s.x2 = s.x1 + nextLen
+            s.y2 = s.y1
+          }
+        } else if (s.type === 'pen') {
+          const bb = computeBBoxForPen(s.points || [])
+          const cx = bb.x + bb.w / 2
+          const cy = bb.y + bb.h / 2
+          const sx = bb.w ? (bb.w + delta) / bb.w : 1
+          const sy = bb.h ? (bb.h + delta) / bb.h : 1
+          s.points = (s.points || []).map(pt => ({
+            x: cx + (pt.x - cx) * sx,
+            y: cy + (pt.y - cy) * sy
+          }))
+        }
+
+        pushHistory()
+        render()
+        markDirty()
+      }
+
+
+      const onKeyDown = (ev) => {
+        const active = document.activeElement
+        const propsPanel = $('#propsPanel')
+        const isPropsPanelFocused = !!propsPanel && !!active && propsPanel.contains(active)
+
+        if (isPropsPanelFocused && isPropsPanelShortcutKey(ev)) {
+          ev.preventDefault()
+          ev.stopPropagation()
+          focusMainDrawing()
+        }
+
+        // If text editor is open, do not handle shortcuts
+        if (document.activeElement && document.activeElement.classList && document.activeElement.classList.contains('textEdit')) return
+        if (document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA' || document.activeElement.isContentEditable)) {
+          // allow Esc to blur
+          if (ev.key === 'Escape') document.activeElement.blur()
+          return
+        }
+
+        // Deletion of objects
+        if (ev.key === 'Delete' || ev.key === 'Backspace') {
+          ev.preventDefault()
+          deleteSelection()
+          return
+        }
+
+        // Undo/redo
+        if (ev.key.toLowerCase() === 'z' && !modKey(ev) && !ev.altKey) {
+          ev.preventDefault()
+          if (ev.shiftKey) redo()
+          else undo()
+          return
+        }
+
+        // Tool shortcuts
+        const k = ev.key.toLowerCase()
+        if (k === 'v') { setTool('select'); return }
+        if (k === 'p') { selectSingle(null); setTool('pen'); return }
+        if (k === 'r') { selectSingle(null); setTool('rect'); return }
+        if (k === 'c') { selectSingle(null); setTool('ellipse'); return }
+        if (k === 'a') { selectSingle(null); setTool('arrow'); return }
+        if (k === 'l') { selectSingle(null); setTool('line'); return }
+        // Edit selected text (E)
+        if (k === 'e') {
+          let textId = null
+
+          for (const id of app.selectedIds) {
+            const s = getShapeById(id)
+            if (!s) continue
+
+            if (s.type === 'text') {
+              textId = s.id
+              break
+            }
+
+            if (s.type === 'group') {
+              const kids = (s.childrenIds || []).map(getShapeById).filter(Boolean)
+              const textKid = kids.find(x => x.type === 'text')
+              if (textKid) {
+                textId = textKid.id
+                break
+              }
+            }
+          }
+
+          if (textId) {
+            ev.preventDefault()
+            ev.stopPropagation()
+            selectSingle(textId)
+            startTextEdit(textId, ev.clientX, ev.clientY)
+          }
+          return
+        }
+
+
+        if (k === 't') {
+          ev.preventDefault()
+          ev.stopPropagation()
+          selectSingle(null)
+          setTool('text')
+          // insert at last pointer position and enter edit mode
+          createTextAt(app.lastPointer.x, app.lastPointer.y)
+          return
+        }
+        if (k === 'g') { groupSelection(); return }
+        if (k === 'u') { ungroupSelection(); return }
+        if (k === 'd') { duplicateSelection(); return }
+        if (k === 'n') {
+          createNewDrawing()
+          return
+        }
+
+        // Tab cycles stacked objects at last click (Shift+Tab reverses).
+        if (ev.key === 'Tab') {
+          ev.preventDefault()
+          cycleHitStack(ev.shiftKey ? -1 : 1)
+          return
+        }
+
+        // Layer shortcuts
+        if (ev.key === '[') { sendToBack(); return }
+        if (ev.key === ']') { bringToFront(); return }
+
+        // Grouping
+        if (modKey(ev) && k === 'g' && !ev.shiftKey) { ev.preventDefault(); groupSelection(); return }
+        if (modKey(ev) && k === 'u' && !ev.shiftKey) { ev.preventDefault(); ungroupSelection(); return }
+
+        // Move with Shift+Arrows
+        if (ev.shiftKey && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(ev.key)) {
+          ev.preventDefault()
+          const step = ev.altKey ? 1 : 10
+          const dx = ev.key === 'ArrowLeft' ? -step : ev.key === 'ArrowRight' ? step : 0
+          const dy = ev.key === 'ArrowUp' ? -step : ev.key === 'ArrowDown' ? step : 0
+          nudgeSelection(dx, dy)
+          return
+        }
+
+        // Size with Up/Down (no shift)
+        if (!ev.shiftKey && (ev.key === 'ArrowUp' || ev.key === 'ArrowDown')) {
+          ev.preventDefault()
+          const step = ev.altKey ? 1 : 5
+          const delta = ev.key === 'ArrowUp' ? step : -step
+          changeSize(delta)
+          return
+        }
+      }
+
+      const fileToDataUrl = (file) => new Promise((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => resolve(String(reader.result || ''))
+        reader.onerror = () => reject(reader.error || new Error('FileReader failed'))
+        reader.readAsDataURL(file)
+      })
+
+      const imageSizeFromDataUrl = (src) => new Promise((resolve, reject) => {
+        const img = new Image()
+        img.onload = () => resolve({ w: img.naturalWidth || 1, h: img.naturalHeight || 1 })
+        img.onerror = () => reject(new Error('Image load failed'))
+        img.src = src
+      })
+
+      const normalizeSvgMarkup = (text) => {
+        const raw = String(text || '').trim()
+        if (!raw) return ''
+
+        let candidate = raw
+        const svgStart = raw.search(/<svg\b/i)
+        if (svgStart >= 0) {
+          const endTag = '</svg>'
+          const svgEnd = raw.toLowerCase().lastIndexOf(endTag)
+          candidate = svgEnd >= svgStart ? raw.slice(svgStart, svgEnd + endTag.length) : raw.slice(svgStart)
+        } else if (/<\s*(path|g|defs|polygon|polyline|rect|circle|ellipse|line|use|symbol|linearGradient|radialGradient)\b/i.test(raw)) {
+          candidate = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 256 256'>${raw}</svg>`
+        } else {
+          return ''
+        }
+
+        const doc = new DOMParser().parseFromString(candidate, 'image/svg+xml')
+        if (doc.querySelector('parsererror')) return ''
+
+        const root = doc.documentElement
+        if (!root || String(root.tagName || '').toLowerCase() !== 'svg') return ''
+        if (!root.getAttribute('xmlns')) root.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
+
+        return new XMLSerializer().serializeToString(root)
+      }
+
+      const getSvgMarkupFromClipboard = (clipboardData) => {
+        if (!clipboardData) return ''
+
+        const directSvg = normalizeSvgMarkup(clipboardData.getData('image/svg+xml'))
+        if (directSvg) return directSvg
+
+        const plainText = normalizeSvgMarkup(clipboardData.getData('text/plain'))
+        if (plainText) return plainText
+
+        return normalizeSvgMarkup(clipboardData.getData('text/html'))
+      }
+
+      const svgMarkupToDataUrl = (svgMarkup) => {
+        const blob = new Blob([svgMarkup], { type: 'image/svg+xml;charset=utf-8' })
+        return fileToDataUrl(blob)
+      }
+
+      const onPaste = async (ev) => {
+        if (!app.drawing) return
+
+        const active = document.activeElement
+        if (active && active.classList && active.classList.contains('textEdit')) return
+        if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.isContentEditable)) return
+
+        const items = Array.from(ev.clipboardData?.items || [])
+        const imageItem = items.find(it => it && it.kind === 'file' && /^image\//i.test(it.type || ''))
+        if (imageItem) {
+          const file = imageItem.getAsFile()
+          if (!file) return
+
+          ev.preventDefault()
+          try {
+            const src = await fileToDataUrl(file)
+            const size = await imageSizeFromDataUrl(src)
+            const x = clamp(Number(app.lastPointer?.x ?? app.canvas.width / 2), 0, app.canvas.width)
+            const y = clamp(Number(app.lastPointer?.y ?? app.canvas.height / 2), 0, app.canvas.height)
+            createImageAt(src, x, y, size.w, size.h)
+            // Make drag-to-move work immediately after paste.
+            setTool('select')
+            focusMainDrawing()
+            toast('Image pasted')
+          } catch (err) {
+            console.error(err)
+            toast('Failed to paste image')
+          }
+          return
+        }
+
+        const svgMarkup = getSvgMarkupFromClipboard(ev.clipboardData)
+        if (!svgMarkup) return
+
+        ev.preventDefault()
+        try {
+          const src = await svgMarkupToDataUrl(svgMarkup)
+          const size = await imageSizeFromDataUrl(src)
+          const x = clamp(Number(app.lastPointer?.x ?? app.canvas.width / 2), 0, app.canvas.width)
+          const y = clamp(Number(app.lastPointer?.y ?? app.canvas.height / 2), 0, app.canvas.height)
+          createImageAt(src, x, y, size.w, size.h)
+          setTool('select')
+          focusMainDrawing()
+          toast('SVG pasted')
+        } catch (err) {
+          console.error(err)
+          toast('Failed to paste SVG')
+        }
+      }
+
+      /* =========================
+         Canvas background modal (simple prompt)
+      ========================= */
+      const cmToPx = (cm) => {
+        // CSS px per inch is defined as 96. 1 inch = 2.54 cm.
+        return (cm / 2.54) * 96
+      }
+
+      const applyGridUi = () => {
+        const paperEl = $('#paper')
+        paperEl.classList.toggle('showGrid', !!app.grid.enabled)
+
+        const px = Math.max(8, Math.round(cmToPx(app.grid.cm)))
+        paperEl.style.setProperty('--gridSize', px + 'px')
+
+        const btn = $('#btnGrid')
+        if (btn) btn.classList.toggle('primary', !!app.grid.enabled)
+      }
+
+      /* Paper resizing */
+      const parsePaperSize = (input) => {
+        const s = String(input || '').trim().toLowerCase()
+
+        // Accept: "1200x800", "1200 x 800", "1200,800"
+        const m = s.match(/^(\d+)\s*(x|,)\s*(\d+)$/i)
+        if (!m) return null
+
+        const w = Number(m[1])
+        const h = Number(m[3])
+        if (!Number.isFinite(w) || !Number.isFinite(h)) return null
+        if (w < 100 || h < 100) return null
+
+        return { w, h }
+      }
+
+      const applyPaperSize = (w, h) => {
+        if (!app.drawing) return
+
+        const nextW = clamp(Math.round(w), 100, 20000)
+        const nextH = clamp(Math.round(h), 100, 20000)
+
+        if (nextW === app.canvas.width && nextH === app.canvas.height) return
+
+        app.canvas.width = nextW
+        app.canvas.height = nextH
+
+        pushHistory()
+        render()
+        markDirty()
+      }
+
+      const promptPaperSize = () => {
+        if (!app.drawing) return
+
+        const curW = app.canvas.width || 1200
+        const curH = app.canvas.height || 800
+        const v = prompt('Paper size in px (e.g. 1200x800):', `${curW}x${curH}`)
+        if (v == null) return
+
+        const parsed = parsePaperSize(v)
+        if (!parsed) {
+          alert('Invalid size. Use e.g. 1200x800 (min 100x100).')
+          return
+        }
+
+        applyPaperSize(parsed.w, parsed.h)
+      }
+
+
+      /* =========================
+         UI wiring
+      ========================= */
+      const toggleGallery = () => {
+        app.galleryOpen = !app.galleryOpen
+        const main = $('#main')
+        main.classList.toggle('galleryOpen', app.galleryOpen)
+      }
+
+      const wireUi = () => {
+        svg.setAttribute('tabindex', '-1')
+
+        window.addEventListener('resize', updateStageReservedSpace)
+
+        $('#btnGallery').addEventListener('click', toggleGallery)
+        $('#btnNew').addEventListener('click', createNewDrawing)
+
+        $('#toolPen').addEventListener('click', () => setTool('pen'))
+        $('#toolRect').addEventListener('click', () => setTool('rect'))
+        $('#toolEllipse').addEventListener('click', () => setTool('ellipse'))
+        $('#toolArrow').addEventListener('click', () => setTool('arrow'))
+        $('#toolLine').addEventListener('click', () => setTool('line'))
+        $('#toolText').addEventListener('click', () => setTool('text'))
+
+        $('#btnBringFront').addEventListener('click', bringToFront)
+        $('#btnSendBack').addEventListener('click', sendToBack)
+        $('#btnGroup').addEventListener('click', groupSelection)
+        $('#btnUngroup').addEventListener('click', ungroupSelection)
+
+        $('#btnExportPng').addEventListener('click', exportPng)
+        
+        $('#btnPaperSize').addEventListener('click', promptPaperSize)
+        $('#btnGrid').addEventListener('click', () => {
+          app.grid.enabled = !app.grid.enabled
+          applyGridUi()
+          markDirty()
+        })
+
+        $('#canvasBgPicker').addEventListener('click', () => {
+          $('#canvasBgPicker').value = rgbStringToHex(app.canvas.bg || 'rgb(255,255,255)')
+        })
+        $('#canvasBgPicker').addEventListener('input', (ev) => {
+          app.canvas.bg = hexToRgbString(ev.target.value)
+          render()
+          markDirty()
+        })
+        $('#canvasBgPicker').addEventListener('change', (ev) => {
+          app.canvas.bg = hexToRgbString(ev.target.value)
+          render()
+          markDirty()
+        })
+
+        $('#drawingName').addEventListener('input', () => {
+          if (!app.drawing) return
+          app.drawing.name = $('#drawingName').value
+          markDirty()
+        })
+
+        // Focus on drawing after enter pressed
+        $('#drawingName').addEventListener('keydown', (ev) => {
+          if (ev.key === 'Enter' || ev.code === 'NumpadEnter' || ev.keyCode === 13) {
+            ev.preventDefault()
+            ev.currentTarget.blur()
+          }
+        })
+
+        // Properties
+        const livePropInputIds = ['strokeWidth', 'strokeAlpha', 'fillAlpha', 'rotation', 'fontSize', 'textBorderAlpha', 'textBorderWidth', 'imageAlpha', 'imageBorderAlpha', 'imageBorderWidth', 'arrowHeadSize', 'imageTransparencyTolerance', 'textareaFontSize', 'textareaBorderWidth', 'textareaBorderAlpha', 'textareaPadding', 'textareaTextAlpha', 'textareaBackgroundAlpha']
+        for (const id of livePropInputIds) {
+          const el = $('#' + id)
+          el.addEventListener('input', applyPropsToSelection)
+        }
+        const colorPropInputIds = ['strokeColor', 'fillColor', 'textBorderColor', 'imageBorderColor', 'imageTransparencyColor', 'textareaTextColor', 'textareaBorderColor', 'textareaBackgroundColor']
+        for (const id of colorPropInputIds) {
+          const el = $('#' + id)
+          // Live preview while the color picker is open.
+          el.addEventListener('input', applyPropsToSelection)
+          el.addEventListener('change', applyPropsToSelection)
+        }
+        $('#textBorderEnabled').addEventListener('input', applyPropsToSelection)
+        $('#circleLockAspect').addEventListener('input', applyPropsToSelection)
+        $('#imageLockAspect').addEventListener('input', applyPropsToSelection)
+        $('#imageTransparencyEnabled').addEventListener('input', applyPropsToSelection)
+        const wireFlipToggle = (btnId) => {
+          const btn = $('#' + btnId)
+          btn.addEventListener('click', () => {
+            const next = btn.getAttribute('aria-pressed') !== 'true'
+            btn.setAttribute('aria-pressed', String(next))
+            btn.classList.toggle('primary', next)
+            applyPropsToSelection()
+          })
+        }
+        wireFlipToggle('btnFlipH')
+        wireFlipToggle('btnFlipV')
+        $('#btnCropMode').addEventListener('click', () => {
+          const id = Array.from(app.selectedIds)[0]
+          if (!id) return
+          const s = getShapeById(id)
+          if (!s || s.type !== 'image') return
+          app.cropModeId = (app.cropModeId === id) ? null : id
+          syncPropsFromSelection()
+          render()
+        })
+        updatePropsPanelMode('default', false)
+        updateTextBorderControlState(false, false)
+
+        // Global rule: whenever any property-panel control is changed/clicked,
+        // return focus to the drawing so keyboard shortcuts remain active.
+        const propsPanel = $('#propsPanel')
+
+        propsPanel.addEventListener('change', (ev) => {
+          const t = ev.target
+          if (!t || !t.matches) return
+          // Color inputs are handled separately and intentionally only close on commit.
+          if (t.matches("input[type='color']")) return
+          if (t.matches('input, select, textarea, button')) focusMainDrawing()
+        })
+        propsPanel.addEventListener('click', (ev) => {
+          const btn = ev.target && ev.target.closest ? ev.target.closest('button') : null
+          if (btn) focusMainDrawing()
+        })
+
+        // Pointer events
+        svg.addEventListener('pointerdown', pointerDown)
+        window.addEventListener('pointermove', pointerMove)
+        window.addEventListener('pointerup', pointerUp)
+
+        // Double click text to edit
+        svg.addEventListener('dblclick', (ev) => {
+          const p = clientToSvgPoint(ev.clientX, ev.clientY)
+          const hits = hitTest(p.x, p.y)
+          if (!hits.length) return
+          const s = getShapeById(hits[0])
+          if (s && s.type === 'text') {
+            selectSingle(s.id)
+            startTextEdit(s.id, ev.clientX, ev.clientY)
+          }
+        })
+        
+        // Click to refresh cycle scope from selected/topmost shape area
+        svg.addEventListener('click', (ev) => {
+          const p = clientToSvgPoint(ev.clientX, ev.clientY)
+          app.lastClick = { ...p }
+          const hits = hitTest(p.x, p.y)
+          const topId = hits[0]
+          app.lastHitStack = topId ? buildCycleStackForShapeArea(topId) : []
+          app.lastHitIndex = 0
+        })
+
+        window.addEventListener('keydown', onKeyDown)
+        window.addEventListener('paste', onPaste)
+      }
+
+      /* =========================
+         Boot
+      ========================= */
+      const boot = async () => {
+        wireUi()
+        applyGridUi()
+
+        setTool('select')
+        $('#hudMode').textContent = app.tool
+
+        try {
+          app.db = await idbOpen()
+        } catch (e) {
+          console.error(e)
+          alert('IndexedDB failed to open. This app requires IndexedDB.')
+          return
+        }
+
+        await refreshGallery()
+
+        // Load most recent or create new
+        const list = await idbList(app.db)
+        if (list.length) {
+          await loadDrawing(list[0].id)
+        } else {
+          await createNewDrawing()
+        }
+
+        // Initial layout
+        toggleGallery() // open by default
+      }
+
+      boot()
+    })()
+  </script>
+</body>
+</html>
