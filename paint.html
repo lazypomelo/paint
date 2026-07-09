@@ -26,60 +26,70 @@
       --cardH: 240px;     /* fixed card height */
     }
     *{ box-sizing: border-box; }
-    html, body{ height: 100%; margin: 0; background: var(--bg); color: var(--text); font-family: var(--font); }
+    html, body{ height: 100%; margin: 0; background: var(--bg); color: var(--text); font-family: var(--font); overflow: hidden; }
     button, input, select{ font: inherit; }
     .app{
       height: 100%;
+      width: 100%;
+      min-width: 0;
       display: grid;
-      grid-template-rows: 44px 1fr;
+      grid-template-rows: 36px 1fr;
       grid-template-columns: 1fr;
+      overflow: hidden;
     }
     .topbar{
       display: flex;
       align-items: center;
-      gap: 8px;
-      padding: 6px 10px;
+      gap: 6px;
+      padding: 4px 8px;
+      font-size: 13px;
       background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02));
       border-bottom: 1px solid var(--border);
       position: relative;
       z-index: 5;
+      min-width: 0;
+      overflow-x: auto;
+      overflow-y: hidden;
+      white-space: nowrap;
     }
-    .topbar .group{ display: flex; align-items: center; gap: 6px; padding-right: 10px; border-right: 1px solid var(--border); }
+    .topbar .group{ display: flex; align-items: center; gap: 4px; padding-right: 8px; border-right: 1px solid var(--border); }
     .topbar .group:last-child{ border-right: none; }
     .btn{
-      height: 30px;
-      padding: 0 10px;
-      border-radius: 8px;
+      height: 24px;
+      padding: 0 8px;
+      border-radius: 6px;
       border: 1px solid var(--border);
       background: rgba(255,255,255,0.04);
       color: var(--text);
       cursor: pointer;
       display: inline-flex;
       align-items: center;
-      gap: 8px;
+      gap: 5px;
+      font-size: 12px;
       user-select: none;
     }
     .btn:hover{ background: rgba(255,255,255,0.07); }
     .btn:active{ transform: translateY(1px); }
     .btn.primary{ border-color: rgba(78,161,255,0.45); background: rgba(78,161,255,0.12); }
     .btn.danger{ border-color: rgba(255,90,106,0.45); background: rgba(255,90,106,0.10); }
-    .btn.icon{ width: 34px; padding: 0; justify-content: center; }
+    .btn.icon{ width: 26px; padding: 0; justify-content: center; }
     .btn.iconWide{
-      width: 92px;
-      padding: 0 8px;
+      width: 76px;
+      padding: 0 6px;
       justify-content: center;
-      gap: 6px;
+      gap: 4px;
       flex-shrink: 0;
     }
     .pill{
-      height: 30px;
-      padding: 0 10px;
+      height: 24px;
+      padding: 0 8px;
       border-radius: 999px;
       border: 1px solid var(--border);
       background: rgba(255,255,255,0.03);
       display: inline-flex;
       align-items: center;
-      gap: 8px;
+      gap: 6px;
+      font-size: 12px;
       color: var(--muted);
     }
     #saveState{
@@ -87,7 +97,7 @@
       justify-content: center;
       white-space: nowrap;
     }
-    .sep{ width: 1px; height: 26px; background: var(--border); margin: 0 6px; }
+    .sep{ width: 1px; height: 20px; background: var(--border); margin: 0 4px; }
     .nameWrap{
       margin-left: auto;
       display: flex;
@@ -96,8 +106,9 @@
       min-width: 260px;
     }
     .nameInput{
-      height: 30px;
-      width: 260px;
+      height: 24px;
+      width: 220px;
+      font-size: 12px;
       border-radius: 8px;
       border: 1px solid var(--border);
       background: rgba(255,255,255,0.03);
@@ -107,20 +118,26 @@
     }
     .nameInput:focus{ border-color: rgba(78,161,255,0.55); box-shadow: 0 0 0 3px rgba(78,161,255,0.15); }
     .main{
-      display: grid;
-      grid-template-columns: 0px 1fr;
+      position: relative;
       height: 100%;
       overflow: hidden;
+      min-width: 0;
     }
-    .main.galleryOpen{ grid-template-columns: var(--galleryW) 1fr; }
     .sidebar{
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: var(--galleryW);
       background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02));
       border-right: 1px solid var(--border);
       overflow: hidden;
       display: flex;
       flex-direction: column;
       min-width: 0;
+      z-index: 2;
     }
+    .main:not(.galleryOpen) .sidebar{ display: none; }
     .sidebarHeader{
       padding: 10px;
       display: flex;
@@ -137,6 +154,17 @@
       grid-template-columns: 1fr;
       gap: 10px;
     }
+    .canvasShell{
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 0;
+      bottom: 0;
+      min-width: 0;
+      min-height: 0;
+      overflow: hidden;
+    }
+    .main.galleryOpen .canvasShell{ left: var(--galleryW); }
     .card{
       height: var(--cardH);
       display: grid;
@@ -203,23 +231,35 @@
     }
     .canvasWrap{
       position: relative;
-      overflow: hidden;
+      overflow: auto;
+      min-width: 0;
+      min-height: 0;
+      width: 100%;
+      height: 100%;
       background:
         radial-gradient(circle at 1px 1px, var(--grid) 1px, transparent 0) 0 0 / 20px 20px,
         linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
     }
+    .canvasSurface{
+      position: relative;
+      min-width: 0;
+      min-height: 0;
+      width: var(--canvasSurfaceW, 5px);
+      height: var(--canvasSurfaceH, 5px);
+    }
     .stage{
-      position: absolute;
-      inset: 0;
-      display: grid;
-      justify-items: center;
-      align-items: center;
-      /* Keep room on the right for floating properties panel, then center paper in the remaining width. */
-      padding-right: var(--propsReserve, 0px);
-      overflow: auto;
+      position: relative;
+      width: 100%;
+      height: 100%;
+      min-width: 0;
+      min-height: 0;
+      padding: 0;
+      box-sizing: border-box;
     }
     .paper{
-      position: relative;
+      position: absolute;
+      left: 10px;
+      top: 10px;
       box-shadow: 0 20px 60px rgba(0,0,0,0.45);
       border-radius: 10px;
       overflow: hidden;
@@ -263,16 +303,19 @@
     .hud .k{ font-family: var(--mono); font-size: 12px; color: var(--muted); }
     .hud .v{ font-size: 12px; }
     .floatingPanel{
-      position: absolute;
+      position: fixed;
       right: 12px;
-      top: 12px;
-      width: 325px;
+      top: calc(36px + 12px);
+      width: min(325px, calc(100vw - 24px));
+      max-height: calc(100vh - 36px - 24px);
+      display: flex;
+      flex-direction: column;
       border-radius: 14px;
       border: 1px solid var(--border);
       background: rgba(10,12,16,0.65);
       backdrop-filter: blur(10px);
       box-shadow: var(--shadow);
-      z-index: 4;
+      z-index: 6;
       overflow: hidden;
     }
     .panelHeader{
@@ -287,6 +330,8 @@
       padding: 12px;
       display: grid;
       gap: 10px;
+      overflow: auto;
+      min-height: 0;
     }
     .panelBody.hidden{
       display: none;
@@ -392,14 +437,14 @@
       </div>
 
       <div class='group'>
-        <button class='btn' id='btnSendBack' title='Send to back ([)'>Back <span class='kbd'>[</span></button>        
-        <button class='btn' id='btnBringFront' title='Bring to front (])'>Front <span class='kbd'>]</span></button>               
+          <button class='btn' id='btnSendBack' title='Send to back (B)'>Back <span class='kbd'>B</span></button>        
+          <button class='btn' id='btnBringFront' title='Bring to front (F)'>Front <span class='kbd'>F</span></button>               
         <button class='btn' id='btnGroup' title='Group (G)'>Group <span class='kbd'>G</span></button>
         <button class='btn' id='btnUngroup' title='Ungroup (U)'>Ungroup <span class='kbd'>U</span></button>
       </div>
 
       <div class='group'>
-        <button class='btn' id='btnExportPng' title='Export PNG'>Export&nbsp;PNG</button>
+        <button class='btn' id='btnExportPng' title='Export PNG'>Export</button>
       </div>
 
       <div class='nameWrap'>
@@ -417,7 +462,17 @@
         <div class='gallery' id='gallery'></div>
       </div>
 
-      <div class='canvasWrap' id='canvasWrap'>
+      <div class='canvasShell'>
+        <div class='canvasWrap' id='canvasWrap'>
+          <div class='canvasSurface' id='canvasSurface'>
+            <div class='stage' id='stage'>
+              <div class='paper' id='paper'>
+                <svg id='svg' xmlns='http://www.w3.org/2000/svg'></svg>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div class='toast' id='toast'></div>
 
         <div class='floatingPanel' id='propsPanel'>
@@ -456,7 +511,7 @@
           <div class='panelBody' id='panelBody'>
             <div class='row' id='rowTool'>
               <label>Type</label>
-              <div id='selectedTypeDisplay' style='padding: 0 8px; height: 30px; display: flex; align-items: center; border-radius: 8px; border: 1px solid var(--border); background: rgba(255,255,255,0.04); color: var(--text); font-size: 14px; font-family: var(--mono);'>none</div>
+              <div id='selectedTypeDisplay' style='padding: 0 8px; height: 24px; display: flex; align-items: center; border-radius: 6px; border: 1px solid var(--border); background: rgba(255,255,255,0.04); color: var(--text); font-size: 12px; font-family: var(--mono);'>none</div>
             </div>
 
             <!-- Rectangle Properties Sections -->
@@ -531,6 +586,10 @@
             <div class='row hidden' id='rowTextareaTextAlpha'>
               <label>Text alpha</label>
               <input type='range' id='textareaTextAlpha' min='0' max='1' step='0.01' value='1' />
+            </div>
+            <div class='row hidden' id='rowTextareaWrapText'>
+              <label>Wrap text</label>
+              <input type='checkbox' id='textareaWrapText' />
             </div>
 
             <!-- Textarea Border Section -->
@@ -664,7 +723,7 @@
                 <div><span class='kbd'>Shift+Arrows</span> move ±10, <span class='kbd'>Shift+Alt+Arrows</span> ±1</div>
                 <div><span class='kbd'>Tab</span>/<span class='kbd'>Shift+Tab</span> cycle through objects at selection</div>
                 <div><span class='kbd'>Del</span> Delete, <span class='kbd'>Z</span> undo, <span class='kbd'>Shift+Z</span> redo</div>
-                <div><span class='kbd'>[</span>/<span class='kbd'>]</span> send back / bring front</div>
+                <div><span class='kbd'>B</span>/<span class='kbd'>F</span> send back / bring front</div>
                 <div><span class='kbd'>D</span> duplicate, <span class='kbd'>E</span> edit text</div>
                 <div><span class='kbd'>G</span> group, <span class='kbd'>U</span> ungroup</div>
               </div>
@@ -676,12 +735,6 @@
           <div class='k'>Mode</div><div class='v' id='hudMode'>select</div>
           <div class='k'>Selected</div><div class='v' id='hudSel'>none</div>
           <div class='k'>Autosave</div><div class='v' id='hudSave'>idle</div>
-        </div>
-
-        <div class='stage' id='stage'>
-          <div class='paper' id='paper'>
-            <svg id='svg' xmlns='http://www.w3.org/2000/svg'></svg>
-          </div>
         </div>
       </div>
     </div>
@@ -697,8 +750,8 @@
       const $ = (sel, el = document) => el.querySelector(sel)
       const $$ = (sel, el = document) => Array.from(el.querySelectorAll(sel))
       const clamp = (v, a, b) => Math.max(a, Math.min(b, v))
-      const LINE_SNAP_TOLERANCE = 10 // pixels
-      const LINK_ATTACH_RADIUS = 36 // pixels
+      const LINE_SNAP_TOLERANCE = 10 // pixels, line/arrow will become horizontally/vertically aligned if within tolerance
+      const LINK_ATTACH_RADIUS = 5 // pixels, line/arrow will get attached to nearby objects if within radius
       const now = () => Date.now()
       const uuid = () => {
         if (crypto && crypto.randomUUID) return crypto.randomUUID()
@@ -861,6 +914,7 @@
           textBackgroundAlpha: 0,
           textBorderEnabled: false,
           textBorder: '#111111',
+          textWrap: false,
           circleLockAspect: true,
           imageAlpha: 1,
           imageLockAspect: true,
@@ -1224,23 +1278,27 @@
       ========================= */
       const svg = $('#svg')
       const paper = $('#paper')
+      const canvasSurface = $('#canvasSurface')
+      const PAPER_INSET = 10
+      const PANEL_EDGE_GAP = 12
 
-      const updateStageReservedSpace = () => {
-        const stageEl = $('#stage')
+      const getPropsPanelReserveWidth = () => {
         const panelEl = $('#propsPanel')
-        if (!stageEl || !panelEl) return
-
+        if (!panelEl) return 0
         const panelWidth = panelEl.offsetWidth || 0
-        const panelRight = Number.parseFloat(getComputedStyle(panelEl).right || '0') || 0
-        const panelGap = 12
-        const reserve = Math.max(0, Math.round(panelWidth + panelRight + panelGap))
-        stageEl.style.setProperty('--propsReserve', reserve + 'px')
+        return Math.max(0, Math.round(panelWidth + PANEL_EDGE_GAP))
       }
 
       const setPaperSize = (w, h) => {
-        const stageEl = $('#stage')
-        stageEl.style.setProperty('--paperW', w + 'px')
-        updateStageReservedSpace()
+        if (canvasSurface) {
+          const rightReserve = getPropsPanelReserveWidth()
+          const surfaceWidth = Math.max(PAPER_INSET * 2, w + PAPER_INSET * 2 + rightReserve)
+          const surfaceHeight = Math.max(PAPER_INSET * 2, h + PAPER_INSET * 2)
+          canvasSurface.style.setProperty('--canvasSurfaceW', surfaceWidth + 'px')
+          canvasSurface.style.setProperty('--canvasSurfaceH', surfaceHeight + 'px')
+          canvasSurface.style.width = surfaceWidth + 'px'
+          canvasSurface.style.height = surfaceHeight + 'px'
+        }
         paper.style.width = w + 'px'
         paper.style.height = h + 'px'
         svg.setAttribute('viewBox', `0 0 ${w} ${h}`)
@@ -1475,7 +1533,7 @@
           textEl.setAttribute('font-size', fontSize)
           textEl.setAttribute('font-family', s.fontFamily || 'inherit')
           textEl.setAttribute('stroke', 'none')
-          const lines = String(s.text || '').split('\n')
+          const lines = getTextRenderLines(s)
           lines.forEach((line, idx) => {
             const y = Math.round(baseY + idx * lineHeight)
             const tspan = svgEl('tspan', { x: textX, y })
@@ -2267,9 +2325,11 @@
       const duplicateSelection = () => {
         const ids = Array.from(app.selectedIds)
         if (!ids.length) return
-        
-        const offset = 15
+
+        const targetX = clamp(Number(app.lastPointer?.x ?? app.canvas.width / 2), 0, app.canvas.width)
+        const targetY = clamp(Number(app.lastPointer?.y ?? app.canvas.height / 2), 0, app.canvas.height)
         const newIds = new Set()
+        const movableCopies = []
         
         for (const id of ids) {
           const s = getShapeById(id)
@@ -2281,25 +2341,25 @@
           if (copy.type === 'line') {
             clearLineLinks(copy)
           }
-          
-          // Apply position offset based on shape type
-          if (copy.type === 'line') {
-            moveShapeBy(copy, offset, offset)
-          } else if (copy.type === 'pen') {
-            moveShapeBy(copy, offset, offset)
-          } else if (copy.type === 'group') {
-            // Offset group children (though they're still in main shapes array)
-            for (const cid of (copy.childrenIds || [])) {
-              const c = getShapeById(cid)
-              if (!c) continue
-              moveShapeBy(c, offset, offset)
-            }
-          } else {
-            moveShapeBy(copy, offset, offset)
-          }
+
+          if (copy.type !== 'group') movableCopies.push(copy)
           
           app.shapes.push(copy)
           newIds.add(copy.id)
+        }
+
+        if (movableCopies.length) {
+          const boxes = movableCopies.map(shapeBBox)
+          const minX = Math.min(...boxes.map(b => b.x))
+          const minY = Math.min(...boxes.map(b => b.y))
+          const maxX = Math.max(...boxes.map(b => b.x + b.w))
+          const maxY = Math.max(...boxes.map(b => b.y + b.h))
+          const centerX = (minX + maxX) / 2
+          const centerY = (minY + maxY) / 2
+          const dx = targetX - centerX
+          const dy = targetY - centerY
+
+          for (const copy of movableCopies) moveShapeBy(copy, dx, dy)
         }
         
         app.selectedIds = newIds
@@ -2384,20 +2444,152 @@
         return processedLines.join('\n')
       }
 
+      const getContinuationIndentForLine = (line) => {
+        // Editable bullet syntax: -, --, ---, ---- ...
+        const editableBullet = line.match(/^(-{1,})[ \t]*/)
+        if (editableBullet) {
+          const level = editableBullet[1].length
+          const bulletIndent = level === 1 ? '  ' : '    '.repeat(level)
+          // Keep continuation text aligned with bullet text, not bullet symbol.
+          return bulletIndent + '   '
+        }
+
+        // Rendered bullet syntax fallback (for pasted content).
+        const renderedBullet = line.match(/^(\s*)([•◦–]|-)\s+/)
+        if (renderedBullet) {
+          const offset = renderedBullet[1].length + renderedBullet[2].length + 2
+          return ' '.repeat(offset)
+        }
+
+        // For non-bullet lines, preserve existing leading whitespace.
+        const leadingWs = line.match(/^([ \t]+)/)
+        return leadingWs ? leadingWs[1] : ''
+      }
+
+      const isTextWrapEnabled = (s) => !!(s && s.style && s.style.textWrap)
+
+      const parseTextLineLayout = (line) => {
+        const raw = String(line || '')
+        const renderedBullet = raw.match(/^(\s*(?:[•◦–]|-)\s+)(.*)$/)
+        if (renderedBullet) {
+          return {
+            firstPrefix: renderedBullet[1],
+            continuationPrefix: getContinuationIndentForLine(raw),
+            content: renderedBullet[2]
+          }
+        }
+
+        const leadingWs = (raw.match(/^[ \t]*/) || [''])[0]
+        return {
+          firstPrefix: leadingWs,
+          continuationPrefix: leadingWs,
+          content: raw.slice(leadingWs.length)
+        }
+      }
+
+      const measureWrappedMinContentWidth = (lines, measureCtx) => {
+        let maxWidth = 0
+        for (const line of lines) {
+          const { firstPrefix, continuationPrefix, content } = parseTextLineLayout(line)
+          const words = String(content || '').trim().split(/\s+/).filter(Boolean)
+
+          if (!words.length) {
+            maxWidth = Math.max(maxWidth, measureCtx.measureText(String(line || ' ')).width)
+            continue
+          }
+
+          for (let i = 0; i < words.length; i += 1) {
+            const prefix = i === 0 ? firstPrefix : continuationPrefix
+            const probe = prefix + words[i]
+            maxWidth = Math.max(maxWidth, measureCtx.measureText(probe).width)
+          }
+        }
+        return Math.ceil(maxWidth)
+      }
+
+      const wrapLineByWords = (line, maxContentWidth, measureCtx) => {
+        const raw = String(line || '')
+        if (!raw) return ['']
+
+        const { firstPrefix, continuationPrefix, content } = parseTextLineLayout(raw)
+        const words = String(content || '').trim().split(/\s+/).filter(Boolean)
+        if (!words.length) return [raw]
+
+        const out = []
+        let current = firstPrefix + words[0]
+
+        for (let i = 1; i < words.length; i += 1) {
+          const next = words[i]
+          const candidate = current + ' ' + next
+          if (measureCtx.measureText(candidate).width <= maxContentWidth) {
+            current = candidate
+            continue
+          }
+          out.push(current)
+          current = continuationPrefix + next
+        }
+
+        out.push(current)
+        return out
+      }
+
+      const getTextRenderLines = (s, measureCtxOverride = null) => {
+        const sourceLines = String(s.text || '').split('\n')
+        if (!isTextWrapEnabled(s)) return sourceLines
+
+        const fontSize = Number(s.fontSize || app.style.fontSize)
+        const fontFamily = s.fontFamily || 'sans-serif'
+        const textPadding = clamp(Number(s.style?.textPadding ?? app.style.textPadding ?? 5), 0, 20)
+        const measureCtx = measureCtxOverride || document.createElement('canvas').getContext('2d')
+        measureCtx.font = `${fontSize}px ${fontFamily}`
+
+        const maxContentWidth = Math.max(1, Number(s.w || 0) - textPadding * 2)
+        const wrapped = []
+        for (const line of sourceLines) {
+          wrapped.push(...wrapLineByWords(line, maxContentWidth, measureCtx))
+        }
+        return wrapped
+      }
+
+      const getTextMinBoxSize = (s, measureCtxOverride = null) => {
+        const fontSize = Number(s.fontSize || app.style.fontSize)
+        const fontFamily = s.fontFamily || 'sans-serif'
+        const textPadding = clamp(Number(s.style?.textPadding ?? app.style.textPadding ?? 5), 0, 20)
+        const measureCtx = measureCtxOverride || document.createElement('canvas').getContext('2d')
+        measureCtx.font = `${fontSize}px ${fontFamily}`
+
+        const sourceLines = String(s.text || '').split('\n')
+        const minContentWidth = measureWrappedMinContentWidth(sourceLines, measureCtx)
+        const minW = Math.max(1, minContentWidth + textPadding * 2)
+        const minH = Math.max(24, fontSize + fontSize * 0.3 + textPadding * 2)
+        return { minW, minH }
+      }
+
       const fitTextShapeToContent = (s) => {
         if (!s || s.type !== 'text') return
         const fontSize = s.fontSize || app.style.fontSize
         const fontFamily = s.fontFamily || 'sans-serif'
         const textPadding = clamp(Number(s.style?.textPadding ?? app.style.textPadding ?? 5), 0, 20)
+        const measureCtx = document.createElement('canvas').getContext('2d')
+        measureCtx.font = `${fontSize}px ${fontFamily}`
+
+        const minSize = getTextMinBoxSize(s, measureCtx)
+
+        if (isTextWrapEnabled(s)) {
+          s.w = Math.max(minSize.minW, Number(s.w) || minSize.minW)
+          const wrappedLines = getTextRenderLines(s, measureCtx)
+          const lineCount = Math.max(1, wrappedLines.length)
+          const lineHeight = fontSize * 1.2
+          s.h = Math.max(minSize.minH, fontSize + (lineCount - 1) * lineHeight + fontSize * 0.3 + textPadding * 2)
+          return
+        }
+
         const textLines = String(s.text || '').split('\n')
         const lineCount = Math.max(1, textLines.length)
 
         // Keep the text box as a tight envelope around rendered text.
         const lineHeight = fontSize * 1.2
-        s.h = Math.max(24, fontSize + (lineCount - 1) * lineHeight + fontSize * 0.3 + textPadding * 2)
-
-        const measureCtx = document.createElement('canvas').getContext('2d')
-        measureCtx.font = `${fontSize}px ${fontFamily}`
+        s.h = Math.max(minSize.minH, fontSize + (lineCount - 1) * lineHeight + fontSize * 0.3 + textPadding * 2)
         const maxLineW = Math.max(...textLines.map(line => measureCtx.measureText(line).width))
         s.w = Math.max(80, Math.ceil(maxLineW) + textPadding * 2)
       }
@@ -2409,12 +2601,16 @@
         // Create overlay textarea positioned over SVG
         const ta = document.createElement('textarea')
         ta.className = 'textEdit'
-        ta.wrap = 'off'
+        const wrapEnabled = isTextWrapEnabled(s)
+        ta.wrap = wrapEnabled ? 'soft' : 'off'
         // Convert any bullets back to editable dashes when entering edit mode
         ta.value = bulletsToEditableDashes(s.text || '')
         ta.style.fontSize = (s.fontSize || app.style.fontSize) + 'px'
         ta.style.fontFamily = s.fontFamily || 'inherit'
         ta.style.padding = clamp(Number(s.style?.textPadding ?? app.style.textPadding ?? 5), 0, 20) + 'px'
+        ta.style.whiteSpace = wrapEnabled ? 'pre-wrap' : 'pre'
+        ta.style.resize = wrapEnabled ? 'horizontal' : 'none'
+        ta.style.overflow = wrapEnabled ? 'auto' : 'hidden'
 
         const wrap = $('#canvasWrap')
         wrap.appendChild(ta)
@@ -2434,19 +2630,21 @@
         const baseW = w
         const baseH = h
         const updateEditorSize = () => {
-          const wrapRect = wrap.getBoundingClientRect()
-          const left = parseFloat(ta.style.left) || 0
-          const cs = window.getComputedStyle(ta)
-          const pl = parseFloat(cs.paddingLeft) || 0
-          const pr = parseFloat(cs.paddingRight) || 0
-          const maxAllowedW = Math.max(baseW, wrapRect.width - left - 8)
+          if (!wrapEnabled) {
+            const wrapRect = wrap.getBoundingClientRect()
+            const left = parseFloat(ta.style.left) || 0
+            const cs = window.getComputedStyle(ta)
+            const pl = parseFloat(cs.paddingLeft) || 0
+            const pr = parseFloat(cs.paddingRight) || 0
+            const maxAllowedW = Math.max(baseW, wrapRect.width - left - 8)
 
-          measureCtx.font = `${ta.style.fontSize} ${ta.style.fontFamily || 'sans-serif'}`
-          const lines = ta.value.split('\n')
-          const maxLineW = Math.max(...lines.map(line => measureCtx.measureText(line || ' ').width))
-          const neededW = Math.ceil(maxLineW + pl + pr + 2)
+            measureCtx.font = `${ta.style.fontSize} ${ta.style.fontFamily || 'sans-serif'}`
+            const lines = ta.value.split('\n')
+            const maxLineW = Math.max(...lines.map(line => measureCtx.measureText(line || ' ').width))
+            const neededW = Math.ceil(maxLineW + pl + pr + 2)
 
-          ta.style.width = Math.min(maxAllowedW, Math.max(baseW, neededW)) + 'px'
+            ta.style.width = Math.min(maxAllowedW, Math.max(baseW, neededW)) + 'px'
+          }
           ta.style.height = 'auto'
           ta.style.height = Math.max(baseH, ta.scrollHeight) + 'px'
         }
@@ -2465,6 +2663,11 @@
           didFinish = true
           if (shapeEl) shapeEl.style.visibility = ''
           if (commit) {
+            if (wrapEnabled) {
+              const taRect = ta.getBoundingClientRect()
+              s.w = Math.max(1, (taRect.width / svgRect.width) * app.canvas.width)
+              s.h = Math.max(1, (taRect.height / svgRect.height) * app.canvas.height)
+            }
             // Convert dashes to bullets when exiting edit mode
             const processedText = dashesToBullets(ta.value)
             s.text = processedText
@@ -2492,14 +2695,19 @@
           }
 
           if (isEnter && ev.shiftKey) {
-            // Shift+Enter and Shift+NumpadEnter: insert a newline explicitly.
+            // Shift+Enter and Shift+NumpadEnter: insert newline with continuation indent.
             ev.preventDefault()
             ev.stopPropagation()
             const start = ta.selectionStart
             const end = ta.selectionEnd
-            const next = ta.value.slice(0, start) + '\n' + ta.value.slice(end)
+            const lineStart = ta.value.lastIndexOf('\n', Math.max(0, start - 1)) + 1
+            const nextBreak = ta.value.indexOf('\n', start)
+            const lineEnd = nextBreak === -1 ? ta.value.length : nextBreak
+            const currentLine = ta.value.slice(lineStart, lineEnd)
+            const continuationIndent = getContinuationIndentForLine(currentLine)
+            const next = ta.value.slice(0, start) + '\n' + continuationIndent + ta.value.slice(end)
             ta.value = next
-            const caret = start + 1
+            const caret = start + 1 + continuationIndent.length
             ta.setSelectionRange(caret, caret)
             updateEditorSize()
             return
@@ -2537,6 +2745,7 @@
         s.style.textBorderAlpha = app.style.textBorderAlpha
         s.style.textBorderWidth = app.style.textBorderWidth
         s.style.textPadding = app.style.textPadding
+        s.style.textWrap = !!app.style.textWrap
         app.shapes.push(s)
         selectSingle(s.id)
         pushHistory()
@@ -2602,11 +2811,17 @@
           return
         }
         if (handle && app.selectedIds.size === 1) {
+          const id = Array.from(app.selectedIds)[0]
+          const selectedShape = getShapeById(id)
+          // Non-wrapped text keeps legacy auto-size behavior and is not mouse-resizable.
+          if (selectedShape && selectedShape.type === 'text' && handle !== 'rot' && !isTextWrapEnabled(selectedShape)) {
+            ev.preventDefault()
+            return
+          }
+
           app.dragMode = handle === 'rot' ? 'rotate' : 'resize'
           app.activeHandle = handle
-          const id = Array.from(app.selectedIds)[0]
           app.activeShapeId = id
-          const selectedShape = getShapeById(id)
           app.startBox = shapeBBox(selectedShape)
           app.startAngle = (selectedShape?.rot || 0)
           app.lineResizeState = null
@@ -2685,6 +2900,7 @@
         if (app.tool === 'rect' || app.tool === 'ellipse') {
           const s = shapeDefaults()
           s.type = app.tool
+          s.style.fillAlpha = 1
           if (s.type === 'ellipse') s.style.circleLockAspect = app.style.circleLockAspect
           s.x = p.x
           s.y = p.y
@@ -2846,33 +3062,79 @@
           updateLinkedEndpointsForTargets(movedTargetIds)
         }
 
-        // Compute which guides are visible (within show threshold of the snapped bbox)
+        // Compute which guides are visible after snap
         const snappedBb = selectedBBox()
         if (!snappedBb) return
-        const snappedXEdges = [snappedBb.x, snappedBb.x + snappedBb.w / 2, snappedBb.x + snappedBb.w]
-        const snappedYEdges = [snappedBb.y, snappedBb.y + snappedBb.h / 2, snappedBb.y + snappedBb.h]
-
-        const activeVLines = []
-        const activeHLines = []
-
-        for (const gx of guides.vLines) {
-          const minDist = Math.min(...snappedXEdges.map(ex => Math.abs(gx - ex)))
-          if (minDist <= ALIGN_SHOW_THRESHOLD) {
-            activeVLines.push({ x: gx, snapped: minDist < 0.5 })
-          }
-        }
-        for (const gy of guides.hLines) {
-          const minDist = Math.min(...snappedYEdges.map(ey => Math.abs(gy - ey)))
-          if (minDist <= ALIGN_SHOW_THRESHOLD) {
-            activeHLines.push({ y: gy, snapped: minDist < 0.5 })
-          }
-        }
-
+        const { activeVLines, activeHLines } = computeActiveGuideLines(guides, snappedBb)
         app.alignGuides = { ...guides, activeVLines, activeHLines }
       }
 
       const clearAlignGuides = () => {
         app.alignGuides = null
+      }
+
+      // Compute the set of guide lines to display for a given bounding box:
+      // – at most one vertical guide to the left of the selection's left edge,
+      // – at most one vertical guide to the right of the selection's right edge,
+      // – at most one horizontal guide above the selection's top edge,
+      // – at most one horizontal guide below the selection's bottom edge,
+      // – plus any guide that is snapped (within snap threshold of an edge or centre).
+      const computeActiveGuideLines = (guides, bb) => {
+        const selLeft = bb.x, selRight = bb.x + bb.w
+        const selTop = bb.y,  selBottom = bb.y + bb.h
+        const selCX = (selLeft + selRight) / 2
+        const selCY = (selTop  + selBottom) / 2
+
+        // Snapped vertical / horizontal guide sets (aligned to edge or centre)
+        const snappedV = new Set()
+        const snappedH = new Set()
+        for (const gx of guides.vLines) {
+          const d = Math.min(Math.abs(gx - selLeft), Math.abs(gx - selCX), Math.abs(gx - selRight))
+          if (d <= ALIGN_SNAP_THRESHOLD) snappedV.add(gx)
+        }
+        for (const gy of guides.hLines) {
+          const d = Math.min(Math.abs(gy - selTop), Math.abs(gy - selCY), Math.abs(gy - selBottom))
+          if (d <= ALIGN_SNAP_THRESHOLD) snappedH.add(gy)
+        }
+
+        // Nearest guide in each of the 4 directions (from the nearest selection edge)
+        let bestLeft = null, bestLeftDist = Infinity
+        let bestRight = null, bestRightDist = Infinity
+        for (const gx of guides.vLines) {
+          if (snappedV.has(gx)) continue // handled separately
+          if (gx < selLeft) {
+            const d = selLeft - gx
+            if (d < bestLeftDist) { bestLeftDist = d; bestLeft = gx }
+          } else if (gx > selRight) {
+            const d = gx - selRight
+            if (d < bestRightDist) { bestRightDist = d; bestRight = gx }
+          }
+        }
+
+        let bestAbove = null, bestAboveDist = Infinity
+        let bestBelow = null, bestBelowDist = Infinity
+        for (const gy of guides.hLines) {
+          if (snappedH.has(gy)) continue
+          if (gy < selTop) {
+            const d = selTop - gy
+            if (d < bestAboveDist) { bestAboveDist = d; bestAbove = gy }
+          } else if (gy > selBottom) {
+            const d = gy - selBottom
+            if (d < bestBelowDist) { bestBelowDist = d; bestBelow = gy }
+          }
+        }
+
+        const activeVLines = []
+        const activeHLines = []
+        if (bestLeft  !== null) activeVLines.push({ x: bestLeft,  snapped: false })
+        if (bestRight !== null) activeVLines.push({ x: bestRight, snapped: false })
+        for (const gx of snappedV) activeVLines.push({ x: gx, snapped: true })
+
+        if (bestAbove !== null) activeHLines.push({ y: bestAbove, snapped: false })
+        if (bestBelow !== null) activeHLines.push({ y: bestBelow, snapped: false })
+        for (const gy of snappedH) activeHLines.push({ y: gy, snapped: true })
+
+        return { activeVLines, activeHLines }
       }
 
       // Update which guide lines are visually highlighted based on current position (no snap).
@@ -2881,26 +3143,7 @@
         if (!guides) return
         const bb = selectedBBox()
         if (!bb) return
-
-        const selXEdges = [bb.x, bb.x + bb.w / 2, bb.x + bb.w]
-        const selYEdges = [bb.y, bb.y + bb.h / 2, bb.y + bb.h]
-
-        const activeVLines = []
-        const activeHLines = []
-
-        for (const gx of guides.vLines) {
-          const minDist = Math.min(...selXEdges.map(ex => Math.abs(gx - ex)))
-          if (minDist <= ALIGN_SHOW_THRESHOLD) {
-            activeVLines.push({ x: gx, snapped: minDist <= ALIGN_SNAP_THRESHOLD })
-          }
-        }
-        for (const gy of guides.hLines) {
-          const minDist = Math.min(...selYEdges.map(ey => Math.abs(gy - ey)))
-          if (minDist <= ALIGN_SHOW_THRESHOLD) {
-            activeHLines.push({ y: gy, snapped: minDist <= ALIGN_SNAP_THRESHOLD })
-          }
-        }
-
+        const { activeVLines, activeHLines } = computeActiveGuideLines(guides, bb)
         app.alignGuides = { ...guides, activeVLines, activeHLines }
       }
 
@@ -3036,7 +3279,19 @@
           if (handle === 'sw') { x1 = p.x; y2 = p.y }
           const r = normalizeRect(x1, y1, x2, y2)
 
-          if (s.type === 'rect' || s.type === 'ellipse' || s.type === 'text' || s.type === 'image') {
+          if (s.type === 'text' && isTextWrapEnabled(s)) {
+            const minSize = getTextMinBoxSize(s)
+            const anchorX = handle.includes('w') ? (bb0.x + bb0.w) : bb0.x
+            const anchorY = handle.includes('n') ? (bb0.y + bb0.h) : bb0.y
+            const nextW = Math.max(minSize.minW, Math.abs(p.x - anchorX))
+            const nextH = Math.max(minSize.minH, Math.abs(p.y - anchorY))
+            s.w = nextW
+            s.h = nextH
+            s.x = handle.includes('w') ? (anchorX - s.w) : anchorX
+            s.y = handle.includes('n') ? (anchorY - s.h) : anchorY
+            fitTextShapeToContent(s)
+            updateLinkedEndpointsForTargets(new Set([s.id]))
+          } else if (s.type === 'rect' || s.type === 'ellipse' || s.type === 'text' || s.type === 'image') {
             if (s.type === 'image' && (s.style?.imageLockAspect ?? app.style.imageLockAspect) && bb0.w > 0 && bb0.h > 0) {
               const ratio = bb0.w / bb0.h
               const anchorX = handle.includes('w') ? (bb0.x + bb0.w) : bb0.x
@@ -3230,7 +3485,9 @@
         app.activeShapeId = null
         app.startPt = null
         app.startBox = null
+        const hadAlignGuides = !!app.alignGuides
         clearAlignGuides()
+        if (hadAlignGuides) render()
       }
 
       /* =========================
@@ -3310,7 +3567,7 @@
         <div><span class='kbd'>Shift+Arrows</span> move ±10, <span class='kbd'>Shift+Alt+Arrows</span> ±1</div>
         <div><span class='kbd'>Tab</span>/<span class='kbd'>Shift+Tab</span> cycle through objects at selection</div>
         <div><span class='kbd'>Del</span> Delete, <span class='kbd'>Z</span> undo, <span class='kbd'>Shift+Z</span> redo</div>
-        <div><span class='kbd'>[</span>/<span class='kbd'>]</span> send back / bring front</div>
+        <div><span class='kbd'>B</span>/<span class='kbd'>F</span> send back / bring front</div>
         <div><span class='kbd'>D</span> duplicate, <span class='kbd'>E</span> edit text</div>
         <div><span class='kbd'>G</span> group, <span class='kbd'>U</span> ungroup</div>
       `
@@ -3336,7 +3593,7 @@
 
         const commonRows = ['rowStroke', 'rowFill', 'rowStrokeWidth', 'rowStrokeAlpha', 'rowFillAlpha', 'rowRotation']
         const textRows = ['rowFontSize', 'rowTextBorderEnabled', 'rowTextBorderColor', 'rowTextBorderAlpha', 'rowTextBorderWidth']
-        const textareaRows = ['rowTextareaTextHeader', 'rowTextareaFontSize', 'rowTextareaTextColor', 'rowTextareaTextAlpha', 'rowTextareaBorderHeader', 'rowTextareaBorderWidth', 'rowTextareaBorderColor', 'rowTextareaBorderAlpha', 'rowTextareaPadding', 'rowTextareaBackgroundHeader', 'rowTextareaBackgroundColor', 'rowTextareaBackgroundAlpha']
+        const textareaRows = ['rowTextareaTextHeader', 'rowTextareaFontSize', 'rowTextareaTextColor', 'rowTextareaTextAlpha', 'rowTextareaWrapText', 'rowTextareaBorderHeader', 'rowTextareaBorderWidth', 'rowTextareaBorderColor', 'rowTextareaBorderAlpha', 'rowTextareaPadding', 'rowTextareaBackgroundHeader', 'rowTextareaBackgroundColor', 'rowTextareaBackgroundAlpha']
         const imageRows = ['rowImageGeneralHeader', 'rowImageLockAspect', 'rowImageAlpha', 'rowImageFlip', 'rowImageCrop', 'rowImageBorderHeader', 'rowImageBorderWidth', 'rowImageBorderColor', 'rowImageBorderAlpha', 'rowImageTransparencyHeader', 'rowImageTransparencyEnabled', 'rowImageTransparencyColor', 'rowImageTransparencyTolerance']
         const lineLikeRows = ['rowArrowHeadSize']
         const rectSectionRows = ['rowRectGeneralHeader', 'rowRectBorderHeader', 'rowRectFillHeader']
@@ -3501,6 +3758,7 @@
           setInputValue('textareaFontSize', s.fontSize || app.style.fontSize)
           setInputValue('textareaTextColor', st.textColor || app.style.textColor)
           setInputValue('textareaTextAlpha', st.textAlpha ?? app.style.textAlpha)
+          setCheckedValue('textareaWrapText', !!(st.textWrap ?? app.style.textWrap))
           setInputValue('textareaBorderWidth', st.textBorderWidth ?? app.style.textBorderWidth)
           setInputValue('textareaBorderColor', st.textBorderColor || app.style.textBorderColor)
           setInputValue('textareaBorderAlpha', st.textBorderAlpha ?? app.style.textBorderAlpha)
@@ -3535,6 +3793,7 @@
         const textareaFontSize = Number($('#textareaFontSize').value) || app.style.fontSize
         const textareaTextColor = $('#textareaTextColor').value
         const textareaTextAlpha = Number($('#textareaTextAlpha').value)
+        const textareaWrapText = $('#textareaWrapText').checked
         const textareaBorderWidth = Number($('#textareaBorderWidth').value)
         const textareaBorderColor = $('#textareaBorderColor').value
         const textareaBorderAlpha = Number($('#textareaBorderAlpha').value)
@@ -3593,6 +3852,7 @@
             s.fontSize = textareaFontSize
             s.style.textColor = textareaTextColor
             s.style.textAlpha = textareaTextAlpha
+            s.style.textWrap = !!textareaWrapText
             s.style.textBorderWidth = textareaBorderWidth
             s.style.textBorderColor = textareaBorderColor
             s.style.textBorderAlpha = textareaBorderAlpha
@@ -3601,7 +3861,7 @@
             s.style.textBackgroundAlpha = textareaBackgroundAlpha
             s.style.textBorderEnabled = textareaBorderWidth > 0
             s.style.textBorder = textareaBorderColor
-            // Keep text shape as a tight envelope when textarea spacing/font changes.
+            // Keep text shape as a tight envelope when spacing/font/wrap changes.
             fitTextShapeToContent(s)
           } else {
             if (s.type === 'ellipse') {
@@ -3634,11 +3894,9 @@
           ev.key === 'Delete' ||
           ev.key === 'Backspace' ||
           ev.key === 'Tab' ||
-          ev.key === '[' ||
-          ev.key === ']' ||
           (ev.shiftKey && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(ev.key)) ||
           (!ev.shiftKey && (ev.key === 'ArrowUp' || ev.key === 'ArrowDown')) ||
-          ['z', 'v', 'p', 'r', 'c', 'a', 'l', 'e', 't', 'g', 'u', 'd', 'n'].includes(k)
+          ['z', 'v', 'p', 'r', 'c', 'a', 'l', 'e', 't', 'g', 'u', 'd', 'n', 'b', 'f'].includes(k)
         )
       }
 
@@ -3924,6 +4182,12 @@
 
       const nudgeSelection = (dx, dy) => {
         if (!app.selectedIds.size) return
+
+        // Initialise guides if not already active (first nudge keystroke)
+        if (!app.alignGuides) {
+          app.alignGuides = computeAlignGuidesForMove()
+        }
+
         const movedTargetIds = new Set()
         for (const id of app.selectedIds) {
           const s = getShapeById(id)
@@ -3947,6 +4211,17 @@
           }
         }
         updateLinkedEndpointsForTargets(movedTargetIds)
+
+        // Update guide visuals after the move
+        updateAlignGuideVisuals()
+
+        // Clear guides after keyboard inactivity
+        clearTimeout(app._nudgeGuideTimer)
+        app._nudgeGuideTimer = setTimeout(() => {
+          clearAlignGuides()
+          render()
+        }, 800)
+
         pushHistory()
         render()
         markDirty()
@@ -3961,70 +4236,80 @@
           return
         }
 
-        if (app.selectedIds.size !== 1) return
-        const id = Array.from(app.selectedIds)[0]
-        const s = getShapeById(id)
-        if (!s) return
+        // Process all selected objects
+        for (const id of app.selectedIds) {
+          const s = getShapeById(id)
+          if (!s) continue
 
-        if (s.type === 'text') {
-          // Resize text by font size, then keep bbox as tight text envelope.
-          const nextFs = clamp((s.fontSize || app.style.fontSize) + delta, 6, 200)
-          s.fontSize = nextFs
-          fitTextShapeToContent(s)
-          $('#fontSize').value = nextFs
-          $('#textareaFontSize').value = nextFs
-        } else if (s.type === 'image') {
-          const keepAspect = s.style?.imageLockAspect ?? app.style.imageLockAspect
-          if (keepAspect && s.w > 0 && s.h > 0) {
-            const ratio = s.w / s.h
-            const nextW = Math.max(1, s.w + delta)
-            const nextH = Math.max(1, nextW / ratio)
-            s.w = nextW
-            s.h = nextH
-          } else {
-            s.w = Math.max(1, s.w + delta)
-            s.h = Math.max(1, s.h + delta)
-          }
-        } else if (s.type === 'rect' || s.type === 'ellipse') {
-          if (s.type === 'ellipse' && (s.style?.circleLockAspect ?? app.style.circleLockAspect)) {
-            const ratio = (s.w > 0 && s.h > 0) ? (s.w / s.h) : 1
-            const nextW = Math.max(1, s.w + delta)
-            const nextH = Math.max(1, nextW / ratio)
-            s.w = nextW
-            s.h = nextH
-          } else {
-            s.w = Math.max(1, s.w + delta)
-            s.h = Math.max(1, s.h + delta)
-          }
-        } else if (s.type === 'line') {
-          clearLineLinks(s)
-          const lineDelta = Math.abs(delta) > 1 ? delta * 2 : delta
-          const dx = s.x2 - s.x1
-          const dy = s.y2 - s.y1
-          const len = Math.hypot(dx, dy)
+          if (s.type === 'text') {
+            // Resize text by font size, then keep bbox as tight text envelope.
+            const prevFs = Number(s.fontSize || app.style.fontSize)
+            const nextFs = clamp(prevFs + delta, 6, 200)
+            s.fontSize = nextFs
+            if (isTextWrapEnabled(s) && prevFs > 0) {
+              const scale = nextFs / prevFs
+              const minSize = getTextMinBoxSize(s)
+              s.w = Math.max(minSize.minW, (Number(s.w) || minSize.minW) * scale)
+            }
+            fitTextShapeToContent(s)
+            // Only update UI if this is the single selected item (or first in multi-selection)
+            if (app.selectedIds.size === 1) {
+              $('#fontSize').value = nextFs
+              $('#textareaFontSize').value = nextFs
+            }
+          } else if (s.type === 'image') {
+            const keepAspect = s.style?.imageLockAspect ?? app.style.imageLockAspect
+            if (keepAspect && s.w > 0 && s.h > 0) {
+              const ratio = s.w / s.h
+              const nextW = Math.max(1, s.w + delta)
+              const nextH = Math.max(1, nextW / ratio)
+              s.w = nextW
+              s.h = nextH
+            } else {
+              s.w = Math.max(1, s.w + delta)
+              s.h = Math.max(1, s.h + delta)
+            }
+          } else if (s.type === 'rect' || s.type === 'ellipse') {
+            if (s.type === 'ellipse' && (s.style?.circleLockAspect ?? app.style.circleLockAspect)) {
+              const ratio = (s.w > 0 && s.h > 0) ? (s.w / s.h) : 1
+              const nextW = Math.max(1, s.w + delta)
+              const nextH = Math.max(1, nextW / ratio)
+              s.w = nextW
+              s.h = nextH
+            } else {
+              s.w = Math.max(1, s.w + delta)
+              s.h = Math.max(1, s.h + delta)
+            }
+          } else if (s.type === 'line') {
+            clearLineLinks(s)
+            const lineDelta = Math.abs(delta) > 1 ? delta * 2 : delta
+            const dx = s.x2 - s.x1
+            const dy = s.y2 - s.y1
+            const len = Math.hypot(dx, dy)
 
-          if (len > 0) {
-            const ux = dx / len
-            const uy = dy / len
-            const nextLen = Math.max(1, len + lineDelta)
-            s.x2 = s.x1 + ux * nextLen
-            s.y2 = s.y1 + uy * nextLen
-          } else {
-            // Degenerate line: grow horizontally by default.
-            const nextLen = Math.max(1, 1 + lineDelta)
-            s.x2 = s.x1 + nextLen
-            s.y2 = s.y1
+            if (len > 0) {
+              const ux = dx / len
+              const uy = dy / len
+              const nextLen = Math.max(1, len + lineDelta)
+              s.x2 = s.x1 + ux * nextLen
+              s.y2 = s.y1 + uy * nextLen
+            } else {
+              // Degenerate line: grow horizontally by default.
+              const nextLen = Math.max(1, 1 + lineDelta)
+              s.x2 = s.x1 + nextLen
+              s.y2 = s.y1
+            }
+          } else if (s.type === 'pen') {
+            const bb = computeBBoxForPen(s.points || [])
+            const cx = bb.x + bb.w / 2
+            const cy = bb.y + bb.h / 2
+            const sx = bb.w ? (bb.w + delta) / bb.w : 1
+            const sy = bb.h ? (bb.h + delta) / bb.h : 1
+            s.points = (s.points || []).map(pt => ({
+              x: cx + (pt.x - cx) * sx,
+              y: cy + (pt.y - cy) * sy
+            }))
           }
-        } else if (s.type === 'pen') {
-          const bb = computeBBoxForPen(s.points || [])
-          const cx = bb.x + bb.w / 2
-          const cy = bb.y + bb.h / 2
-          const sx = bb.w ? (bb.w + delta) / bb.w : 1
-          const sy = bb.h ? (bb.h + delta) / bb.h : 1
-          s.points = (s.points || []).map(pt => ({
-            x: cx + (pt.x - cx) * sx,
-            y: cy + (pt.y - cy) * sy
-          }))
         }
 
         pushHistory()
@@ -4133,8 +4418,8 @@
         }
 
         // Layer shortcuts
-        if (ev.key === '[') { sendToBack(); return }
-        if (ev.key === ']') { bringToFront(); return }
+        if (k === 'b') { sendToBack(); return }
+        if (k === 'f') { bringToFront(); return }
 
         // Grouping
         if (modKey(ev) && k === 'g' && !ev.shiftKey) { ev.preventDefault(); groupSelection(); return }
@@ -4348,7 +4633,12 @@
       const wireUi = () => {
         svg.setAttribute('tabindex', '-1')
 
-        window.addEventListener('resize', updateStageReservedSpace)
+        window.addEventListener('resize', () => setPaperSize(app.canvas.width, app.canvas.height))
+        const propsPanel = $('#propsPanel')
+        if (propsPanel && typeof ResizeObserver !== 'undefined') {
+          const propsPanelObserver = new ResizeObserver(() => setPaperSize(app.canvas.width, app.canvas.height))
+          propsPanelObserver.observe(propsPanel)
+        }
 
         $('#btnGallery').addEventListener('click', toggleGallery)
         $('#btnNew').addEventListener('click', createNewDrawing)
@@ -4416,6 +4706,7 @@
           el.addEventListener('change', applyPropsToSelection)
         }
         $('#textBorderEnabled').addEventListener('input', applyPropsToSelection)
+        $('#textareaWrapText').addEventListener('input', applyPropsToSelection)
         $('#circleLockAspect').addEventListener('input', applyPropsToSelection)
         $('#imageLockAspect').addEventListener('input', applyPropsToSelection)
         $('#imageTransparencyEnabled').addEventListener('input', applyPropsToSelection)
@@ -4444,16 +4735,16 @@
 
         // Global rule: whenever any property-panel control is changed/clicked,
         // return focus to the drawing so keyboard shortcuts remain active.
-        const propsPanel = $('#propsPanel')
+        const propsPanelEl = $('#propsPanel')
 
-        propsPanel.addEventListener('change', (ev) => {
+        propsPanelEl.addEventListener('change', (ev) => {
           const t = ev.target
           if (!t || !t.matches) return
           // Color inputs are handled separately and intentionally only close on commit.
           if (t.matches("input[type='color']")) return
           if (t.matches('input, select, textarea, button')) focusMainDrawing()
         })
-        propsPanel.addEventListener('click', (ev) => {
+        propsPanelEl.addEventListener('click', (ev) => {
           const btn = ev.target && ev.target.closest ? ev.target.closest('button') : null
           if (btn) focusMainDrawing()
         })
