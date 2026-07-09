@@ -671,7 +671,7 @@
             </div>
             <div class='row' id='rowRotation'>
               <label>Rotation (deg)</label>
-              <input type='number' id='rotation' min='-360' max='360' step='1' value='0' />
+              <input type='number' id='rotation' min='-359' max='359' step='1' value='0' />
             </div>
 
             <div class='row hidden' id='rowImageBorderHeader' style='margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--border);'>
@@ -750,6 +750,17 @@
       const $ = (sel, el = document) => el.querySelector(sel)
       const $$ = (sel, el = document) => Array.from(el.querySelectorAll(sel))
       const clamp = (v, a, b) => Math.max(a, Math.min(b, v))
+      const normalizeRotationDeg = (value) => {
+        const n = Math.round(Number(value) || 0)
+        const wrapped = ((n % 360) + 360) % 360
+        return wrapped > 180 ? wrapped - 360 : wrapped
+      }
+      const shortestRotationDeltaDeg = (fromDeg, toDeg) => {
+        let d = normalizeRotationDeg(toDeg) - normalizeRotationDeg(fromDeg)
+        if (d > 180) d -= 360
+        if (d < -180) d += 360
+        return d
+      }
       const LINE_SNAP_TOLERANCE = 10 // pixels, line/arrow will become horizontally/vertically aligned if within tolerance
       const LINK_ATTACH_RADIUS = 5 // pixels, line/arrow will get attached to nearby objects if within radius
       const now = () => Date.now()
@@ -1112,6 +1123,32 @@
         }
         s.x += dx
         s.y += dy
+      }
+
+      const rotateShapeAroundPoint = (s, cx, cy, deltaDeg) => {
+        if (!s || !deltaDeg) return
+        const bb = shapeBBoxLocal(s)
+        const sx = bb.x + bb.w / 2
+        const sy = bb.y + bb.h / 2
+        const p = rotatePoint(sx, sy, cx, cy, deltaDeg * Math.PI / 180)
+        moveShapeBy(s, p.x - sx, p.y - sy)
+        s.rot = normalizeRotationDeg((s.rot || 0) + deltaDeg)
+      }
+
+      const rotateGroupChildrenAroundPoint = (groupShape, cx, cy, deltaDeg, movedTargetIds = new Set()) => {
+        if (!groupShape || groupShape.type !== 'group' || !deltaDeg) return movedTargetIds
+        for (const cid of (groupShape.childrenIds || [])) {
+          const child = getShapeById(cid)
+          if (!child) continue
+          if (child.type === 'group') {
+            rotateGroupChildrenAroundPoint(child, cx, cy, deltaDeg, movedTargetIds)
+            child.rot = normalizeRotationDeg((child.rot || 0) + deltaDeg)
+            continue
+          }
+          rotateShapeAroundPoint(child, cx, cy, deltaDeg)
+          movedTargetIds.add(child.id)
+        }
+        return movedTargetIds
       }
 
       const shapeBBoxLocal = (s) => {
@@ -2246,9 +2283,49 @@
         toast('Cycle selection')
       }
 
+      const findImmediateParentGroup = (shapeId) => {
+        if (!shapeId) return null
+        return app.shapes.find(s => s.type === 'group' && (s.childrenIds || []).includes(shapeId)) || null
+      }
+
+      const getGroupLayerSelectionContext = () => {
+        const ids = Array.from(app.selectedIds)
+        if (!ids.length) return null
+
+        const parentGroups = ids.map(findImmediateParentGroup)
+        if (parentGroups.some(g => !g)) return null
+
+        const parentId = parentGroups[0]?.id
+        if (!parentId || parentGroups.some(g => g.id !== parentId)) return null
+
+        return {
+          ids,
+          group: parentGroups[0]
+        }
+      }
+
+      const reorderGroupChildren = (direction) => {
+        const ctx = getGroupLayerSelectionContext()
+        if (!ctx) return false
+
+        const selectedSet = new Set(ctx.ids)
+        const keep = (ctx.group.childrenIds || []).filter(id => !selectedSet.has(id))
+        const moved = (ctx.group.childrenIds || []).filter(id => selectedSet.has(id))
+        ctx.group.childrenIds = direction === 'front'
+          ? keep.concat(moved)
+          : moved.concat(keep)
+        return true
+      }
+
       const bringToFront = () => {
         const ids = Array.from(app.selectedIds)
         if (!ids.length) return
+        if (reorderGroupChildren('front')) {
+          pushHistory()
+          render()
+          markDirty()
+          return
+        }
         const keep = app.shapes.filter(s => !app.selectedIds.has(s.id))
         const moved = app.shapes.filter(s => app.selectedIds.has(s.id))
         app.shapes = keep.concat(moved)
@@ -2260,6 +2337,12 @@
       const sendToBack = () => {
         const ids = Array.from(app.selectedIds)
         if (!ids.length) return
+        if (reorderGroupChildren('back')) {
+          pushHistory()
+          render()
+          markDirty()
+          return
+        }
         const keep = app.shapes.filter(s => !app.selectedIds.has(s.id))
         const moved = app.shapes.filter(s => app.selectedIds.has(s.id))
         app.shapes = moved.concat(keep)
@@ -3383,8 +3466,15 @@
           const a0 = Math.atan2(app.startPt.y - cy, app.startPt.x - cx)
           const a1 = Math.atan2(p.y - cy, p.x - cx)
           const deg = (a1 - a0) * 180 / Math.PI
-          s.rot = app.startAngle + deg
-          updateLinkedEndpointsForTargets(new Set([s.id]))
+          const nextGroupRot = normalizeRotationDeg(app.startAngle + deg)
+          const delta = shortestRotationDeltaDeg(s.rot || 0, nextGroupRot)
+          if (s.type === 'group') {
+            const movedTargetIds = rotateGroupChildrenAroundPoint(s, cx, cy, delta, new Set())
+            updateLinkedEndpointsForTargets(movedTargetIds)
+          } else {
+            updateLinkedEndpointsForTargets(new Set([s.id]))
+          }
+          s.rot = nextGroupRot
           render()
           markDirty()
           syncPropsFromSelection()
@@ -3812,13 +3902,14 @@
         const imageTransparencyColor = $('#imageTransparencyColor').value
         const imageTransparencyTolerance = Number($('#imageTransparencyTolerance').value)
         const arrowHeadSize = Number($('#arrowHeadSize').value)
+        const targetRotation = normalizeRotationDeg($('#rotation').value)
         for (const id of ids) {
           const s = getShapeById(id)
           if (!s) continue
           s.style = s.style || {}
 
           if (s.type === 'image') {
-            s.rot = Math.round(Number($('#rotation').value) || 0)
+            s.rot = targetRotation
             s.style.imageLockAspect = imageLockAspect
             s.style.imageAlpha = imageAlpha
             s.style.imageBorder = imageBorderColor
@@ -3843,11 +3934,19 @@
             s.style.strokeWidth = Number($('#strokeWidth').value)
             s.style.strokeAlpha = Number($('#strokeAlpha').value)
             s.style.arrowHeadSize = Math.max(0, arrowHeadSize)
-            s.rot = Number($('#rotation').value) || 0
+            s.rot = targetRotation
             continue
           }
 
-          s.rot = Number($('#rotation').value) || 0
+          if (s.type === 'group') {
+            const bb = shapeBBoxLocal(s)
+            const cx = bb.x + bb.w / 2
+            const cy = bb.y + bb.h / 2
+            const delta = shortestRotationDeltaDeg(s.rot || 0, targetRotation)
+            const movedTargetIds = rotateGroupChildrenAroundPoint(s, cx, cy, delta, new Set())
+            updateLinkedEndpointsForTargets(movedTargetIds)
+          }
+          s.rot = targetRotation
           if (s.type === 'text') {
             s.fontSize = textareaFontSize
             s.style.textColor = textareaTextColor
