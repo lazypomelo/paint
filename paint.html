@@ -306,7 +306,7 @@
       position: fixed;
       right: 12px;
       top: calc(36px + 12px);
-      width: min(325px, calc(100vw - 24px));
+      width: min(350px, calc(100vw - 24px));
       max-height: calc(100vh - 36px - 24px);
       display: flex;
       flex-direction: column;
@@ -377,6 +377,75 @@
       color: var(--text);
     }
     .hidden{ display: none !important; }
+    .rotationControl{
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      width: 100%;
+    }
+    .rotationControl input[type='range']{
+      flex: 1 1 auto;
+      min-width: 0;
+    }
+    .rotationButtons{
+      margin-left: auto;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      flex: 0 0 auto;
+    }
+    .rotationLabelValue{
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size: 12px;
+      user-select: none;
+    }
+    .rotationStep{
+      width: 24px;
+      height: 24px;
+      padding: 0;
+      line-height: 1;
+      font-size: 12px;
+      justify-content: center;
+    }
+    .rotationReset{
+      width: 22px;
+      height: 24px;
+      padding: 0;
+      font-family: var(--mono);
+      font-size: 10px;
+      justify-content: center;
+    }
+    .fontSizeControl{
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      width: 100%;
+    }
+    .fontSizeDisplay{
+      min-width: 50px;
+      height: 30px;
+      padding: 0 8px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,0.04);
+      color: var(--text);
+      font-family: var(--mono);
+      font-size: 12px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      user-select: none;
+    }
+    .fontSizeStepperGroup{
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .rotationStep.coarse{
+      border-style: dashed;
+      background: rgba(78,161,255,0.10);
+    }
 
     /* Selection visuals (SVG) */
     .selBox{ fill: none; stroke: var(--sel); stroke-width: 1.5; stroke-dasharray: 6 4; vector-effect: non-scaling-stroke; }
@@ -416,6 +485,7 @@
       pointer-events: none;
     }
     .toast.show{ opacity: 1; }
+
   </style>
 </head>
 <body>
@@ -519,6 +589,13 @@
               <label style='font-weight: 600; color: var(--text);'>General</label>
               <div></div>
             </div>
+            <div class='row hidden' id='rowRectLockAspect'>
+              <label>Lock aspect ratio</label>
+              <div style='display:flex; align-items:center; gap:10px;'>
+                <input type='checkbox' id='rectLockAspect' />
+                <button class='btn' id='btnRectToSquare' type='button' title='Convert selected rectangle to square'>To square</button>
+              </div>
+            </div>
             <div class='row hidden' id='rowRectBorderHeader' style='margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--border);'>
               <label style='font-weight: 600; color: var(--text);'>Border</label>
               <div></div>
@@ -546,6 +623,34 @@
               <input type='checkbox' id='circleLockAspect' checked />
             </div>
 
+            <div class='row hidden' id='rowLineLikeGeneralHeader' style='margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--border);'>
+              <label style='font-weight: 600; color: var(--text);'>General</label>
+              <div></div>
+            </div>
+            <div class='row hidden' id='rowLineLikeArrowHeader' style='margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--border);'>
+              <label style='font-weight: 600; color: var(--text);'>Arrow head</label>
+              <div></div>
+            </div>
+            <div class='row hidden' id='rowLineLikeLineHeader' style='margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--border);'>
+              <label style='font-weight: 600; color: var(--text);'>Line</label>
+              <div></div>
+            </div>
+
+            <div class='row hidden' id='rowPenGeneralHeader' style='margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--border);'>
+              <label style='font-weight: 600; color: var(--text);'>General</label>
+              <div></div>
+            </div>
+
+            <div class='row hidden' id='rowPenStrokeHeader' style='margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--border);'>
+              <label style='font-weight: 600; color: var(--text);'>Stroke</label>
+              <div></div>
+            </div>
+
+            <div class='row hidden' id='rowPenTransformHeader' style='margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--border);'>
+              <label style='font-weight: 600; color: var(--text);'>Transformations</label>
+              <div></div>
+            </div>
+
             <div class='row' id='rowStroke'>
               <label id='labelStrokeColor'>Stroke</label>
               <input type='color' id='strokeColor' value='#111111' />
@@ -563,8 +668,42 @@
               <input type='range' id='strokeAlpha' min='0' max='1' step='0.01' value='1' />
             </div>
             <div class='row hidden' id='rowArrowHeadSize'>
-              <label>Arrow head size</label>
+              <label>Size</label>
               <input type='range' id='arrowHeadSize' min='0' max='80' step='1' value='12' />
+            </div>
+            <div class='row hidden' id='rowArrowHeadStyle'>
+              <label>Style</label>
+              <select id='arrowHeadStyle'>
+                <option value='triangle-sharp'>Triangle (sharp)</option>
+                <option value='triangle-rounded'>Triangle (rounded)</option>
+                <option value='v-shaped-sharp'>V-shaped (sharp)</option>
+                <option value='v-shaped-rounded'>V-shaped (rounded)</option>
+              </select>
+            </div>
+            <div class='row hidden' id='rowLineStyle'>
+              <label>Style</label>
+              <select id='lineStyle'>
+                <option value='solid'>Solid</option>
+                <option value='dashed'>Dashed</option>
+                <option value='dotted'>Dotted</option>
+                <option value='double'>Double</option>
+              </select>
+            </div>
+            <div class='row hidden' id='rowLineLockAspect'>
+              <label>Lock aspect ratio</label>
+              <input type='checkbox' id='lineLockAspect' />
+            </div>
+            <div class='row hidden' id='rowArrowLockAspect'>
+              <label>Lock aspect ratio</label>
+              <input type='checkbox' id='arrowLockAspect' />
+            </div>
+            <div class='row hidden' id='rowPenSmoothness'>
+              <label>Smoothness</label>
+              <input type='range' id='penSmoothness' min='0' max='100' step='1' value='0' />
+            </div>
+            <div class='row hidden' id='rowPenLockAspect'>
+              <label>Lock aspect ratio</label>
+              <input type='checkbox' id='penLockAspect' />
             </div>
             <div class='row' id='rowFillAlpha'>
               <label>Fill alpha</label>
@@ -577,7 +716,18 @@
             </div>
             <div class='row hidden' id='rowTextareaFontSize'>
               <label>Font size</label>
-              <input type='number' id='textareaFontSize' min='6' max='200' step='1' value='18' />
+              <div class='fontSizeControl'>
+                <div class='fontSizeDisplay' id='textareaFontSizeDisplay'>18</div>
+                <input type='hidden' id='textareaFontSize' value='18' />
+                <div class='fontSizeStepperGroup' aria-label='Font size fine step controls'>
+                  <button class='btn rotationStep' id='textareaFontSizeDec' type='button' title='Font size -1'>⏷</button>
+                  <button class='btn rotationStep' id='textareaFontSizeInc' type='button' title='Font size +1'>⏶</button>
+                </div>
+                <div class='fontSizeStepperGroup' aria-label='Font size coarse step controls'>
+                  <button class='btn rotationStep coarse' id='textareaFontSizeDecFast' type='button' title='Font size -8'>▼</button>
+                  <button class='btn rotationStep coarse' id='textareaFontSizeIncFast' type='button' title='Font size +8'>▲</button>
+                </div>
+              </div>
             </div>
             <div class='row hidden' id='rowTextareaTextColor'>
               <label>Text color</label>
@@ -610,7 +760,7 @@
               <input type='range' id='textareaBorderAlpha' min='0' max='1' step='0.01' value='1' />
             </div>
             <div class='row hidden' id='rowTextareaPadding'>
-              <label>Text spacing</label>
+              <label>Text padding</label>
               <input type='range' id='textareaPadding' min='0' max='20' step='1' value='5' />
             </div>
 
@@ -625,7 +775,7 @@
             </div>
             <div class='row hidden' id='rowTextareaBackgroundAlpha'>
               <label>Background alpha</label>
-              <input type='range' id='textareaBackgroundAlpha' min='0' max='1' step='0.01' value='0' />
+              <input type='range' id='textareaBackgroundAlpha' min='0' max='1' step='0.01' value='0.25' />
             </div>
 
             <!-- Keep old rowFontSize for backward compatibility with existing text selection code -->
@@ -665,13 +815,63 @@
                 <button class='btn icon' id='btnFlipV' type='button' aria-label='Flip vertically' aria-pressed='false' title='Flip vertically'>↕</button>
               </div>
             </div>
+
+            <!-- Flip controls for other object types -->
+            <div class='row hidden' id='rowPenFlip'>
+              <label>Flip</label>
+              <div style='display:flex; gap:8px;'>
+                <button class='btn icon' id='btnPenFlipH' type='button' aria-label='Flip horizontally' aria-pressed='false' title='Flip horizontally'>↔</button>
+                <button class='btn icon' id='btnPenFlipV' type='button' aria-label='Flip vertically' aria-pressed='false' title='Flip vertically'>↕</button>
+              </div>
+            </div>
+            <div class='row hidden' id='rowRectFlip'>
+              <label>Flip</label>
+              <div style='display:flex; gap:8px;'>
+                <button class='btn icon' id='btnRectFlipH' type='button' aria-label='Flip horizontally' aria-pressed='false' title='Flip horizontally'>↔</button>
+                <button class='btn icon' id='btnRectFlipV' type='button' aria-label='Flip vertically' aria-pressed='false' title='Flip vertically'>↕</button>
+              </div>
+            </div>
+            <div class='row hidden' id='rowCircleFlip'>
+              <label>Flip</label>
+              <div style='display:flex; gap:8px;'>
+                <button class='btn icon' id='btnCircleFlipH' type='button' aria-label='Flip horizontally' aria-pressed='false' title='Flip horizontally'>↔</button>
+                <button class='btn icon' id='btnCircleFlipV' type='button' aria-label='Flip vertically' aria-pressed='false' title='Flip vertically'>↕</button>
+              </div>
+            </div>
+            <div class='row hidden' id='rowLineLikeFlip'>
+              <label>Flip</label>
+              <div style='display:flex; gap:8px;'>
+                <button class='btn icon' id='btnLineLikeFlipH' type='button' aria-label='Flip horizontally' aria-pressed='false' title='Flip horizontally'>↔</button>
+                <button class='btn icon' id='btnLineLikeFlipV' type='button' aria-label='Flip vertically' aria-pressed='false' title='Flip vertically'>↕</button>
+              </div>
+            </div>
+            <div class='row hidden' id='rowTextFlip'>
+              <label>Flip</label>
+              <div style='display:flex; gap:8px;'>
+                <button class='btn icon' id='btnTextFlipH' type='button' aria-label='Flip horizontally' aria-pressed='false' title='Flip horizontally'>↔</button>
+                <button class='btn icon' id='btnTextFlipV' type='button' aria-label='Flip vertically' aria-pressed='false' title='Flip vertically'>↕</button>
+              </div>
+            </div>
+
+            <div class='row hidden' id='rowTextGeneralHeader' style='margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--border);'>
+              <label style='font-weight: 600; color: var(--text);'>General</label>
+              <div></div>
+            </div>
+
             <div class='row hidden' id='rowImageCrop'>
               <label>Crop</label>
               <button class='btn icon' id='btnCropMode' type='button' title='Toggle crop mode'>✂</button>
             </div>
             <div class='row' id='rowRotation'>
-              <label>Rotation (deg)</label>
-              <input type='number' id='rotation' min='-359' max='359' step='1' value='0' />
+              <label>Rotation (<span class='rotationLabelValue' id='rotationValue'>0°</span>)</label>
+              <div class='rotationControl'>
+                <input type='range' id='rotation' min='-180' max='180' step='1' value='0' />
+                <div class='rotationButtons'>
+                  <button class='btn rotationStep' id='rotationDec' type='button' title='Rotate -1°'>▼</button>
+                  <button class='btn rotationStep' id='rotationInc' type='button' title='Rotate +1°'>▲</button>
+                  <button class='btn rotationReset' id='rotationReset' type='button' title='Reset rotation to 0°'>0°</button>
+                </div>
+              </div>
             </div>
 
             <div class='row hidden' id='rowImageBorderHeader' style='margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--border);'>
@@ -750,6 +950,18 @@
       const $ = (sel, el = document) => el.querySelector(sel)
       const $$ = (sel, el = document) => Array.from(el.querySelectorAll(sel))
       const clamp = (v, a, b) => Math.max(a, Math.min(b, v))
+      const normalizeLineStyle = (value) => {
+        const v = String(value || '').trim().toLowerCase()
+        if (v === 'dashed' || v === 'dotted' || v === 'double') return v
+        return 'solid'
+      }
+      const normalizeArrowHeadStyle = (value) => {
+        const v = String(value || '').trim().toLowerCase()
+        if (v === 'triangle-rounded') return v
+        if (v === 'v-shaped-sharp') return v
+        if (v === 'v-shaped-rounded') return v
+        return 'triangle-sharp'
+      }
       const normalizeRotationDeg = (value) => {
         const n = Math.round(Number(value) || 0)
         const wrapped = ((n % 360) + 360) % 360
@@ -788,6 +1000,8 @@
         const el = $('#' + id)
         if (!el) return
         el.value = value
+        if (id === 'rotation') updateRotationValueDisplay(el.value)
+        if (id === 'textareaFontSize') updateTextareaFontSizeDisplay(el.value)
       }
       const setCheckedValue = (id, value) => {
         const el = $('#' + id)
@@ -809,6 +1023,34 @@
         el.textContent = msg
         el.classList.add('show')
         setTimeout(() => el.classList.remove('show'), ms)
+      }
+      const updateRotationValueDisplay = (value) => {
+        const out = $('#rotationValue')
+        if (!out) return
+        out.textContent = `${normalizeRotationDeg(value)}°`
+      }
+      const adjustRotationSlider = (delta) => {
+        const slider = $('#rotation')
+        if (!slider) return
+        const next = clamp((Number(slider.value) || 0) + delta, -180, 180)
+        slider.value = String(next)
+        updateRotationValueDisplay(slider.value)
+        slider.dispatchEvent(new Event('input', { bubbles: true }))
+      }
+
+      const updateTextareaFontSizeDisplay = (value) => {
+        const out = $('#textareaFontSizeDisplay')
+        if (!out) return
+        out.textContent = String(Math.round(Number(value) || app.style.fontSize))
+      }
+
+      const adjustTextareaFontSize = (delta) => {
+        const field = $('#textareaFontSize')
+        if (!field) return
+        const next = clamp((Number(field.value) || app.style.fontSize) + delta, 6, 200)
+        field.value = String(next)
+        updateTextareaFontSizeDisplay(field.value)
+        field.dispatchEvent(new Event('input', { bubbles: true }))
       }
 
       /* =========================
@@ -910,7 +1152,11 @@
           stroke: '#111111',
           strokeAlpha: 1,
           strokeWidth: 3,
+          lineStyle: 'solid',
           arrowHeadSize: 12,
+          arrowHeadStyle: 'triangle-sharp',
+          lineLockAspect: false,
+          arrowLockAspect: false,
           fill: '#ffffff',
           fillAlpha: 0,
           fontSize: 18,
@@ -922,10 +1168,12 @@
           textPadding: 5,
           textBackgroundEnabled: false,
           textBackground: '#ffffff',
-          textBackgroundAlpha: 0,
+          textBackgroundAlpha: 0.25,
           textBorderEnabled: false,
           textBorder: '#111111',
           textWrap: false,
+          penLockAspect: false,
+          rectLockAspect: false,
           circleLockAspect: true,
           imageAlpha: 1,
           imageLockAspect: true,
@@ -936,7 +1184,19 @@
           imageFlipV: false,
           imageTransparencyEnabled: false,
           imageTransparencyColor: '#ffffff',
-          imageTransparencyTolerance: 0
+          imageTransparencyTolerance: 0,
+          penFlipH: false,
+          penFlipV: false,
+          rectFlipH: false,
+          rectFlipV: false,
+          circleFlipH: false,
+          circleFlipV: false,
+          lineFlipH: false,
+          lineFlipV: false,
+          arrowFlipH: false,
+          arrowFlipV: false,
+          textFlipH: false,
+          textFlipV: false
         },
 
         // history (per drawing, stored in record)
@@ -945,7 +1205,10 @@
 
         // autosave
         dirty: false,
-        saving: false
+        saving: false,
+
+        // hide selection during drag
+        hideSelectionDuringDrag: false
       }
 
       const defaultDrawingName = (n) => `drawing_${n}`
@@ -985,11 +1248,14 @@
         type: 'rect',
         x: 100, y: 100, w: 200, h: 120,
         rot: 0,
+        crop: { left: 0, top: 0, right: 0, bottom: 0 },
         style: {
           stroke: app.style.stroke,
           strokeAlpha: app.style.strokeAlpha,
           strokeWidth: app.style.strokeWidth,
+          lineStyle: app.style.lineStyle,
           arrowHeadSize: app.style.arrowHeadSize,
+          arrowHeadStyle: app.style.arrowHeadStyle,
           fill: app.style.fill,
           fillAlpha: app.style.fillAlpha
         }
@@ -1078,7 +1344,7 @@
         if (s.type === 'pen') {
           bb = computeBBoxForPen(s.points || [])
         } else if (s.type === 'line') {
-          const sw = Number((s.style && s.style.strokeWidth) ?? 3)
+          const sw = getLineVisualWidth(s)
           const hw = sw / 2
           const x = Math.min(s.x1, s.x2) - hw
           const y = Math.min(s.y1, s.y2) - hw
@@ -1127,13 +1393,30 @@
 
       const rotateShapeAroundPoint = (s, cx, cy, deltaDeg) => {
         if (!s || !deltaDeg) return
-        const bb = shapeBBoxLocal(s)
+        const bb = shapeBBox(s)
         const sx = bb.x + bb.w / 2
         const sy = bb.y + bb.h / 2
         const p = rotatePoint(sx, sy, cx, cy, deltaDeg * Math.PI / 180)
         moveShapeBy(s, p.x - sx, p.y - sy)
-        s.rot = normalizeRotationDeg((s.rot || 0) + deltaDeg)
+        const signedDelta = deltaDeg * getRotationDeltaSignForShape(s)
+        s.rot = normalizeRotationDeg((s.rot || 0) + signedDelta)
       }
+
+      const getShapeFlipParity = (s) => {
+        if (!s) return 0
+        const st = s.style || {}
+        if (s.type === 'rect') return Number(!!(st.rectFlipH ?? app.style.rectFlipH)) ^ Number(!!(st.rectFlipV ?? app.style.rectFlipV))
+        if (s.type === 'ellipse') return Number(!!(st.circleFlipH ?? app.style.circleFlipH)) ^ Number(!!(st.circleFlipV ?? app.style.circleFlipV))
+        if (s.type === 'line') return Number(!!(st.lineFlipH ?? app.style.lineFlipH)) ^ Number(!!(st.lineFlipV ?? app.style.lineFlipV))
+        if (s.type === 'pen') return Number(!!(st.penFlipH ?? app.style.penFlipH)) ^ Number(!!(st.penFlipV ?? app.style.penFlipV))
+        if (s.type === 'image') return Number(!!(st.imageFlipH ?? app.style.imageFlipH)) ^ Number(!!(st.imageFlipV ?? app.style.imageFlipV))
+        if (s.type === 'text') return Number(!!(st.textFlipH ?? app.style.textFlipH)) ^ Number(!!(st.textFlipV ?? app.style.textFlipV))
+        if (s.type === 'group') return Number(!!st.groupFlipH) ^ Number(!!st.groupFlipV)
+        return 0
+      }
+
+      // With an odd number of axis flips, local rotation direction is mirrored.
+      const getRotationDeltaSignForShape = (s) => (getShapeFlipParity(s) ? -1 : 1)
 
       const rotateGroupChildrenAroundPoint = (groupShape, cx, cy, deltaDeg, movedTargetIds = new Set()) => {
         if (!groupShape || groupShape.type !== 'group' || !deltaDeg) return movedTargetIds
@@ -1142,7 +1425,8 @@
           if (!child) continue
           if (child.type === 'group') {
             rotateGroupChildrenAroundPoint(child, cx, cy, deltaDeg, movedTargetIds)
-            child.rot = normalizeRotationDeg((child.rot || 0) + deltaDeg)
+            const signedDelta = deltaDeg * getRotationDeltaSignForShape(child)
+            child.rot = normalizeRotationDeg((child.rot || 0) + signedDelta)
             continue
           }
           rotateShapeAroundPoint(child, cx, cy, deltaDeg)
@@ -1154,7 +1438,7 @@
       const shapeBBoxLocal = (s) => {
         if (s.type === 'pen') return computeBBoxForPen(s.points || [])
         if (s.type === 'line') {
-          const sw = Number((s.style && s.style.strokeWidth) ?? 3)
+          const sw = getLineVisualWidth(s)
           const hw = sw / 2
           const x = Math.min(s.x1, s.x2) - hw
           const y = Math.min(s.y1, s.y2) - hw
@@ -1174,6 +1458,106 @@
           return { x: minX, y: minY, w: maxX - minX, h: maxY - minY }
         }
         return { x: s.x, y: s.y, w: s.w, h: s.h }
+      }
+
+      const CROP_SUPPORTED_TYPES = new Set(['image', 'pen', 'rect', 'ellipse', 'line', 'text', 'group'])
+
+      const isShapeCropSupported = (shape) => {
+        return !!shape && CROP_SUPPORTED_TYPES.has(shape.type)
+      }
+
+      const ensureShapeCrop = (shape) => {
+        if (!shape) return { left: 0, top: 0, right: 0, bottom: 0 }
+        if (!shape.crop) shape.crop = { left: 0, top: 0, right: 0, bottom: 0 }
+        return shape.crop
+      }
+
+      const getShapeCropBounds = (shape) => {
+        if (!shape) return { x: 0, y: 0, w: 1, h: 1 }
+        if (shape.type === 'image') {
+          return {
+            x: Number(shape.x || 0),
+            y: Number(shape.y || 0),
+            w: Math.max(1, Number(shape.w || 0)),
+            h: Math.max(1, Number(shape.h || 0))
+          }
+        }
+        const bb = shapeBBox(shape)
+        return {
+          x: Number(bb.x || 0),
+          y: Number(bb.y || 0),
+          w: Math.max(1, Number(bb.w || 0)),
+          h: Math.max(1, Number(bb.h || 0))
+        }
+      }
+
+      const getNormalizedShapeCrop = (shape, bounds = getShapeCropBounds(shape)) => {
+        const raw = ensureShapeCrop(shape)
+        const left = clamp(Math.round(Number(raw.left || 0)), 0, Math.max(0, bounds.w - 1))
+        const right = clamp(Math.round(Number(raw.right || 0)), 0, Math.max(0, bounds.w - left - 1))
+        const top = clamp(Math.round(Number(raw.top || 0)), 0, Math.max(0, bounds.h - 1))
+        const bottom = clamp(Math.round(Number(raw.bottom || 0)), 0, Math.max(0, bounds.h - top - 1))
+        return { left, top, right, bottom }
+      }
+
+      const getShapeCropClipPadding = (shape) => {
+        if (!shape) return { left: 0, top: 0, right: 0, bottom: 0 }
+        const st = shape.style || {}
+        if (shape.type === 'rect' || shape.type === 'ellipse') {
+          const half = Math.max(0, Number(st.strokeWidth ?? 3)) / 2
+          return { left: half, top: half, right: half, bottom: half }
+        }
+        if (shape.type === 'pen') {
+          const half = Math.max(0, Number(st.strokeWidth ?? 3)) / 2
+          return { left: half, top: half, right: half, bottom: half }
+        }
+        if (shape.type === 'line') {
+          const half = getLineVisualWidth(shape) / 2
+          return { left: half, top: half, right: half, bottom: half }
+        }
+        if (shape.type === 'text') {
+          const half = Math.max(0, Number(st.textBorderWidth ?? app.style.textBorderWidth ?? 0)) / 2
+          return { left: half, top: half, right: half, bottom: half }
+        }
+        return { left: 0, top: 0, right: 0, bottom: 0 }
+      }
+
+      const getShapeCropData = (shape, bounds = getShapeCropBounds(shape)) => {
+        const crop = getNormalizedShapeCrop(shape, bounds)
+        const visX = bounds.x + crop.left
+        const visY = bounds.y + crop.top
+        const visW = Math.max(1, bounds.w - crop.left - crop.right)
+        const visH = Math.max(1, bounds.h - crop.top - crop.bottom)
+        const pad = getShapeCropClipPadding(shape)
+        // Preserve stroke extents on untouched sides so dragging one crop edge does not shave pixels off others.
+        const clipLeftPad = crop.left > 0 ? 0 : pad.left
+        const clipTopPad = crop.top > 0 ? 0 : pad.top
+        const clipRightPad = crop.right > 0 ? 0 : pad.right
+        const clipBottomPad = crop.bottom > 0 ? 0 : pad.bottom
+        const clipX = visX - clipLeftPad
+        const clipY = visY - clipTopPad
+        const clipW = Math.max(1, visW + clipLeftPad + clipRightPad)
+        const clipH = Math.max(1, visH + clipTopPad + clipBottomPad)
+        const hasCrop = !!(crop.left || crop.top || crop.right || crop.bottom)
+        return { bounds, crop, visX, visY, visW, visH, clipX, clipY, clipW, clipH, hasCrop }
+      }
+
+      const mirrorShapeCropForFlip = (shape, prevFlipH, prevFlipV, nextFlipH, nextFlipV) => {
+        if (!isShapeCropSupported(shape)) return
+        const toggledH = !!prevFlipH !== !!nextFlipH
+        const toggledV = !!prevFlipV !== !!nextFlipV
+        if (!toggledH && !toggledV) return
+        const crop = getNormalizedShapeCrop(shape)
+        const mirrored = { ...crop }
+        if (toggledH) {
+          mirrored.left = crop.right
+          mirrored.right = crop.left
+        }
+        if (toggledV) {
+          mirrored.top = crop.bottom
+          mirrored.bottom = crop.top
+        }
+        shape.crop = mirrored
       }
 
       const normalizeRect = (x1, y1, x2, y2) => {
@@ -1253,6 +1637,42 @@
       const clearLineLinks = (line) => {
         if (!line || line.type !== 'line') return
         delete line.links
+      }
+
+      const applyLineEndpointFlip = (line, flipH, flipV) => {
+        if (!line || line.type !== 'line') return false
+        const doH = !!flipH
+        const doV = !!flipV
+        if (!doH && !doV) return false
+
+        const x1 = Number(line.x1 || 0)
+        const y1 = Number(line.y1 || 0)
+        const x2 = Number(line.x2 || 0)
+        const y2 = Number(line.y2 || 0)
+
+        // Mirror endpoints around the line bbox center so logical start/end
+        // match exactly what users see after a flip action.
+        line.x1 = doH ? x2 : x1
+        line.y1 = doV ? y2 : y1
+        line.x2 = doH ? x1 : x2
+        line.y2 = doV ? y1 : y2
+
+        // Existing links are tied to pre-flip endpoints and are no longer reliable.
+        clearLineLinks(line)
+        return true
+      }
+
+      const commitStoredLineVisualFlip = (line) => {
+        if (!line || line.type !== 'line') return false
+        line.style = line.style || {}
+        const prevFlipH = !!(line.style.lineFlipH ?? line.style.arrowFlipH ?? app.style.lineFlipH ?? app.style.arrowFlipH)
+        const prevFlipV = !!(line.style.lineFlipV ?? line.style.arrowFlipV ?? app.style.lineFlipV ?? app.style.arrowFlipV)
+        const changed = applyLineEndpointFlip(line, prevFlipH, prevFlipV)
+        line.style.lineFlipH = false
+        line.style.lineFlipV = false
+        line.style.arrowFlipH = false
+        line.style.arrowFlipV = false
+        return changed
       }
 
       const setLineEndpointLink = (line, endpoint, candidate) => {
@@ -1351,6 +1771,122 @@
         }
       }
 
+      const getLineVisualWidth = (s) => {
+        const st = s.style || {}
+        const sw = Math.max(0, Number(st.strokeWidth ?? 3))
+        const style = normalizeLineStyle(st.lineStyle)
+        if (style !== 'double') return sw
+        const thinWidth = Math.max(1, sw * 0.35)
+        const separation = Math.max(2, sw * 0.9)
+        return separation + thinWidth
+      }
+
+      const isArrowLineShape = (s) => Math.max(0, Number(s?.style?.arrowHeadSize ?? 0)) > 0
+
+      const lineLikeLockAspectEnabled = (s) => {
+        if (isArrowLineShape(s)) return !!(s.style?.arrowLockAspect ?? app.style.arrowLockAspect)
+        return !!(s.style?.lineLockAspect ?? app.style.lineLockAspect)
+      }
+
+      const smoothPenPoints = (points, smoothness) => {
+        if (!points || points.length === 0) return points
+        if (smoothness === 0) return points
+        if (points.length < 2) return points
+
+        // For smoothness 1-100: use moving average with increasing window
+        // Window size scales progressively: at smoothness 1 use small window, at 100 use very large window
+        const windowSize = Math.floor(1 + (smoothness - 1) * 2)
+        const halfWindow = Math.floor(windowSize / 2)
+
+        // Pad the points array with synthetic points at start and end
+        // This allows full two-sided smoothing even at boundaries
+        const padded = []
+
+        // Prepend halfWindow points using curve-aware extrapolation
+        // Estimate direction from multiple interior points, not just the first two
+        const p0 = points[0]
+        const sampleCount = Math.min(Math.ceil(halfWindow / 4), Math.floor(points.length / 2))
+        let dirXStart = 0, dirYStart = 0
+        for (let s = 0; s < sampleCount && s < points.length - 1; s++) {
+          dirXStart += points[s + 1].x - points[s].x
+          dirYStart += points[s + 1].y - points[s].y
+        }
+        if (sampleCount > 0) {
+          dirXStart /= sampleCount
+          dirYStart /= sampleCount
+        }
+
+        for (let i = halfWindow; i > 0; i--) {
+          const t = i / (halfWindow + 1)
+          padded.push({
+            x: p0.x - dirXStart * t,
+            y: p0.y - dirYStart * t
+          })
+        }
+
+        // Add original points
+        for (const p of points) {
+          padded.push({x: p.x, y: p.y})
+        }
+
+        // Append halfWindow points using curve-aware extrapolation
+        // Estimate direction from multiple end points
+        const pn = points[points.length - 1]
+        let dirXEnd = 0, dirYEnd = 0
+        const startIdx = Math.max(0, points.length - sampleCount - 1)
+        let endSampleCount = 0
+        for (let s = startIdx; s < points.length - 1; s++) {
+          dirXEnd += points[s + 1].x - points[s].x
+          dirYEnd += points[s + 1].y - points[s].y
+          endSampleCount++
+        }
+        if (endSampleCount > 0) {
+          dirXEnd /= endSampleCount
+          dirYEnd /= endSampleCount
+        }
+
+        for (let i = 1; i <= halfWindow; i++) {
+          const t = i / (halfWindow + 1)
+          padded.push({
+            x: pn.x + dirXEnd * t,
+            y: pn.y + dirYEnd * t
+          })
+        }
+
+        // Apply the two-sided filter on the padded array
+        // Since we padded with halfWindow points, we can use symmetric windows
+        const smoothed = []
+
+        for (let i = halfWindow; i < padded.length - halfWindow; i++) {
+          const start = i - halfWindow
+          const end = i + halfWindow
+          let sumX = 0, sumY = 0, count = 0
+
+          // Weighted average: give more weight to center point
+          for (let j = start; j <= end; j++) {
+            const distance = Math.abs(j - i)
+            const weight = 1 / (1 + distance * 0.5)
+            sumX += padded[j].x * weight
+            sumY += padded[j].y * weight
+            count += weight
+          }
+
+          smoothed.push({
+            x: sumX / count,
+            y: sumY / count
+          })
+        }
+
+        // Keep the first and last points fixed at their original positions
+        // to prevent boundary truncation from the smoothing filter
+        if (smoothed.length > 0) {
+          smoothed[0] = {x: p0.x, y: p0.y}
+          smoothed[smoothed.length - 1] = {x: pn.x, y: pn.y}
+        }
+
+        return smoothed
+      }
+
       const applyStyleAttrs = (el, s) => {
         const st = s.style || {}
         const stroke = rgbaFromHexAlpha(st.stroke || '#111111', st.strokeAlpha ?? 1)
@@ -1363,106 +1899,209 @@
         el.setAttribute('vector-effect', 'non-scaling-stroke')
       }
 
-      const lineToArrowPath = (s) => {
+      const buildLineLikeElement = (s) => {
         const st = s.style || {}
-        const x1 = s.x1, y1 = s.y1, x2 = s.x2, y2 = s.y2
-        const strokeWidth = Number(st.strokeWidth ?? 3)
+        const x1 = Number(s.x1 || 0)
+        const y1 = Number(s.y1 || 0)
+        const x2 = Number(s.x2 || 0)
+        const y2 = Number(s.y2 || 0)
+        const strokeWidth = Math.max(0, Number(st.strokeWidth ?? 3))
         const arrowHeadSize = Math.max(0, Number(st.arrowHeadSize ?? 0))
-        
-        // Direction vector
-        const dx = x2 - x1, dy = y2 - y1
-        const lineLen = Math.sqrt(dx * dx + dy * dy)
-        
-        if (lineLen === 0) {
-          // Degenerate case: point
-          return `M ${x1} ${y1}`
+        const arrowHeadStyle = normalizeArrowHeadStyle(st.arrowHeadStyle ?? app.style.arrowHeadStyle)
+        const lineStyle = normalizeLineStyle(st.lineStyle)
+        const strokeColor = rgbaFromHexAlpha(st.stroke || '#111111', st.strokeAlpha ?? 1)
+
+        const wrap = svgEl('g')
+        const dx = x2 - x1
+        const dy = y2 - y1
+        const lineLen = Math.hypot(dx, dy)
+
+        if (lineLen <= 0) {
+          const dot = svgEl('circle', { cx: x1, cy: y1, r: Math.max(1, strokeWidth / 2) })
+          dot.setAttribute('fill', strokeColor)
+          dot.setAttribute('stroke', 'none')
+          wrap.appendChild(dot)
+          return wrap
         }
-        
-        // Unit direction vector
-        const ux = dx / lineLen, uy = dy / lineLen
-        // Unit perpendicular vector
-        const px = -uy, py = ux
-        
-        // Half-width of line
-        const hw = strokeWidth / 2
-        
-        // Arrow head start distance from endpoint
-        const arrowLen = Math.min(arrowHeadSize, lineLen * 0.5)
-        const arrowStartDist = lineLen - arrowLen
-        
-        // Point where arrow transitions to wings
-        const arrowX = x1 + ux * arrowStartDist
-        const arrowY = y1 + uy * arrowStartDist
-        
-        // Rectangle corners for line body
-        const bodyTopLeftX = x1 + px * hw, bodyTopLeftY = y1 + py * hw
-        const bodyBottomLeftX = x1 - px * hw, bodyBottomLeftY = y1 - py * hw
-        const bodyTopRightX = arrowX + px * hw, bodyTopRightY = arrowY + py * hw
-        const bodyBottomRightX = arrowX - px * hw, bodyBottomRightY = arrowY - py * hw
-        
-        // Wing spread at arrow head
-        const wingSpread = arrowHeadSize > 0 ? arrowHeadSize * 0.5 : 0
-        const topWingX = arrowX + px * (hw + wingSpread)
-        const topWingY = arrowY + py * (hw + wingSpread)
-        const bottomWingX = arrowX - px * (hw + wingSpread)
-        const bottomWingY = arrowY - py * (hw + wingSpread)
-        
-        // Path: goes around rectangle body, then fans out for arrow wings to tip
-        const pathData = [
-          `M ${bodyTopLeftX} ${bodyTopLeftY}`,
-          `L ${bodyTopRightX} ${bodyTopRightY}`,
-          `L ${topWingX} ${topWingY}`,
-          `L ${x2} ${y2}`,
-          `L ${bottomWingX} ${bottomWingY}`,
-          `L ${bodyBottomRightX} ${bodyBottomRightY}`,
-          `L ${bodyBottomLeftX} ${bodyBottomLeftY}`,
-          `Z`
-        ].join(' ')
-        
-        return pathData
+
+        const ux = dx / lineLen
+        const uy = dy / lineLen
+        const px = -uy
+        const py = ux
+        const arrowLen = arrowHeadSize > 0 ? Math.min(arrowHeadSize, lineLen * 0.5) : 0
+        const shaftX2 = x2 - ux * arrowLen
+        const shaftY2 = y2 - uy * arrowLen
+        const usesOpenVHead = arrowHeadStyle === 'v-shaped-sharp' || arrowHeadStyle === 'v-shaped-rounded'
+        const lineEndX = arrowLen > 0 && usesOpenVHead ? x2 : shaftX2
+        const lineEndY = arrowLen > 0 && usesOpenVHead ? y2 : shaftY2
+
+        const dashForStyle = () => {
+          if (lineStyle === 'dashed') return `${Math.max(4, strokeWidth * 3)} ${Math.max(3, strokeWidth * 2)}`
+          if (lineStyle === 'dotted') return `0 ${Math.max(2, strokeWidth * 1.8)}`
+          return null
+        }
+
+        const applyLineAttrs = (lineEl, width) => {
+          lineEl.setAttribute('fill', 'none')
+          lineEl.setAttribute('stroke', strokeColor)
+          lineEl.setAttribute('stroke-width', String(Math.max(0, width)))
+          lineEl.setAttribute('stroke-linecap', 'round')
+          lineEl.setAttribute('stroke-linejoin', 'round')
+          lineEl.setAttribute('vector-effect', 'non-scaling-stroke')
+          const dash = dashForStyle()
+          if (dash) lineEl.setAttribute('stroke-dasharray', dash)
+        }
+
+        if (lineStyle === 'double') {
+          const thinWidth = Math.max(1, strokeWidth * 0.35)
+          const separation = Math.max(2, strokeWidth * 0.9)
+          const off = separation / 2
+          const lines = [
+            { x1: x1 + px * off, y1: y1 + py * off, x2: lineEndX + px * off, y2: lineEndY + py * off },
+            { x1: x1 - px * off, y1: y1 - py * off, x2: lineEndX - px * off, y2: lineEndY - py * off }
+          ]
+          for (const seg of lines) {
+            const lineEl = svgEl('line', seg)
+            applyLineAttrs(lineEl, thinWidth)
+            wrap.appendChild(lineEl)
+          }
+        } else {
+          const lineEl = svgEl('line', { x1, y1, x2: lineEndX, y2: lineEndY })
+          applyLineAttrs(lineEl, strokeWidth)
+          wrap.appendChild(lineEl)
+        }
+
+        if (arrowLen > 0) {
+          const wingHalf = Math.max(2, arrowHeadSize * 0.5)
+          const leftX = shaftX2 + px * wingHalf
+          const leftY = shaftY2 + py * wingHalf
+          const rightX = shaftX2 - px * wingHalf
+          const rightY = shaftY2 - py * wingHalf
+          if (arrowHeadStyle === 'triangle-rounded') {
+            const c1x = x2 - ux * arrowLen * 0.35 + px * wingHalf * 0.35
+            const c1y = y2 - uy * arrowLen * 0.35 + py * wingHalf * 0.35
+            const c2x = shaftX2
+            const c2y = shaftY2
+            const c3x = x2 - ux * arrowLen * 0.35 - px * wingHalf * 0.35
+            const c3y = y2 - uy * arrowLen * 0.35 - py * wingHalf * 0.35
+            const d = [
+              `M ${x2} ${y2}`,
+              `Q ${c1x} ${c1y} ${leftX} ${leftY}`,
+              `Q ${c2x} ${c2y} ${rightX} ${rightY}`,
+              `Q ${c3x} ${c3y} ${x2} ${y2}`,
+              'Z'
+            ].join(' ')
+            const head = svgEl('path', { d })
+            head.setAttribute('fill', strokeColor)
+            head.setAttribute('stroke', strokeColor)
+            head.setAttribute('stroke-width', String(Math.max(1, strokeWidth * 0.3)))
+            head.setAttribute('stroke-linejoin', 'round')
+            head.setAttribute('stroke-linecap', 'round')
+            head.setAttribute('vector-effect', 'non-scaling-stroke')
+            wrap.appendChild(head)
+          } else if (arrowHeadStyle === 'v-shaped-sharp' || arrowHeadStyle === 'v-shaped-rounded') {
+            const head = svgEl('polyline', { points: `${leftX},${leftY} ${x2},${y2} ${rightX},${rightY}` })
+            head.setAttribute('fill', 'none')
+            head.setAttribute('stroke', strokeColor)
+            head.setAttribute('stroke-width', String(Math.max(1, strokeWidth * 0.85)))
+            head.setAttribute('stroke-linejoin', arrowHeadStyle === 'v-shaped-rounded' ? 'round' : 'miter')
+            head.setAttribute('stroke-linecap', arrowHeadStyle === 'v-shaped-rounded' ? 'round' : 'butt')
+            head.setAttribute('vector-effect', 'non-scaling-stroke')
+            wrap.appendChild(head)
+          } else {
+            const head = svgEl('polygon', { points: `${x2},${y2} ${leftX},${leftY} ${rightX},${rightY}` })
+            head.setAttribute('fill', strokeColor)
+            head.setAttribute('stroke', 'none')
+            wrap.appendChild(head)
+          }
+        }
+
+        return wrap
       }
 
       const shapeToSvg = (s) => {
         const g = svgEl('g', { 'data-id': s.id, class: 'shape' })
-        // rotation about center of bbox
-        const bb = shapeBBoxLocal(s)
+        // Center point for rotation and flip (using visual bounds to account for rotation)
+        const bb = shapeBBox(s)
         const cx = bb.x + bb.w / 2
         const cy = bb.y + bb.h / 2
         const rot = s.rot || 0
-        if (rot) g.setAttribute('transform', `rotate(${rot} ${cx} ${cy})`)
+        
+        // Collect transforms: flip first (applied first), then rotation (applied second)
+        const transforms = []
 
         let el = null
         if (s.type === 'rect') {
-          el = svgEl('rect', { x: s.x, y: s.y, width: s.w, height: s.h, rx: 2, ry: 2 })
-          applyStyleAttrs(el, s)
-        } else if (s.type === 'ellipse') {
-          el = svgEl('ellipse', { cx: s.x + s.w / 2, cy: s.y + s.h / 2, rx: Math.abs(s.w / 2), ry: Math.abs(s.h / 2) })
-          applyStyleAttrs(el, s)
-        } else if (s.type === 'line') {
-          const pathData = lineToArrowPath(s)
-          el = svgEl('path', { d: pathData })
           const st = s.style || {}
-          // For line/arrow paths, fill with stroke color and don't stroke the path itself
-          el.setAttribute('fill', rgbaFromHexAlpha(st.stroke || '#111111', st.strokeAlpha ?? 1))
-          el.setAttribute('stroke', 'none')
+          const flipH = !!(st.rectFlipH ?? app.style.rectFlipH)
+          const flipV = !!(st.rectFlipV ?? app.style.rectFlipV)
+          if (flipH || flipV) {
+            const sx = flipH ? -1 : 1
+            const sy = flipV ? -1 : 1
+            const tx = flipH ? (2 * cx) : 0
+            const ty = flipV ? (2 * cy) : 0
+            transforms.push(`matrix(${sx} 0 0 ${sy} ${tx} ${ty})`)
+          }
+          const rectEl = svgEl('rect', { x: s.x, y: s.y, width: s.w, height: s.h, rx: 2, ry: 2 })
+          applyStyleAttrs(rectEl, s)
+          el = rectEl
+        } else if (s.type === 'ellipse') {
+          const st = s.style || {}
+          const flipH = !!(st.circleFlipH ?? app.style.circleFlipH)
+          const flipV = !!(st.circleFlipV ?? app.style.circleFlipV)
+          if (flipH || flipV) {
+            const sx = flipH ? -1 : 1
+            const sy = flipV ? -1 : 1
+            const tx = flipH ? (2 * cx) : 0
+            const ty = flipV ? (2 * cy) : 0
+            transforms.push(`matrix(${sx} 0 0 ${sy} ${tx} ${ty})`)
+          }
+          const circleEl = svgEl('ellipse', { cx: s.x + s.w / 2, cy: s.y + s.h / 2, rx: Math.abs(s.w / 2), ry: Math.abs(s.h / 2) })
+          applyStyleAttrs(circleEl, s)
+          el = circleEl
+        } else if (s.type === 'line') {
+          const st = s.style || {}
+          const flipH = !!(st.lineFlipH ?? app.style.lineFlipH)
+          const flipV = !!(st.lineFlipV ?? app.style.lineFlipV)
+          if (flipH || flipV) {
+            const sx = flipH ? -1 : 1
+            const sy = flipV ? -1 : 1
+            const tx = flipH ? (2 * cx) : 0
+            const ty = flipV ? (2 * cy) : 0
+            transforms.push(`matrix(${sx} 0 0 ${sy} ${tx} ${ty})`)
+          }
+          el = buildLineLikeElement(s)
         } else if (s.type === 'pen') {
+          const st = s.style || {}
+          const flipH = !!(st.penFlipH ?? app.style.penFlipH)
+          const flipV = !!(st.penFlipV ?? app.style.penFlipV)
+          if (flipH || flipV) {
+            const sx = flipH ? -1 : 1
+            const sy = flipV ? -1 : 1
+            const tx = flipH ? (2 * cx) : 0
+            const ty = flipV ? (2 * cy) : 0
+            transforms.push(`matrix(${sx} 0 0 ${sy} ${tx} ${ty})`)
+          }
           const pts = s.points || []
-          const d = pts.map((p, i) => (i === 0 ? `M ${p.x} ${p.y}` : `L ${p.x} ${p.y}`)).join(' ')
-          el = svgEl('path', { d })
-          applyStyleAttrs(el, s)
-          el.setAttribute('fill', 'none')
+          const smoothness = st.penSmoothness ?? 0
+          const smoothedPts = smoothPenPoints(pts, smoothness)
+          const d = smoothedPts.map((p, i) => (i === 0 ? `M ${p.x} ${p.y}` : `L ${p.x} ${p.y}`)).join(' ')
+          const penEl = svgEl('path', { d })
+          applyStyleAttrs(penEl, s)
+          penEl.setAttribute('fill', 'none')
+          el = penEl
         } else if (s.type === 'image') {
           const st = s.style || {}
-          const imageWrap = svgEl('g')
           const flipH = !!(st.imageFlipH ?? app.style.imageFlipH)
           const flipV = !!(st.imageFlipV ?? app.style.imageFlipV)
           if (flipH || flipV) {
             const sx = flipH ? -1 : 1
             const sy = flipV ? -1 : 1
-            const tx = flipH ? (2 * s.x + Math.max(1, s.w)) : 0
-            const ty = flipV ? (2 * s.y + Math.max(1, s.h)) : 0
-            imageWrap.setAttribute('transform', `matrix(${sx} 0 0 ${sy} ${tx} ${ty})`)
+            const tx = flipH ? (2 * cx) : 0
+            const ty = flipV ? (2 * cy) : 0
+            transforms.push(`matrix(${sx} 0 0 ${sy} ${tx} ${ty})`)
           }
+          const imageWrapper = svgEl('g')
           const img = svgEl('image', {
             x: s.x,
             y: s.y,
@@ -1472,7 +2111,7 @@
           })
           img.setAttribute('preserveAspectRatio', 'none')
           img.setAttribute('opacity', String(clamp(Number(st.imageAlpha ?? app.style.imageAlpha ?? 1), 0, 1)))
-          imageWrap.appendChild(img)
+          imageWrapper.appendChild(img)
 
           // Trigger async processing of transparency if needed
           if (st.imageTransparencyEnabled) {
@@ -1480,12 +2119,12 @@
           }
 
           // Non-destructive crop via SVG clipPath (in SVG coordinate space, independent of flip)
-          const imgCrop = s.crop || { left: 0, top: 0, right: 0, bottom: 0 }
-          const hasCrop = imgCrop.left || imgCrop.top || imgCrop.right || imgCrop.bottom
-          const visX = s.x + imgCrop.left
-          const visY = s.y + imgCrop.top
-          const visW = Math.max(1, s.w - imgCrop.left - imgCrop.right)
-          const visH = Math.max(1, s.h - imgCrop.top - imgCrop.bottom)
+          const cropData = getShapeCropData(s)
+          const hasCrop = cropData.hasCrop
+          const visX = cropData.visX
+          const visY = cropData.visY
+          const visW = cropData.visW
+          const visH = cropData.visH
 
           // Wrap image in clip if needed
           const outerEl = svgEl('g')
@@ -1497,13 +2136,13 @@
               cp.appendChild(svgEl('rect', { x: visX, y: visY, width: visW, height: visH }))
               defsEl.appendChild(cp)
               const clipWrapper = svgEl('g', { 'clip-path': `url(#${clipId})` })
-              clipWrapper.appendChild(imageWrap)
+              clipWrapper.appendChild(imageWrapper)
               outerEl.appendChild(clipWrapper)
             } else {
-              outerEl.appendChild(imageWrap)
+              outerEl.appendChild(imageWrapper)
             }
           } else {
-            outerEl.appendChild(imageWrap)
+            outerEl.appendChild(imageWrapper)
           }
 
           // Border drawn over the visible (crop-adjusted) area, outside the clip so it's never cut
@@ -1520,10 +2159,20 @@
 
           el = outerEl
         } else if (s.type === 'text') {
+          const st = s.style || {}
+          const textFlipH = !!(st.textFlipH ?? app.style.textFlipH)
+          const textFlipV = !!(st.textFlipV ?? app.style.textFlipV)
+          if (textFlipH || textFlipV) {
+            const sx = textFlipH ? -1 : 1
+            const sy = textFlipV ? -1 : 1
+            const tx = textFlipH ? (2 * cx) : 0
+            const ty = textFlipV ? (2 * cy) : 0
+            transforms.push(`matrix(${sx} 0 0 ${sy} ${tx} ${ty})`)
+          }
+
           // Render optional text background, border, and text content.
           const fontSize = s.fontSize || app.style.fontSize
           const lineHeight = fontSize * 1.2
-          const st = s.style || {}
           const textPadding = clamp(Number(st.textPadding ?? app.style.textPadding ?? 5), 0, 20)
           // Snap anchors to the pixel grid to reduce sub-pixel rendering jitter.
           const textX = Math.round(s.x + textPadding)
@@ -1581,20 +2230,55 @@
           textWrap.appendChild(textEl)
           el = textWrap
         } else if (s.type === 'group') {
-          // group is logical; render children in place (no extra visuals)
-          // (We still create a g wrapper so selection can target group)
-          el = svgEl('g')
+          // Group-level flip: handled at outer level with rotation
+          const st = s.style || {}
+          const flipH = !!st.groupFlipH
+          const flipV = !!st.groupFlipV
+          if (flipH || flipV) {
+            const sx = flipH ? -1 : 1
+            const sy = flipV ? -1 : 1
+            const tx = flipH ? (2 * cx) : 0
+            const ty = flipV ? (2 * cy) : 0
+            transforms.push(`matrix(${sx} 0 0 ${sy} ${tx} ${ty})`)
+          }
+          const groupEl = svgEl('g')
           const kids = (s.childrenIds || []).map(getShapeById).filter(Boolean)
           for (const k of kids) {
             const kidNode = shapeToSvg(k)
-            el.appendChild(kidNode)
+            groupEl.appendChild(kidNode)
           }
+          el = groupEl
         } else {
           el = svgEl('g')
         }
 
+        // Apply combined rotation and flip transforms to outer g
+        if (rot) {
+          transforms.push(`rotate(${rot} ${cx} ${cy})`)
+        }
+        if (transforms.length > 0) {
+          g.setAttribute('transform', transforms.join(' '))
+        }
+
+        if (s.type !== 'image' && isShapeCropSupported(s)) {
+          const cropData = getShapeCropData(s)
+          if (cropData.hasCrop) {
+            const defsEl = svg.querySelector('defs')
+            if (defsEl) {
+              const clipId = `shapeCrop-${s.id}`
+              const cp = svgEl('clipPath', { id: clipId })
+              cp.appendChild(svgEl('rect', { x: cropData.clipX, y: cropData.clipY, width: cropData.clipW, height: cropData.clipH }))
+              defsEl.appendChild(cp)
+              const clipWrapper = svgEl('g', { 'clip-path': `url(#${clipId})` })
+              clipWrapper.appendChild(el)
+              el = clipWrapper
+            }
+          }
+        }
+
         // Hit target (improves selection for thin strokes)
-        const hit = svgEl('rect', { class: 'hit', x: bb.x - 6, y: bb.y - 6, width: bb.w + 12, height: bb.h + 12 })
+        const hitBB = shapeBBox(s)
+        const hit = svgEl('rect', { class: 'hit', x: hitBB.x - 6, y: hitBB.y - 6, width: hitBB.w + 12, height: hitBB.h + 12 })
         g.appendChild(el)
         g.appendChild(hit)
         return g
@@ -1632,82 +2316,96 @@
           overlay.appendChild(dot)
         }
 
-        // Render marquee if active
-        if (app.marqueeBox) {
+        // Only render selection box/handles if not hiding during drag
+        if (!app.hideSelectionDuringDrag) {
+          // Render marquee if active
+          if (app.marqueeBox) {
+            const overlay = svgEl('g', { class: 'selOverlay' })
+            const mb = app.marqueeBox
+            const box = svgEl('rect', { class: 'selBox', x: mb.x, y: mb.y, width: mb.w, height: mb.h })
+            overlay.appendChild(box)
+            drawLinkPreviewOverlay(overlay)
+            svg.appendChild(overlay)
+          } else if (app.selectedIds.size || app.linkPreview) {
+            const overlay = svgEl('g', { class: 'selOverlay' })
+            for (const id of app.selectedIds) {
+              const s = getShapeById(id)
+              if (!s) continue
+
+              if (app.cropModeId === id && isShapeCropSupported(s)) {
+                // Crop mode: show visible-area selection box + 4 mid-edge handles + faint full-image outline
+                const cropData = getShapeCropData(s)
+                const visX = cropData.visX
+                const visY = cropData.visY
+                const visW = cropData.visW
+                const visH = cropData.visH
+
+                // Faint dashed outline of full image extent
+                const fullOutline = svgEl('rect', {
+                  x: cropData.bounds.x,
+                  y: cropData.bounds.y,
+                  width: cropData.bounds.w,
+                  height: cropData.bounds.h
+                })
+                fullOutline.setAttribute('fill', 'none')
+                fullOutline.setAttribute('stroke', 'rgba(78,161,255,0.35)')
+                fullOutline.setAttribute('stroke-width', '1')
+                fullOutline.setAttribute('stroke-dasharray', '5 4')
+                fullOutline.setAttribute('vector-effect', 'non-scaling-stroke')
+                overlay.appendChild(fullOutline)
+
+                // Solid blue selection box over visible (cropped) area
+                const visBox = svgEl('rect', { class: 'selBox', x: visX, y: visY, width: visW, height: visH })
+                overlay.appendChild(visBox)
+
+                // 4 mid-edge crop drag handles (positioned outside the bounding box)
+                const handleOffset = 8
+                const cropHandles = [
+                  { k: 'crop-n', x: visX + visW / 2, y: visY - handleOffset },
+                  { k: 'crop-s', x: visX + visW / 2, y: visY + visH + handleOffset },
+                  { k: 'crop-w', x: visX - handleOffset,      y: visY + visH / 2 },
+                  { k: 'crop-e', x: visX + visW + handleOffset, y: visY + visH / 2 }
+                ]
+                for (const h of cropHandles) {
+                  const r = svgEl('rect', { class: 'handle', 'data-handle': h.k, x: h.x - 5, y: h.y - 5, width: 10, height: 10, rx: 2, ry: 2 })
+                  overlay.appendChild(r)
+                }
+              } else {
+                // Normal selection: corner handles + rotate handle (positioned outside the bounding box)
+                const bb = shapeBBox(s)
+                const box = svgEl('rect', { class: 'selBox', x: bb.x, y: bb.y, width: bb.w, height: bb.h })
+                overlay.appendChild(box)
+
+                const handleOffset = 8
+                const hs = [
+                  { k: 'nw', x: bb.x - handleOffset, y: bb.y - handleOffset },
+                  { k: 'ne', x: bb.x + bb.w + handleOffset, y: bb.y - handleOffset },
+                  { k: 'se', x: bb.x + bb.w + handleOffset, y: bb.y + bb.h + handleOffset },
+                  { k: 'sw', x: bb.x - handleOffset, y: bb.y + bb.h + handleOffset }
+                ]
+                if (s.type !== 'text' || isTextWrapEnabled(s)) {
+                  for (const h of hs) {
+                    const r = svgEl('rect', { class: 'handle', 'data-handle': h.k, x: h.x - 5, y: h.y - 5, width: 10, height: 10, rx: 2, ry: 2 })
+                    overlay.appendChild(r)
+                  }
+                }
+                const rot = svgEl('circle', { class: 'handle', 'data-handle': 'rot', cx: bb.x + bb.w / 2, cy: bb.y - 18, r: 6 })
+                overlay.appendChild(rot)
+                const link = svgEl('line', { x1: bb.x + bb.w / 2, y1: bb.y, x2: bb.x + bb.w / 2, y2: bb.y - 18, stroke: 'rgba(78,161,255,0.8)', 'stroke-width': 1.5, 'vector-effect': 'non-scaling-stroke' })
+                overlay.appendChild(link)
+              }
+            }
+            drawLinkPreviewOverlay(overlay)
+            svg.appendChild(overlay)
+          }
+        } else if (app.linkPreview) {
+          // Even when hiding selection, draw link preview overlay (for lines/arrows being resized)
           const overlay = svgEl('g', { class: 'selOverlay' })
-          const mb = app.marqueeBox
-          const box = svgEl('rect', { class: 'selBox', x: mb.x, y: mb.y, width: mb.w, height: mb.h })
-          overlay.appendChild(box)
           drawLinkPreviewOverlay(overlay)
           svg.appendChild(overlay)
-          return
         }
 
-        if (!app.selectedIds.size && !app.linkPreview) return
-
-        const overlay = svgEl('g', { class: 'selOverlay' })
-        for (const id of app.selectedIds) {
-          const s = getShapeById(id)
-          if (!s) continue
-
-          if (app.cropModeId === id && s.type === 'image') {
-            // Crop mode: show visible-area selection box + 4 mid-edge handles + faint full-image outline
-            const crop = s.crop || { left: 0, top: 0, right: 0, bottom: 0 }
-            const visX = s.x + crop.left
-            const visY = s.y + crop.top
-            const visW = Math.max(1, s.w - crop.left - crop.right)
-            const visH = Math.max(1, s.h - crop.top - crop.bottom)
-
-            // Faint dashed outline of full image extent
-            const fullOutline = svgEl('rect', { x: s.x, y: s.y, width: s.w, height: s.h })
-            fullOutline.setAttribute('fill', 'none')
-            fullOutline.setAttribute('stroke', 'rgba(78,161,255,0.35)')
-            fullOutline.setAttribute('stroke-width', '1')
-            fullOutline.setAttribute('stroke-dasharray', '5 4')
-            fullOutline.setAttribute('vector-effect', 'non-scaling-stroke')
-            overlay.appendChild(fullOutline)
-
-            // Solid blue selection box over visible (cropped) area
-            const visBox = svgEl('rect', { class: 'selBox', x: visX, y: visY, width: visW, height: visH })
-            overlay.appendChild(visBox)
-
-            // 4 mid-edge crop drag handles
-            const cropHandles = [
-              { k: 'crop-n', x: visX + visW / 2, y: visY },
-              { k: 'crop-s', x: visX + visW / 2, y: visY + visH },
-              { k: 'crop-w', x: visX,             y: visY + visH / 2 },
-              { k: 'crop-e', x: visX + visW,      y: visY + visH / 2 }
-            ]
-            for (const h of cropHandles) {
-              const r = svgEl('rect', { class: 'handle', 'data-handle': h.k, x: h.x - 5, y: h.y - 5, width: 10, height: 10, rx: 2, ry: 2 })
-              overlay.appendChild(r)
-            }
-          } else {
-            // Normal selection: corner handles + rotate handle
-            const bb = shapeBBox(s)
-            const box = svgEl('rect', { class: 'selBox', x: bb.x, y: bb.y, width: bb.w, height: bb.h })
-            overlay.appendChild(box)
-
-            const hs = [
-              { k: 'nw', x: bb.x, y: bb.y },
-              { k: 'ne', x: bb.x + bb.w, y: bb.y },
-              { k: 'se', x: bb.x + bb.w, y: bb.y + bb.h },
-              { k: 'sw', x: bb.x, y: bb.y + bb.h }
-            ]
-            for (const h of hs) {
-              const r = svgEl('rect', { class: 'handle', 'data-handle': h.k, x: h.x - 5, y: h.y - 5, width: 10, height: 10, rx: 2, ry: 2 })
-              overlay.appendChild(r)
-            }
-            const rot = svgEl('circle', { class: 'handle', 'data-handle': 'rot', cx: bb.x + bb.w / 2, cy: bb.y - 18, r: 6 })
-            overlay.appendChild(rot)
-            const link = svgEl('line', { x1: bb.x + bb.w / 2, y1: bb.y, x2: bb.x + bb.w / 2, y2: bb.y - 18, stroke: 'rgba(78,161,255,0.8)', 'stroke-width': 1.5, 'vector-effect': 'non-scaling-stroke' })
-            overlay.appendChild(link)
-          }
-        }
-        drawLinkPreviewOverlay(overlay)
-        svg.appendChild(overlay)
-
-        // Draw alignment guide lines on top of everything
+        // Always draw alignment guide lines (even when hiding selection box/handles during drag)
         const guides = app.alignGuides
         if (guides && (guides.activeVLines?.length || guides.activeHLines?.length)) {
           const guideOverlay = svgEl('g', { class: 'selOverlay alignGuides' })
@@ -1770,6 +2468,8 @@
         renderSelectionOverlay()
         updateHud()
       }
+
+
 
       /* =========================
          History (undo/redo)
@@ -2083,6 +2783,9 @@
         app.activeId = rec.id
         app.drawing = rec
         app.shapes = structuredClone(rec.shapes || [])
+        for (const shape of app.shapes) {
+          if (shape?.type === 'line') commitStoredLineVisualFlip(shape)
+        }
         app.canvas.width = rec.width || 1200
         app.canvas.height = rec.height || 800
         app.canvas.bg = rec.canvasBg || 'rgb(255,255,255)'
@@ -2406,30 +3109,80 @@
       }
 
       const duplicateSelection = () => {
-        const ids = Array.from(app.selectedIds)
-        if (!ids.length) return
+        const selectedRootIds = Array.from(app.selectedIds)
+        if (!selectedRootIds.length) return
 
-        const targetX = clamp(Number(app.lastPointer?.x ?? app.canvas.width / 2), 0, app.canvas.width)
-        const targetY = clamp(Number(app.lastPointer?.y ?? app.canvas.height / 2), 0, app.canvas.height)
-        const newIds = new Set()
-        const movableCopies = []
-        
-        for (const id of ids) {
-          const s = getShapeById(id)
+        const existingById = new Map(app.shapes.map(s => [s.id, s]))
+        const idsToClone = new Set()
+        const queue = []
+
+        for (const id of selectedRootIds) {
+          if (existingById.has(id)) queue.push(id)
+        }
+
+        // Clone selected groups deeply by including descendants.
+        while (queue.length) {
+          const id = queue.pop()
+          if (!id || idsToClone.has(id)) continue
+          const s = existingById.get(id)
           if (!s) continue
-          
+          idsToClone.add(id)
+          if (s.type === 'group') {
+            for (const cid of (s.childrenIds || [])) {
+              if (!idsToClone.has(cid) && existingById.has(cid)) queue.push(cid)
+            }
+          }
+        }
+
+        if (!idsToClone.size) return
+
+        const idMap = new Map()
+        const originalOrder = app.shapes
+          .map((shape, index) => ({ shape, index }))
+          .filter(({ shape }) => idsToClone.has(shape.id))
+          .sort((a, b) => a.index - b.index)
+          .map(({ shape }) => shape)
+
+        for (const s of originalOrder) idMap.set(s.id, uuid())
+
+        const copies = []
+        const movableCopies = []
+        for (const s of originalOrder) {
           const copy = structuredClone(s)
-          copy.id = uuid()
+          copy.id = idMap.get(s.id)
+
+          if (copy.type === 'group') {
+            copy.childrenIds = (copy.childrenIds || [])
+              .map(cid => idMap.get(cid) || null)
+              .filter(Boolean)
+          }
 
           if (copy.type === 'line') {
-            clearLineLinks(copy)
+            if (copy.links) {
+              for (const endpoint of ['start', 'end']) {
+                const link = copy.links[endpoint]
+                if (!link?.targetId) continue
+                const mapped = idMap.get(link.targetId)
+                if (mapped) {
+                  copy.links[endpoint] = { ...link, targetId: mapped }
+                } else {
+                  copy.links[endpoint] = null
+                }
+              }
+              cleanupLineLinks(copy)
+            } else {
+              clearLineLinks(copy)
+            }
           }
 
           if (copy.type !== 'group') movableCopies.push(copy)
-          
-          app.shapes.push(copy)
-          newIds.add(copy.id)
+          copies.push(copy)
         }
+
+        app.shapes.push(...copies)
+
+        const targetX = clamp(Number(app.lastPointer?.x ?? app.canvas.width / 2), 0, app.canvas.width)
+        const targetY = clamp(Number(app.lastPointer?.y ?? app.canvas.height / 2), 0, app.canvas.height)
 
         if (movableCopies.length) {
           const boxes = movableCopies.map(shapeBBox)
@@ -2444,8 +3197,14 @@
 
           for (const copy of movableCopies) moveShapeBy(copy, dx, dy)
         }
-        
-        app.selectedIds = newIds
+
+        const newSelection = new Set()
+        for (const id of selectedRootIds) {
+          const mapped = idMap.get(id)
+          if (mapped) newSelection.add(mapped)
+        }
+
+        app.selectedIds = newSelection
         pushHistory()
         render()
         markDirty()
@@ -2778,19 +3537,14 @@
           }
 
           if (isEnter && ev.shiftKey) {
-            // Shift+Enter and Shift+NumpadEnter: insert newline with continuation indent.
+            // Shift+Enter and Shift+NumpadEnter: insert a raw newline.
             ev.preventDefault()
             ev.stopPropagation()
             const start = ta.selectionStart
             const end = ta.selectionEnd
-            const lineStart = ta.value.lastIndexOf('\n', Math.max(0, start - 1)) + 1
-            const nextBreak = ta.value.indexOf('\n', start)
-            const lineEnd = nextBreak === -1 ? ta.value.length : nextBreak
-            const currentLine = ta.value.slice(lineStart, lineEnd)
-            const continuationIndent = getContinuationIndentForLine(currentLine)
-            const next = ta.value.slice(0, start) + '\n' + continuationIndent + ta.value.slice(end)
+            const next = ta.value.slice(0, start) + '\n' + ta.value.slice(end)
             ta.value = next
-            const caret = start + 1 + continuationIndent.length
+            const caret = start + 1
             ta.setSelectionRange(caret, caret)
             updateEditorSize()
             return
@@ -2888,8 +3642,13 @@
         // If clicking on selection handles
         const handle = ev.target && ev.target.getAttribute && ev.target.getAttribute('data-handle')
         if (handle && handle.startsWith('crop-') && app.cropModeId && app.selectedIds.size === 1) {
+          const selectedId = Array.from(app.selectedIds)[0]
+          const selectedShape = getShapeById(selectedId)
+          if (!selectedShape || app.cropModeId !== selectedId || !isShapeCropSupported(selectedShape)) return
           app.dragMode = 'crop'
           app.activeHandle = handle
+          app.startBox = shapeBBox(selectedShape)
+          app.hideSelectionDuringDrag = true
           ev.preventDefault()
           return
         }
@@ -2908,15 +3667,21 @@
           app.startBox = shapeBBox(selectedShape)
           app.startAngle = (selectedShape?.rot || 0)
           app.lineResizeState = null
+          // Hide selection box and handles during resize/rotate operations
+          app.hideSelectionDuringDrag = true
 
           if (selectedShape && selectedShape.type === 'line' && handle !== 'rot') {
             const corner = {
               x: handle.includes('w') ? app.startBox.x : app.startBox.x + app.startBox.w,
               y: handle.includes('n') ? app.startBox.y : app.startBox.y + app.startBox.h
             }
+
+            // Choose dragged endpoint by geometry: whichever endpoint is closer
+            // to the grabbed visual corner of the line bbox.
             const d1 = Math.hypot(selectedShape.x1 - corner.x, selectedShape.y1 - corner.y)
             const d2 = Math.hypot(selectedShape.x2 - corner.x, selectedShape.y2 - corner.y)
             const dragP1 = d1 <= d2
+
             // Only clear the link on the endpoint being dragged; preserve the other end's link
             const dragEpKey = dragP1 ? 'start' : 'end'
             if (selectedShape.links?.[dragEpKey]) {
@@ -2928,7 +3693,17 @@
               dragEndpoint: dragP1 ? 'p1' : 'p2',
               anchor: dragP1
                 ? { x: selectedShape.x2, y: selectedShape.y2 }
-                : { x: selectedShape.x1, y: selectedShape.y1 }
+                : { x: selectedShape.x1, y: selectedShape.y1 },
+              direction: (() => {
+                const dragPoint = dragP1
+                  ? { x: selectedShape.x1, y: selectedShape.y1 }
+                  : { x: selectedShape.x2, y: selectedShape.y2 }
+                const vx = dragPoint.x - (dragP1 ? selectedShape.x2 : selectedShape.x1)
+                const vy = dragPoint.y - (dragP1 ? selectedShape.y2 : selectedShape.y1)
+                const vLen = Math.hypot(vx, vy)
+                if (vLen <= 0) return null
+                return { x: vx / vLen, y: vy / vLen }
+              })()
             }
             app.linkPreview = null
           }
@@ -2956,6 +3731,8 @@
             app.dragMode = 'move'
             app.activeShapeId = selectedId
             app.startBox = shapeBBox(getShapeById(selectedId))
+            // Hide selection box and handles during move operations
+            app.hideSelectionDuringDrag = true
           } else {
             if (!ev.shiftKey) selectSingle(null)
             app.dragMode = 'marquee'
@@ -2972,6 +3749,7 @@
           s.points = [{ x: p.x, y: p.y }]
           s.rot = 0
           s.style.fillAlpha = 0
+          s.style.penLockAspect = app.style.penLockAspect
           app.shapes.push(s)
           app.activeShapeId = s.id
           selectSingle(s.id)
@@ -2984,6 +3762,7 @@
           const s = shapeDefaults()
           s.type = app.tool
           s.style.fillAlpha = 1
+          if (s.type === 'rect') s.style.rectLockAspect = app.style.rectLockAspect
           if (s.type === 'ellipse') s.style.circleLockAspect = app.style.circleLockAspect
           s.x = p.x
           s.y = p.y
@@ -3002,7 +3781,11 @@
           s.type = 'line'
           s.x1 = p.x
           s.y1 = p.y
+          s.style.lineStyle = normalizeLineStyle(app.style.lineStyle)
           s.style.arrowHeadSize = app.tool === 'line' ? 0 : Math.max(1, Number(app.style.arrowHeadSize || 12))
+          s.style.arrowHeadStyle = normalizeArrowHeadStyle(app.style.arrowHeadStyle)
+          s.style.lineLockAspect = app.style.lineLockAspect
+          s.style.arrowLockAspect = app.style.arrowLockAspect
           const startCandidate = findNearbyLinkTarget(p.x, p.y, s.id)
           if (startCandidate) {
             setLineEndpointLink(s, 'start', startCandidate)
@@ -3251,8 +4034,19 @@
             if (dist2 > 1.5) pts.push({ x: p.x, y: p.y })
             s.points = pts
           } else if (s.type === 'rect') {
-            const r = normalizeRect(app.startPt.x, app.startPt.y, p.x, p.y)
-            s.x = r.x; s.y = r.y; s.w = r.w; s.h = r.h
+            const lockAspect = s.style?.rectLockAspect ?? app.style.rectLockAspect
+            if (lockAspect) {
+              const ex = p.x - app.startPt.x
+              const ey = p.y - app.startPt.y
+              const side = Math.max(Math.abs(ex), Math.abs(ey))
+              s.x = app.startPt.x + (ex < 0 ? -side : 0)
+              s.y = app.startPt.y + (ey < 0 ? -side : 0)
+              s.w = side
+              s.h = side
+            } else {
+              const r = normalizeRect(app.startPt.x, app.startPt.y, p.x, p.y)
+              s.x = r.x; s.y = r.y; s.w = r.w; s.h = r.h
+            }
           } else if (s.type === 'ellipse') {
             const lockAspect = s.style?.circleLockAspect ?? app.style.circleLockAspect
             if (lockAspect) {
@@ -3329,17 +4123,23 @@
         if (app.dragMode === 'crop') {
           const id = Array.from(app.selectedIds)[0]
           const s = getShapeById(id)
-          if (!s || s.type !== 'image') return
+          if (!s || !isShapeCropSupported(s)) return
           const edge = app.activeHandle
-          const crop = s.crop || { left: 0, top: 0, right: 0, bottom: 0 }
+          const bounds = getShapeCropBounds(s)
+          const crop = getNormalizedShapeCrop(s, bounds)
+          const handleOffset = 8 // must match offset in handle positioning
           if (edge === 'crop-n') {
-            s.crop = { ...crop, top: Math.round(clamp(p.y - s.y, 0, s.h - (crop.bottom || 0) - 1)) }
+            p.y += handleOffset
+            s.crop = { ...crop, top: Math.round(clamp(p.y - bounds.y, 0, bounds.h - crop.bottom - 1)) }
           } else if (edge === 'crop-s') {
-            s.crop = { ...crop, bottom: Math.round(clamp((s.y + s.h) - p.y, 0, s.h - (crop.top || 0) - 1)) }
+            p.y -= handleOffset
+            s.crop = { ...crop, bottom: Math.round(clamp((bounds.y + bounds.h) - p.y, 0, bounds.h - crop.top - 1)) }
           } else if (edge === 'crop-w') {
-            s.crop = { ...crop, left: Math.round(clamp(p.x - s.x, 0, s.w - (crop.right || 0) - 1)) }
+            p.x += handleOffset
+            s.crop = { ...crop, left: Math.round(clamp(p.x - bounds.x, 0, bounds.w - crop.right - 1)) }
           } else if (edge === 'crop-e') {
-            s.crop = { ...crop, right: Math.round(clamp((s.x + s.w) - p.x, 0, s.w - (crop.left || 0) - 1)) }
+            p.x -= handleOffset
+            s.crop = { ...crop, right: Math.round(clamp((bounds.x + bounds.w) - p.x, 0, bounds.w - crop.left - 1)) }
           }
           render()
           markDirty()
@@ -3353,6 +4153,13 @@
           const handle = app.activeHandle
           const bb0 = app.startBox
           if (!bb0 || !handle) return
+
+          // Adjust mouse position to account for handles being outside the bbox
+          const handleOffset = 8 // must match offset in handle positioning
+          if (handle === 'nw') { p.x += handleOffset; p.y += handleOffset }
+          else if (handle === 'ne') { p.x -= handleOffset; p.y += handleOffset }
+          else if (handle === 'se') { p.x -= handleOffset; p.y -= handleOffset }
+          else if (handle === 'sw') { p.x += handleOffset; p.y -= handleOffset }
 
           // Simple axis-aligned resize (ignores rotation for simplicity)
           let x1 = bb0.x, y1 = bb0.y, x2 = bb0.x + bb0.w, y2 = bb0.y + bb0.h
@@ -3387,6 +4194,18 @@
               s.h = Math.max(1, h)
               s.x = handle.includes('w') ? (anchorX - s.w) : anchorX
               s.y = handle.includes('n') ? (anchorY - s.h) : anchorY
+            } else if (s.type === 'rect' && (s.style?.rectLockAspect ?? app.style.rectLockAspect)) {
+              const ratio = (bb0.w > 0 && bb0.h > 0) ? (bb0.w / bb0.h) : 1
+              const anchorX = handle.includes('w') ? (bb0.x + bb0.w) : bb0.x
+              const anchorY = handle.includes('n') ? (bb0.y + bb0.h) : bb0.y
+              let w = Math.abs(p.x - anchorX)
+              let h = Math.abs(p.y - anchorY)
+              if (w / ratio > h) h = w / ratio
+              else w = h * ratio
+              s.w = Math.max(1, w)
+              s.h = Math.max(1, h)
+              s.x = handle.includes('w') ? (anchorX - s.w) : anchorX
+              s.y = handle.includes('n') ? (anchorY - s.h) : anchorY
             } else if (s.type === 'ellipse' && (s.style?.circleLockAspect ?? app.style.circleLockAspect)) {
               const ratio = (bb0.w > 0 && bb0.h > 0) ? (bb0.w / bb0.h) : 1
               const anchorX = handle.includes('w') ? (bb0.x + bb0.w) : bb0.x
@@ -3406,7 +4225,15 @@
           } else if (s.type === 'line') {
             const rs = app.lineResizeState
             const dragEndpointKey = rs?.dragEndpoint === 'p1' ? 'start' : 'end'
-            const anchorEndpointKey = rs?.dragEndpoint === 'p1' ? 'end' : 'start'
+            const lockAspect = lineLikeLockAspectEnabled(s)
+            const projectedPoint = (() => {
+              if (!lockAspect || !rs?.direction) return { x: p.x, y: p.y }
+              const v = rs.direction
+              const ax = rs.anchor.x
+              const ay = rs.anchor.y
+              const dot = (p.x - ax) * v.x + (p.y - ay) * v.y
+              return { x: ax + v.x * dot, y: ay + v.y * dot }
+            })()
 
             if (rs) {
               const candidate = findNearbyLinkTarget(p.x, p.y, s.id)
@@ -3424,15 +4251,15 @@
 
             if (rs && rs.dragEndpoint === 'p1') {
               if (!s.links?.start) {
-                s.x1 = p.x
-                s.y1 = p.y
+                s.x1 = projectedPoint.x
+                s.y1 = projectedPoint.y
               }
               s.x2 = rs.anchor.x
               s.y2 = rs.anchor.y
             } else if (rs && rs.dragEndpoint === 'p2') {
               if (!s.links?.end) {
-                s.x2 = p.x
-                s.y2 = p.y
+                s.x2 = projectedPoint.x
+                s.y2 = projectedPoint.y
               }
               s.x1 = rs.anchor.x
               s.y1 = rs.anchor.y
@@ -3444,13 +4271,20 @@
           } else if (s.type === 'pen') {
             // scale points within bbox
             const bb = computeBBoxForPen(s.points || [])
+            const lockAspect = !!(s.style?.penLockAspect ?? app.style.penLockAspect)
             const sx = bb.w ? (r.w / bb.w) : 1
             const sy = bb.h ? (r.h / bb.h) : 1
+            const us = lockAspect ? Math.max(sx, sy) : null
             s.points = (s.points || []).map(pt => ({
-              x: r.x + (pt.x - bb.x) * sx,
-              y: r.y + (pt.y - bb.y) * sy
+              x: r.x + (pt.x - bb.x) * (us ?? sx),
+              y: r.y + (pt.y - bb.y) * (us ?? sy)
             }))
           }
+
+          // ---- Alignment guides (visual only during drag, snap on release) ----
+          app.alignGuides = computeAlignGuidesForMove()
+          updateAlignGuideVisuals()
+
           render()
           markDirty()
           return
@@ -3460,7 +4294,7 @@
           const id = Array.from(app.selectedIds)[0]
           const s = getShapeById(id)
           if (!s) return
-          const bb = shapeBBoxLocal(s)
+          const bb = shapeBBox(s)
           const cx = bb.x + bb.w / 2
           const cy = bb.y + bb.h / 2
           const a0 = Math.atan2(app.startPt.y - cy, app.startPt.x - cx)
@@ -3491,6 +4325,8 @@
       const pointerUp = (ev) => {
         if (!app.isPointerDown) return
         app.isPointerDown = false
+        // Show selection box and handles after drag operation completes
+        app.hideSelectionDuringDrag = false
 
         if (app.dragMode === 'draw') {
           // Snap line/arrow to grid if width or height is within tolerance
@@ -3604,50 +4440,146 @@
 
       const resetBaseRowOrder = () => {
         const rowIds = [
+          'rowTool',
           'rowRectGeneralHeader',
+          'rowRectLockAspect',
+          'rowRectFlip',
           'rowRectBorderHeader',
           'rowRectFillHeader',
           'rowCircleGeneralHeader',
           'rowCircleStrokeHeader',
           'rowCircleFillHeader',
           'rowCircleLockAspect',
+          'rowCircleFlip',
+          'rowLineLikeGeneralHeader',
+          'rowLineLikeArrowHeader',
+          'rowLineLikeLineHeader',
+          'rowLineLikeFlip',
+          'rowPenGeneralHeader',
+          'rowPenStrokeHeader',
+          'rowPenTransformHeader',
+          'rowPenFlip',
+          'rowTextGeneralHeader',
+          'rowTextFlip',
           'rowShortcutsHeader',
           'rowShortcuts',
+          'rowImageCrop',
           'rowStroke',
           'rowFill',
           'rowStrokeWidth',
           'rowStrokeAlpha',
           'rowFillAlpha',
+          'rowLineLockAspect',
+          'rowArrowLockAspect',
+          'rowArrowHeadStyle',
+          'rowPenLockAspect',
           'rowRotation'
         ]
         for (const id of rowIds) setRowOrder(id, null)
       }
 
       const applyRectRowOrder = () => {
-        setRowOrder('rowRectGeneralHeader', 1)
-        setRowOrder('rowRotation', 2)
-        setRowOrder('rowRectBorderHeader', 3)
-        setRowOrder('rowStrokeWidth', 4)
-        setRowOrder('rowStroke', 5)
-        setRowOrder('rowStrokeAlpha', 6)
-        setRowOrder('rowRectFillHeader', 7)
-        setRowOrder('rowFill', 8)
-        setRowOrder('rowFillAlpha', 9)
+        setRowOrder('rowTool', -100)
+        setRowOrder('rowRectGeneralHeader', -90)
+        setRowOrder('rowRectLockAspect', -89)
+        setRowOrder('rowRectFlip', -88)
+        setRowOrder('rowImageCrop', -87)
+        setRowOrder('rowRotation', -86)
+        setRowOrder('rowRectBorderHeader', -70)
+        setRowOrder('rowStrokeWidth', -69)
+        setRowOrder('rowStroke', -68)
+        setRowOrder('rowStrokeAlpha', -67)
+        setRowOrder('rowRectFillHeader', -60)
+        setRowOrder('rowFill', -59)
+        setRowOrder('rowFillAlpha', -58)
         setRowOrder('rowShortcutsHeader', 98)
         setRowOrder('rowShortcuts', 99)
       }
 
       const applyCircleRowOrder = () => {
-        setRowOrder('rowCircleGeneralHeader', 1)
-        setRowOrder('rowCircleLockAspect', 2)
-        setRowOrder('rowRotation', 3)
-        setRowOrder('rowCircleStrokeHeader', 4)
-        setRowOrder('rowStrokeWidth', 5)
-        setRowOrder('rowStroke', 6)
-        setRowOrder('rowStrokeAlpha', 7)
-        setRowOrder('rowCircleFillHeader', 8)
-        setRowOrder('rowFill', 9)
-        setRowOrder('rowFillAlpha', 10)
+        setRowOrder('rowTool', -100)
+        setRowOrder('rowCircleGeneralHeader', -90)
+        setRowOrder('rowCircleLockAspect', -89)
+        setRowOrder('rowCircleFlip', -88)
+        setRowOrder('rowImageCrop', -87)
+        setRowOrder('rowRotation', -86)
+        setRowOrder('rowCircleStrokeHeader', -70)
+        setRowOrder('rowStrokeWidth', -69)
+        setRowOrder('rowStroke', -68)
+        setRowOrder('rowStrokeAlpha', -67)
+        setRowOrder('rowCircleFillHeader', -60)
+        setRowOrder('rowFill', -59)
+        setRowOrder('rowFillAlpha', -58)
+        setRowOrder('rowShortcutsHeader', 98)
+        setRowOrder('rowShortcuts', 99)
+      }
+
+      const applyLineLikeRowOrder = () => {
+        setRowOrder('rowTool', -100)
+        setRowOrder('rowLineLikeGeneralHeader', -90)
+        setRowOrder('rowLineLockAspect', -89)
+        setRowOrder('rowArrowLockAspect', -89)
+        setRowOrder('rowLineLikeFlip', -88)
+        setRowOrder('rowImageCrop', -87)
+        setRowOrder('rowRotation', -86)
+        setRowOrder('rowLineLikeArrowHeader', -85)
+        setRowOrder('rowArrowHeadSize', -84)
+        setRowOrder('rowArrowHeadStyle', -83)
+        setRowOrder('rowLineLikeLineHeader', -82)
+        setRowOrder('rowLineStyle', -81)
+        setRowOrder('rowStrokeWidth', -80)
+        setRowOrder('rowStroke', -79)
+        setRowOrder('rowStrokeAlpha', -78)
+        setRowOrder('rowShortcutsHeader', 98)
+        setRowOrder('rowShortcuts', 99)
+      }
+
+      const applyPenRowOrder = () => {
+        setRowOrder('rowTool', -100)
+        setRowOrder('rowPenGeneralHeader', -90)
+        setRowOrder('rowPenLockAspect', -89)
+        setRowOrder('rowPenFlip', -88)
+        setRowOrder('rowImageCrop', -87)
+        setRowOrder('rowRotation', -86)
+        setRowOrder('rowPenStrokeHeader', -85)
+        setRowOrder('rowStrokeWidth', -84)
+        setRowOrder('rowStroke', -83)
+        setRowOrder('rowStrokeAlpha', -82)
+        setRowOrder('rowPenTransformHeader', 96)
+        setRowOrder('rowPenSmoothness', 97)
+        setRowOrder('rowShortcutsHeader', 98)
+        setRowOrder('rowShortcuts', 99)
+      }
+
+      const applyTextareaRowOrder = () => {
+        setRowOrder('rowTool', -100)
+        setRowOrder('rowTextGeneralHeader', -90)
+        setRowOrder('rowTextFlip', -89)
+        setRowOrder('rowImageCrop', -88)
+        setRowOrder('rowRotation', -87)
+        setRowOrder('rowTextareaTextHeader', -70)
+        setRowOrder('rowTextareaFontSize', -69)
+        setRowOrder('rowTextareaTextColor', -68)
+        setRowOrder('rowTextareaTextAlpha', -67)
+        setRowOrder('rowTextareaWrapText', -66)
+        setRowOrder('rowTextareaBorderHeader', -60)
+        setRowOrder('rowTextareaBorderWidth', -59)
+        setRowOrder('rowTextareaBorderColor', -58)
+        setRowOrder('rowTextareaBorderAlpha', -57)
+        setRowOrder('rowTextareaPadding', -56)
+        setRowOrder('rowTextareaBackgroundHeader', -50)
+        setRowOrder('rowTextareaBackgroundColor', -49)
+        setRowOrder('rowTextareaBackgroundAlpha', -48)
+        setRowOrder('rowShortcutsHeader', 98)
+        setRowOrder('rowShortcuts', 99)
+      }
+
+      const applyGroupRowOrder = () => {
+        setRowOrder('rowTool', -100)
+        setRowOrder('rowImageGeneralHeader', -90)
+        setRowOrder('rowImageFlip', -89)
+        setRowOrder('rowImageCrop', -88)
+        setRowOrder('rowRotation', -87)
         setRowOrder('rowShortcutsHeader', 98)
         setRowOrder('rowShortcuts', 99)
       }
@@ -3684,11 +4616,14 @@
         const commonRows = ['rowStroke', 'rowFill', 'rowStrokeWidth', 'rowStrokeAlpha', 'rowFillAlpha', 'rowRotation']
         const textRows = ['rowFontSize', 'rowTextBorderEnabled', 'rowTextBorderColor', 'rowTextBorderAlpha', 'rowTextBorderWidth']
         const textareaRows = ['rowTextareaTextHeader', 'rowTextareaFontSize', 'rowTextareaTextColor', 'rowTextareaTextAlpha', 'rowTextareaWrapText', 'rowTextareaBorderHeader', 'rowTextareaBorderWidth', 'rowTextareaBorderColor', 'rowTextareaBorderAlpha', 'rowTextareaPadding', 'rowTextareaBackgroundHeader', 'rowTextareaBackgroundColor', 'rowTextareaBackgroundAlpha']
-        const imageRows = ['rowImageGeneralHeader', 'rowImageLockAspect', 'rowImageAlpha', 'rowImageFlip', 'rowImageCrop', 'rowImageBorderHeader', 'rowImageBorderWidth', 'rowImageBorderColor', 'rowImageBorderAlpha', 'rowImageTransparencyHeader', 'rowImageTransparencyEnabled', 'rowImageTransparencyColor', 'rowImageTransparencyTolerance']
-        const lineLikeRows = ['rowArrowHeadSize']
-        const rectSectionRows = ['rowRectGeneralHeader', 'rowRectBorderHeader', 'rowRectFillHeader']
-        const circleSectionRows = ['rowCircleGeneralHeader', 'rowCircleStrokeHeader', 'rowCircleFillHeader', 'rowCircleLockAspect']
-        const groupOnlyRows = ['rowTool', 'rowShortcutsHeader', 'rowShortcuts']
+        const imageRows = ['rowImageGeneralHeader', 'rowImageLockAspect', 'rowImageAlpha', 'rowImageFlip', 'rowImageBorderHeader', 'rowImageBorderWidth', 'rowImageBorderColor', 'rowImageBorderAlpha', 'rowImageTransparencyHeader', 'rowImageTransparencyEnabled', 'rowImageTransparencyColor', 'rowImageTransparencyTolerance']
+        const cropRows = ['rowImageCrop']
+        const lineLikeRows = ['rowLineLikeGeneralHeader', 'rowLineLikeArrowHeader', 'rowLineLikeLineHeader', 'rowArrowHeadSize', 'rowArrowHeadStyle', 'rowLineStyle', 'rowLineLockAspect', 'rowArrowLockAspect', 'rowLineLikeFlip']
+        const rectSectionRows = ['rowRectGeneralHeader', 'rowRectLockAspect', 'rowRectBorderHeader', 'rowRectFillHeader', 'rowRectFlip']
+        const circleSectionRows = ['rowCircleGeneralHeader', 'rowCircleStrokeHeader', 'rowCircleFillHeader', 'rowCircleLockAspect', 'rowCircleFlip']
+        const penOnlyRows = ['rowPenGeneralHeader', 'rowPenStrokeHeader', 'rowPenTransformHeader', 'rowPenSmoothness', 'rowPenLockAspect', 'rowPenFlip']
+        const textareaFlipRows = ['rowTextFlip']
+        const groupOnlyRows = ['rowTool', 'rowImageGeneralHeader', 'rowImageFlip', 'rowImageCrop', 'rowRotation', 'rowShortcutsHeader', 'rowShortcuts']
 
         updateShortcutsList(mode)
 
@@ -3696,6 +4631,7 @@
           const allRows = $$('#panelBody .row, #panelBody .mini')
           for (const row of allRows) row.classList.add('hidden')
           for (const id of groupOnlyRows) setRowHidden(id, false)
+          applyGroupRowOrder()
           return
         }
 
@@ -3704,15 +4640,29 @@
         setRowHidden('rowFillAlpha', mode === 'lineLike' || mode === 'pen' || mode === 'textarea' || mode === 'image')
         // Rotation is supported for all shape types.
         setRowHidden('rowRotation', false)
+        setRowHidden('rowPenGeneralHeader', mode !== 'pen')
+        setRowHidden('rowPenStrokeHeader', mode !== 'pen')
+        setRowHidden('rowPenTransformHeader', mode !== 'pen')
+        setRowHidden('rowPenSmoothness', mode !== 'pen')
+        setRowHidden('rowPenLockAspect', mode !== 'pen')
+        setRowHidden('rowPenFlip', mode !== 'pen')
+        setRowHidden('rowTextGeneralHeader', mode !== 'textarea')
+        setRowHidden('rowLineLikeArrowHeader', mode !== 'lineLike')
+        setRowHidden('rowLineLikeLineHeader', mode !== 'lineLike')
         for (const id of textRows) setRowHidden(id, mode !== 'text')
         for (const id of textareaRows) setRowHidden(id, mode !== 'textarea')
+        setRowHidden('rowTextFlip', mode !== 'textarea')
         for (const id of imageRows) setRowHidden(id, mode !== 'image')
+        for (const id of cropRows) setRowHidden(id, !['image', 'lineLike', 'pen', 'rect', 'circle', 'textarea'].includes(mode))
         for (const id of lineLikeRows) setRowHidden(id, mode !== 'lineLike')
         for (const id of rectSectionRows) setRowHidden(id, mode !== 'rect')
         for (const id of circleSectionRows) setRowHidden(id, mode !== 'circle')
 
         if (mode === 'rect') applyRectRowOrder()
         if (mode === 'circle') applyCircleRowOrder()
+        if (mode === 'lineLike') applyLineLikeRowOrder()
+        if (mode === 'pen') applyPenRowOrder()
+        if (mode === 'textarea') applyTextareaRowOrder()
 
         const labelStrokeColor = $('#labelStrokeColor')
         const labelStrokeAlpha = $('#labelStrokeAlpha')
@@ -3767,6 +4717,13 @@
       }
 
       const syncPropsFromSelection = () => {
+        const syncCropButtonState = (shape) => {
+          const cropBtn = $('#btnCropMode')
+          if (!cropBtn) return
+          const isActive = !!shape && isShapeCropSupported(shape) && app.cropModeId === shape.id
+          cropBtn.classList.toggle('primary', isActive)
+        }
+
         // Exit crop mode automatically when selection changes to a different shape
         const _syncSelId = app.selectedIds.size === 1 ? Array.from(app.selectedIds)[0] : null
         if (app.cropModeId && app.cropModeId !== _syncSelId) {
@@ -3777,6 +4734,7 @@
         if (!ctx.hasSelection || !ctx.compatible) {
           updatePropsPanelMode('default', false)
           $('#selectedTypeDisplay').textContent = 'none'
+          syncCropButtonState(null)
           updateTextBorderControlState(false, false)
           return
         }
@@ -3802,7 +4760,7 @@
           btnFlipV.classList.toggle('primary', flipV)
           btnFlipH.setAttribute('aria-pressed', String(flipH))
           btnFlipV.setAttribute('aria-pressed', String(flipV))
-          $('#btnCropMode').classList.toggle('primary', app.cropModeId === s.id)
+          syncCropButtonState(s)
           // Sync transparency properties
           setCheckedValue('imageTransparencyEnabled', st.imageTransparencyEnabled ?? app.style.imageTransparencyEnabled)
           setInputValue('imageTransparencyColor', st.imageTransparencyColor || app.style.imageTransparencyColor)
@@ -3813,13 +4771,51 @@
 
         if (s.type === 'line') {
           updatePropsPanelMode(mode, true)
-          const headSize = Math.max(0, Number(st.arrowHeadSize ?? 0))
-          $('#selectedTypeDisplay').textContent = headSize > 0 ? 'arrow' : 'line'
+          const lineLikeShapes = ctx.selectedShapes.filter(shape => shape.type === 'line')
+          const arrowShapes = lineLikeShapes.filter(shape => isArrowLineShape(shape))
+          const plainLineShapes = lineLikeShapes.filter(shape => !isArrowLineShape(shape))
+          const hasArrow = arrowShapes.length > 0
+          const hasLine = plainLineShapes.length > 0
+          $('#selectedTypeDisplay').textContent = 'line/arrow'
           setInputValue('strokeColor', st.stroke || app.style.stroke)
           setInputValue('strokeWidth', st.strokeWidth ?? app.style.strokeWidth)
           setInputValue('strokeAlpha', st.strokeAlpha ?? app.style.strokeAlpha)
+          setInputValue('lineStyle', normalizeLineStyle(st.lineStyle ?? app.style.lineStyle))
           setInputValue('arrowHeadSize', Math.max(0, Number(st.arrowHeadSize ?? (s.type === 'line' ? 0 : app.style.arrowHeadSize))))
+          setInputValue('arrowHeadStyle', normalizeArrowHeadStyle(st.arrowHeadStyle ?? app.style.arrowHeadStyle))
+          setCheckedValue('lineLockAspect', plainLineShapes[0]?.style?.lineLockAspect ?? app.style.lineLockAspect)
+          setCheckedValue('arrowLockAspect', arrowShapes[0]?.style?.arrowLockAspect ?? app.style.arrowLockAspect)
+          // Sync flip for line-like shapes
+          const lineLikeFlipH = !!(st.lineFlipH ?? st.arrowFlipH ?? app.style.lineFlipH ?? app.style.arrowFlipH)
+          const lineLikeFlipV = !!(st.lineFlipV ?? st.arrowFlipV ?? app.style.lineFlipV ?? app.style.arrowFlipV)
+          $('#btnLineLikeFlipH').classList.toggle('primary', lineLikeFlipH)
+          $('#btnLineLikeFlipV').classList.toggle('primary', lineLikeFlipV)
+          $('#btnLineLikeFlipH').setAttribute('aria-pressed', String(lineLikeFlipH))
+          $('#btnLineLikeFlipV').setAttribute('aria-pressed', String(lineLikeFlipV))
+          setRowHidden('rowLineLockAspect', !hasLine)
+          setRowHidden('rowArrowLockAspect', !hasArrow)
           setInputValue('rotation', s.rot || 0)
+          syncCropButtonState(s)
+          updateTextBorderControlState(false, false)
+          return
+        }
+
+        if (s.type === 'pen') {
+          updatePropsPanelMode(mode, true)
+          $('#selectedTypeDisplay').textContent = 'pen'
+          setInputValue('strokeColor', st.stroke || app.style.stroke)
+          setInputValue('strokeWidth', st.strokeWidth ?? app.style.strokeWidth)
+          setInputValue('strokeAlpha', st.strokeAlpha ?? app.style.strokeAlpha)
+          setInputValue('penSmoothness', st.penSmoothness ?? 0)
+          setCheckedValue('penLockAspect', st.penLockAspect ?? app.style.penLockAspect)
+          const penFlipH = !!(st.penFlipH ?? app.style.penFlipH)
+          const penFlipV = !!(st.penFlipV ?? app.style.penFlipV)
+          $('#btnPenFlipH').classList.toggle('primary', penFlipH)
+          $('#btnPenFlipV').classList.toggle('primary', penFlipV)
+          $('#btnPenFlipH').setAttribute('aria-pressed', String(penFlipH))
+          $('#btnPenFlipV').setAttribute('aria-pressed', String(penFlipV))
+          setInputValue('rotation', s.rot || 0)
+          syncCropButtonState(s)
           updateTextBorderControlState(false, false)
           return
         }
@@ -3827,7 +4823,7 @@
         const typeDisplayMap = {
           'rect': 'rectangle',
           'ellipse': 'circle',
-          'line': 'line',
+          'line': 'line/arrow',
           'pen': 'pen',
           'text': 'text',
           'group': 'group'
@@ -3840,8 +4836,33 @@
         setInputValue('strokeAlpha', st.strokeAlpha ?? app.style.strokeAlpha)
         setInputValue('fillAlpha', st.fillAlpha ?? app.style.fillAlpha)
         setInputValue('rotation', s.rot || 0)
+        if (s.type === 'group') {
+          const flipH = !!st.groupFlipH
+          const flipV = !!st.groupFlipV
+          const btnFlipH = $('#btnFlipH')
+          const btnFlipV = $('#btnFlipV')
+          btnFlipH.classList.toggle('primary', flipH)
+          btnFlipV.classList.toggle('primary', flipV)
+          btnFlipH.setAttribute('aria-pressed', String(flipH))
+          btnFlipV.setAttribute('aria-pressed', String(flipV))
+        }
         if (s.type === 'ellipse') {
           setCheckedValue('circleLockAspect', st.circleLockAspect ?? app.style.circleLockAspect)
+          const circleFlipH = !!(st.circleFlipH ?? app.style.circleFlipH)
+          const circleFlipV = !!(st.circleFlipV ?? app.style.circleFlipV)
+          $('#btnCircleFlipH').classList.toggle('primary', circleFlipH)
+          $('#btnCircleFlipV').classList.toggle('primary', circleFlipV)
+          $('#btnCircleFlipH').setAttribute('aria-pressed', String(circleFlipH))
+          $('#btnCircleFlipV').setAttribute('aria-pressed', String(circleFlipV))
+        }
+        if (s.type === 'rect') {
+          setCheckedValue('rectLockAspect', st.rectLockAspect ?? app.style.rectLockAspect)
+          const rectFlipH = !!(st.rectFlipH ?? app.style.rectFlipH)
+          const rectFlipV = !!(st.rectFlipV ?? app.style.rectFlipV)
+          $('#btnRectFlipH').classList.toggle('primary', rectFlipH)
+          $('#btnRectFlipV').classList.toggle('primary', rectFlipV)
+          $('#btnRectFlipH').setAttribute('aria-pressed', String(rectFlipH))
+          $('#btnRectFlipV').setAttribute('aria-pressed', String(rectFlipV))
         }
         if (s.type === 'text') {
           // Populate new textarea section properties
@@ -3855,14 +4876,22 @@
           setInputValue('textareaPadding', st.textPadding ?? app.style.textPadding ?? 5)
           setInputValue('textareaBackgroundColor', st.textBackground || app.style.textBackground)
           setInputValue('textareaBackgroundAlpha', st.textBackgroundAlpha ?? app.style.textBackgroundAlpha)
+          const textFlipH = !!(st.textFlipH ?? app.style.textFlipH)
+          const textFlipV = !!(st.textFlipV ?? app.style.textFlipV)
+          $('#btnTextFlipH').classList.toggle('primary', textFlipH)
+          $('#btnTextFlipV').classList.toggle('primary', textFlipV)
+          $('#btnTextFlipH').setAttribute('aria-pressed', String(textFlipH))
+          $('#btnTextFlipV').setAttribute('aria-pressed', String(textFlipV))
           // Keep old properties for backward compatibility
           setInputValue('fontSize', s.fontSize || app.style.fontSize)
           setCheckedValue('textBorderEnabled', st.textBorderWidth > 0)
           setInputValue('textBorderColor', st.textBorderColor || app.style.textBorderColor)
           setInputValue('textBorderAlpha', st.textBorderAlpha ?? app.style.textBorderAlpha)
           setInputValue('textBorderWidth', st.textBorderWidth ?? app.style.textBorderWidth)
+          syncCropButtonState(s)
           updateTextBorderControlState(false, false)
         } else {
+          syncCropButtonState(s)
           updateTextBorderControlState(false, false)
         }
       }
@@ -3890,6 +4919,10 @@
         const textareaPadding = Number($('#textareaPadding').value)
         const textareaBackgroundColor = $('#textareaBackgroundColor').value
         const textareaBackgroundAlpha = Number($('#textareaBackgroundAlpha').value)
+        const rectLockAspect = $('#rectLockAspect').checked
+        const lineLockAspect = $('#lineLockAspect').checked
+        const arrowLockAspect = $('#arrowLockAspect').checked
+        const penLockAspect = $('#penLockAspect').checked
         const imageLockAspect = $('#imageLockAspect').checked
         const circleLockAspect = $('#circleLockAspect').checked
         const imageAlpha = Number($('#imageAlpha').value)
@@ -3898,10 +4931,23 @@
         const imageBorderWidth = Number($('#imageBorderWidth').value)
         const imageFlipH = $('#btnFlipH').getAttribute('aria-pressed') === 'true'
         const imageFlipV = $('#btnFlipV').getAttribute('aria-pressed') === 'true'
+        const penFlipH = $('#btnPenFlipH').getAttribute('aria-pressed') === 'true'
+        const penFlipV = $('#btnPenFlipV').getAttribute('aria-pressed') === 'true'
+        const rectFlipH = $('#btnRectFlipH').getAttribute('aria-pressed') === 'true'
+        const rectFlipV = $('#btnRectFlipV').getAttribute('aria-pressed') === 'true'
+        const circleFlipH = $('#btnCircleFlipH').getAttribute('aria-pressed') === 'true'
+        const circleFlipV = $('#btnCircleFlipV').getAttribute('aria-pressed') === 'true'
+        const lineLikeFlipH = $('#btnLineLikeFlipH').getAttribute('aria-pressed') === 'true'
+        const lineLikeFlipV = $('#btnLineLikeFlipV').getAttribute('aria-pressed') === 'true'
+        const textFlipH = $('#btnTextFlipH').getAttribute('aria-pressed') === 'true'
+        const textFlipV = $('#btnTextFlipV').getAttribute('aria-pressed') === 'true'
         const imageTransparencyEnabled = $('#imageTransparencyEnabled').checked
         const imageTransparencyColor = $('#imageTransparencyColor').value
         const imageTransparencyTolerance = Number($('#imageTransparencyTolerance').value)
         const arrowHeadSize = Number($('#arrowHeadSize').value)
+        const arrowHeadStyle = normalizeArrowHeadStyle($('#arrowHeadStyle').value)
+        const lineStyle = normalizeLineStyle($('#lineStyle').value)
+        const penSmoothness = Number($('#penSmoothness').value)
         const targetRotation = normalizeRotationDeg($('#rotation').value)
         for (const id of ids) {
           const s = getShapeById(id)
@@ -3909,6 +4955,9 @@
           s.style = s.style || {}
 
           if (s.type === 'image') {
+            const prevFlipH = !!(s.style.imageFlipH ?? app.style.imageFlipH)
+            const prevFlipV = !!(s.style.imageFlipV ?? app.style.imageFlipV)
+            mirrorShapeCropForFlip(s, prevFlipH, prevFlipV, imageFlipH, imageFlipV)
             s.rot = targetRotation
             s.style.imageLockAspect = imageLockAspect
             s.style.imageAlpha = imageAlpha
@@ -3930,24 +4979,63 @@
           }
 
           if (s.type === 'line') {
+            const prevFlipH = !!(s.style.lineFlipH ?? s.style.arrowFlipH ?? app.style.lineFlipH ?? app.style.arrowFlipH)
+            const prevFlipV = !!(s.style.lineFlipV ?? s.style.arrowFlipV ?? app.style.lineFlipV ?? app.style.arrowFlipV)
+            mirrorShapeCropForFlip(s, prevFlipH, prevFlipV, lineLikeFlipH, lineLikeFlipV)
             s.style.stroke = $('#strokeColor').value
             s.style.strokeWidth = Number($('#strokeWidth').value)
             s.style.strokeAlpha = Number($('#strokeAlpha').value)
+            s.style.lineStyle = lineStyle
             s.style.arrowHeadSize = Math.max(0, arrowHeadSize)
+            s.style.arrowHeadStyle = arrowHeadStyle
+            s.style.lineLockAspect = lineLockAspect
+            s.style.arrowLockAspect = arrowLockAspect
+            const toggledH = prevFlipH !== !!lineLikeFlipH
+            const toggledV = prevFlipV !== !!lineLikeFlipV
+            applyLineEndpointFlip(s, toggledH, toggledV)
+            // Line/arrow flips are committed directly to endpoints.
+            // Keep visual flip flags cleared to avoid transform/data mismatch.
+            s.style.lineFlipH = false
+            s.style.lineFlipV = false
+            s.style.arrowFlipH = false
+            s.style.arrowFlipV = false
+            s.rot = targetRotation
+            continue
+          }
+
+          if (s.type === 'pen') {
+            const prevFlipH = !!(s.style.penFlipH ?? app.style.penFlipH)
+            const prevFlipV = !!(s.style.penFlipV ?? app.style.penFlipV)
+            mirrorShapeCropForFlip(s, prevFlipH, prevFlipV, penFlipH, penFlipV)
+            s.style.stroke = $('#strokeColor').value
+            s.style.strokeWidth = Number($('#strokeWidth').value)
+            s.style.strokeAlpha = Number($('#strokeAlpha').value)
+            s.style.penSmoothness = penSmoothness
+            s.style.penLockAspect = penLockAspect
+            s.style.penFlipH = penFlipH
+            s.style.penFlipV = penFlipV
             s.rot = targetRotation
             continue
           }
 
           if (s.type === 'group') {
-            const bb = shapeBBoxLocal(s)
+            const prevFlipH = !!s.style.groupFlipH
+            const prevFlipV = !!s.style.groupFlipV
+            mirrorShapeCropForFlip(s, prevFlipH, prevFlipV, imageFlipH, imageFlipV)
+            const bb = shapeBBox(s)
             const cx = bb.x + bb.w / 2
             const cy = bb.y + bb.h / 2
             const delta = shortestRotationDeltaDeg(s.rot || 0, targetRotation)
             const movedTargetIds = rotateGroupChildrenAroundPoint(s, cx, cy, delta, new Set())
             updateLinkedEndpointsForTargets(movedTargetIds)
+            s.style.groupFlipH = imageFlipH
+            s.style.groupFlipV = imageFlipV
           }
           s.rot = targetRotation
           if (s.type === 'text') {
+            const prevFlipH = !!(s.style.textFlipH ?? app.style.textFlipH)
+            const prevFlipV = !!(s.style.textFlipV ?? app.style.textFlipV)
+            mirrorShapeCropForFlip(s, prevFlipH, prevFlipV, textFlipH, textFlipV)
             s.fontSize = textareaFontSize
             s.style.textColor = textareaTextColor
             s.style.textAlpha = textareaTextAlpha
@@ -3960,17 +5048,44 @@
             s.style.textBackgroundAlpha = textareaBackgroundAlpha
             s.style.textBorderEnabled = textareaBorderWidth > 0
             s.style.textBorder = textareaBorderColor
+            s.style.textFlipH = textFlipH
+            s.style.textFlipV = textFlipV
             // Keep text shape as a tight envelope when spacing/font/wrap changes.
             fitTextShapeToContent(s)
           } else {
+            if (s.type === 'rect') {
+              const prevFlipH = !!(s.style.rectFlipH ?? app.style.rectFlipH)
+              const prevFlipV = !!(s.style.rectFlipV ?? app.style.rectFlipV)
+              mirrorShapeCropForFlip(s, prevFlipH, prevFlipV, rectFlipH, rectFlipV)
+              s.style.rectLockAspect = rectLockAspect
+              s.style.rectFlipH = rectFlipH
+              s.style.rectFlipV = rectFlipV
+            }
             if (s.type === 'ellipse') {
+              const prevFlipH = !!(s.style.circleFlipH ?? app.style.circleFlipH)
+              const prevFlipV = !!(s.style.circleFlipV ?? app.style.circleFlipV)
+              mirrorShapeCropForFlip(s, prevFlipH, prevFlipV, circleFlipH, circleFlipV)
               s.style.circleLockAspect = circleLockAspect
+              s.style.circleFlipH = circleFlipH
+              s.style.circleFlipV = circleFlipV
             }
             s.style.stroke = $('#strokeColor').value
             s.style.fill = $('#fillColor').value
             s.style.strokeWidth = Number($('#strokeWidth').value)
             s.style.strokeAlpha = Number($('#strokeAlpha').value)
             s.style.fillAlpha = Number($('#fillAlpha').value)
+          }
+        }
+        if (ctx.kind === 'lineLike') {
+          const btnH = $('#btnLineLikeFlipH')
+          const btnV = $('#btnLineLikeFlipV')
+          if (btnH) {
+            btnH.setAttribute('aria-pressed', 'false')
+            btnH.classList.remove('primary')
+          }
+          if (btnV) {
+            btnV.setAttribute('aria-pressed', 'false')
+            btnV.classList.remove('primary')
           }
         }
         updateLinkedEndpointsForTargets(new Set(ids))
@@ -4322,8 +5437,98 @@
         }, 800)
 
         pushHistory()
+        // Hide selection during keyboard move
+        app.hideSelectionDuringDrag = true
         render()
+        app.hideSelectionDuringDrag = false
         markDirty()
+      }
+
+      const resizeShapeByDelta = (s, delta) => {
+        if (!s) return
+        
+        if (s.type === 'text') {
+          // Resize text by font size, then keep bbox as tight text envelope.
+          const prevFs = Number(s.fontSize || app.style.fontSize)
+          const nextFs = clamp(prevFs + delta, 6, 200)
+          s.fontSize = nextFs
+          if (isTextWrapEnabled(s) && prevFs > 0) {
+            const scale = nextFs / prevFs
+            const minSize = getTextMinBoxSize(s)
+            s.w = Math.max(minSize.minW, (Number(s.w) || minSize.minW) * scale)
+          }
+          fitTextShapeToContent(s)
+        } else if (s.type === 'image') {
+          const keepAspect = s.style?.imageLockAspect ?? app.style.imageLockAspect
+          if (keepAspect && s.w > 0 && s.h > 0) {
+            const ratio = s.w / s.h
+            const nextW = Math.max(1, s.w + delta)
+            const nextH = Math.max(1, nextW / ratio)
+            s.w = nextW
+            s.h = nextH
+          } else {
+            s.w = Math.max(1, s.w + delta)
+            s.h = Math.max(1, s.h + delta)
+          }
+        } else if (s.type === 'rect' || s.type === 'ellipse') {
+          if (s.type === 'rect' && (s.style?.rectLockAspect ?? app.style.rectLockAspect)) {
+            const ratio = (s.w > 0 && s.h > 0) ? (s.w / s.h) : 1
+            const nextW = Math.max(1, s.w + delta)
+            const nextH = Math.max(1, nextW / ratio)
+            s.w = nextW
+            s.h = nextH
+          } else if (s.type === 'ellipse' && (s.style?.circleLockAspect ?? app.style.circleLockAspect)) {
+            const ratio = (s.w > 0 && s.h > 0) ? (s.w / s.h) : 1
+            const nextW = Math.max(1, s.w + delta)
+            const nextH = Math.max(1, nextW / ratio)
+            s.w = nextW
+            s.h = nextH
+          } else {
+            s.w = Math.max(1, s.w + delta)
+            s.h = Math.max(1, s.h + delta)
+          }
+        } else if (s.type === 'line') {
+          clearLineLinks(s)
+          const lineDelta = Math.abs(delta) > 1 ? delta * 2 : delta
+          const dx = s.x2 - s.x1
+          const dy = s.y2 - s.y1
+          const len = Math.hypot(dx, dy)
+
+          if (len > 0) {
+            const ux = dx / len
+            const uy = dy / len
+            const nextLen = Math.max(1, len + lineDelta)
+            s.x2 = s.x1 + ux * nextLen
+            s.y2 = s.y1 + uy * nextLen
+          } else {
+            // Degenerate line: grow horizontally by default.
+            const nextLen = Math.max(1, 1 + lineDelta)
+            s.x2 = s.x1 + nextLen
+            s.y2 = s.y1
+          }
+        } else if (s.type === 'pen') {
+          const bb = computeBBoxForPen(s.points || [])
+          const cx = bb.x + bb.w / 2
+          const cy = bb.y + bb.h / 2
+          const lockAspect = !!(s.style?.penLockAspect ?? app.style.penLockAspect)
+          let sx = bb.w ? Math.max(1, bb.w + delta) / bb.w : 1
+          let sy = bb.h ? Math.max(1, bb.h + delta) / bb.h : 1
+          if (lockAspect) {
+            const us = Math.max(sx, sy)
+            sx = us
+            sy = us
+          }
+          s.points = (s.points || []).map(pt => ({
+            x: cx + (pt.x - cx) * sx,
+            y: cy + (pt.y - cy) * sy
+          }))
+        } else if (s.type === 'group') {
+          // Recursively resize all children in the group
+          for (const cid of (s.childrenIds || [])) {
+            const child = getShapeById(cid)
+            if (child) resizeShapeByDelta(child, delta)
+          }
+        }
       }
 
       const changeSize = (delta) => {
@@ -4339,78 +5544,35 @@
         for (const id of app.selectedIds) {
           const s = getShapeById(id)
           if (!s) continue
-
-          if (s.type === 'text') {
-            // Resize text by font size, then keep bbox as tight text envelope.
-            const prevFs = Number(s.fontSize || app.style.fontSize)
-            const nextFs = clamp(prevFs + delta, 6, 200)
-            s.fontSize = nextFs
-            if (isTextWrapEnabled(s) && prevFs > 0) {
-              const scale = nextFs / prevFs
-              const minSize = getTextMinBoxSize(s)
-              s.w = Math.max(minSize.minW, (Number(s.w) || minSize.minW) * scale)
-            }
-            fitTextShapeToContent(s)
-            // Only update UI if this is the single selected item (or first in multi-selection)
-            if (app.selectedIds.size === 1) {
-              $('#fontSize').value = nextFs
-              $('#textareaFontSize').value = nextFs
-            }
-          } else if (s.type === 'image') {
-            const keepAspect = s.style?.imageLockAspect ?? app.style.imageLockAspect
-            if (keepAspect && s.w > 0 && s.h > 0) {
-              const ratio = s.w / s.h
-              const nextW = Math.max(1, s.w + delta)
-              const nextH = Math.max(1, nextW / ratio)
-              s.w = nextW
-              s.h = nextH
-            } else {
-              s.w = Math.max(1, s.w + delta)
-              s.h = Math.max(1, s.h + delta)
-            }
-          } else if (s.type === 'rect' || s.type === 'ellipse') {
-            if (s.type === 'ellipse' && (s.style?.circleLockAspect ?? app.style.circleLockAspect)) {
-              const ratio = (s.w > 0 && s.h > 0) ? (s.w / s.h) : 1
-              const nextW = Math.max(1, s.w + delta)
-              const nextH = Math.max(1, nextW / ratio)
-              s.w = nextW
-              s.h = nextH
-            } else {
-              s.w = Math.max(1, s.w + delta)
-              s.h = Math.max(1, s.h + delta)
-            }
-          } else if (s.type === 'line') {
-            clearLineLinks(s)
-            const lineDelta = Math.abs(delta) > 1 ? delta * 2 : delta
-            const dx = s.x2 - s.x1
-            const dy = s.y2 - s.y1
-            const len = Math.hypot(dx, dy)
-
-            if (len > 0) {
-              const ux = dx / len
-              const uy = dy / len
-              const nextLen = Math.max(1, len + lineDelta)
-              s.x2 = s.x1 + ux * nextLen
-              s.y2 = s.y1 + uy * nextLen
-            } else {
-              // Degenerate line: grow horizontally by default.
-              const nextLen = Math.max(1, 1 + lineDelta)
-              s.x2 = s.x1 + nextLen
-              s.y2 = s.y1
-            }
-          } else if (s.type === 'pen') {
-            const bb = computeBBoxForPen(s.points || [])
-            const cx = bb.x + bb.w / 2
-            const cy = bb.y + bb.h / 2
-            const sx = bb.w ? (bb.w + delta) / bb.w : 1
-            const sy = bb.h ? (bb.h + delta) / bb.h : 1
-            s.points = (s.points || []).map(pt => ({
-              x: cx + (pt.x - cx) * sx,
-              y: cy + (pt.y - cy) * sy
-            }))
+          resizeShapeByDelta(s, delta)
+          // Only update UI if this is the single selected item (or first in multi-selection)
+          if (app.selectedIds.size === 1 && (s.type === 'text' || s.type === 'textarea')) {
+            $('#fontSize').value = s.fontSize || app.style.fontSize
+            setInputValue('textareaFontSize', s.fontSize || app.style.fontSize)
           }
         }
 
+        pushHistory()
+        // Hide selection during keyboard resize
+        app.hideSelectionDuringDrag = true
+        render()
+        app.hideSelectionDuringDrag = false
+        markDirty()
+      }
+
+      const convertSelectedRectanglesToSquares = () => {
+        const ctx = getSelectionPropsContext()
+        if (!ctx.hasSelection || !ctx.compatible || ctx.kind !== 'rect') return
+        const changedIds = []
+        for (const s of ctx.selectedShapes) {
+          if (!s || s.type !== 'rect') continue
+          const side = Math.max(1, Number(s.h) || 1)
+          s.w = side
+          s.style = s.style || {}
+          changedIds.push(s.id)
+        }
+        if (!changedIds.length) return
+        updateLinkedEndpointsForTargets(new Set(changedIds))
         pushHistory()
         render()
         markDirty()
@@ -4418,19 +5580,22 @@
 
 
       const onKeyDown = (ev) => {
-        const active = document.activeElement
+        let active = document.activeElement
         const propsPanel = $('#propsPanel')
         const isPropsPanelFocused = !!propsPanel && !!active && propsPanel.contains(active)
+        let bypassInputGuard = false
 
         if (isPropsPanelFocused && isPropsPanelShortcutKey(ev)) {
           ev.preventDefault()
           ev.stopPropagation()
           focusMainDrawing()
+          bypassInputGuard = true
+          active = document.activeElement
         }
 
         // If text editor is open, do not handle shortcuts
         if (document.activeElement && document.activeElement.classList && document.activeElement.classList.contains('textEdit')) return
-        if (document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA' || document.activeElement.isContentEditable)) {
+        if (!bypassInputGuard && document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA' || document.activeElement.isContentEditable)) {
           // allow Esc to blur
           if (ev.key === 'Escape') document.activeElement.blur()
           return
@@ -4503,7 +5668,7 @@
         }
         if (k === 'g') { groupSelection(); return }
         if (k === 'u') { ungroupSelection(); return }
-        if (k === 'd') { duplicateSelection(); return }
+        if (k === 'd') { ev.preventDefault(); duplicateSelection(); return }
         if (k === 'n') {
           createNewDrawing()
           return
@@ -4792,11 +5957,27 @@
         })
 
         // Properties
-        const livePropInputIds = ['strokeWidth', 'strokeAlpha', 'fillAlpha', 'rotation', 'fontSize', 'textBorderAlpha', 'textBorderWidth', 'imageAlpha', 'imageBorderAlpha', 'imageBorderWidth', 'arrowHeadSize', 'imageTransparencyTolerance', 'textareaFontSize', 'textareaBorderWidth', 'textareaBorderAlpha', 'textareaPadding', 'textareaTextAlpha', 'textareaBackgroundAlpha']
+        const livePropInputIds = ['strokeWidth', 'strokeAlpha', 'fillAlpha', 'rotation', 'fontSize', 'textBorderAlpha', 'textBorderWidth', 'imageAlpha', 'imageBorderAlpha', 'imageBorderWidth', 'arrowHeadSize', 'imageTransparencyTolerance', 'textareaFontSize', 'textareaBorderWidth', 'textareaBorderAlpha', 'textareaPadding', 'textareaTextAlpha', 'textareaBackgroundAlpha', 'penSmoothness']
         for (const id of livePropInputIds) {
           const el = $('#' + id)
           el.addEventListener('input', applyPropsToSelection)
         }
+        $('#rotation').addEventListener('input', (ev) => updateRotationValueDisplay(ev.target.value))
+        $('#rotationDec').addEventListener('click', () => adjustRotationSlider(-1))
+        $('#rotationReset').addEventListener('click', () => {
+          const slider = $('#rotation')
+          if (!slider) return
+          slider.value = '0'
+          updateRotationValueDisplay(slider.value)
+          slider.dispatchEvent(new Event('input', { bubbles: true }))
+        })
+        $('#rotationInc').addEventListener('click', () => adjustRotationSlider(1))
+        updateRotationValueDisplay($('#rotation').value)
+        $('#textareaFontSizeDec').addEventListener('click', () => adjustTextareaFontSize(-1))
+        $('#textareaFontSizeInc').addEventListener('click', () => adjustTextareaFontSize(1))
+        $('#textareaFontSizeDecFast').addEventListener('click', () => adjustTextareaFontSize(-8))
+        $('#textareaFontSizeIncFast').addEventListener('click', () => adjustTextareaFontSize(8))
+        updateTextareaFontSizeDisplay($('#textareaFontSize').value)
         const colorPropInputIds = ['strokeColor', 'fillColor', 'textBorderColor', 'imageBorderColor', 'imageTransparencyColor', 'textareaTextColor', 'textareaBorderColor', 'textareaBackgroundColor']
         for (const id of colorPropInputIds) {
           const el = $('#' + id)
@@ -4805,12 +5986,23 @@
           el.addEventListener('change', applyPropsToSelection)
         }
         $('#textBorderEnabled').addEventListener('input', applyPropsToSelection)
+        $('#lineStyle').addEventListener('change', applyPropsToSelection)
+        $('#arrowHeadStyle').addEventListener('change', applyPropsToSelection)
         $('#textareaWrapText').addEventListener('input', applyPropsToSelection)
+        $('#rectLockAspect').addEventListener('input', applyPropsToSelection)
         $('#circleLockAspect').addEventListener('input', applyPropsToSelection)
+        $('#lineLockAspect').addEventListener('input', applyPropsToSelection)
+        $('#arrowLockAspect').addEventListener('input', applyPropsToSelection)
+        $('#penLockAspect').addEventListener('input', applyPropsToSelection)
         $('#imageLockAspect').addEventListener('input', applyPropsToSelection)
+        $('#btnRectToSquare').addEventListener('click', () => {
+          convertSelectedRectanglesToSquares()
+          focusMainDrawing()
+        })
         $('#imageTransparencyEnabled').addEventListener('input', applyPropsToSelection)
         const wireFlipToggle = (btnId) => {
           const btn = $('#' + btnId)
+          if (!btn) return
           btn.addEventListener('click', () => {
             const next = btn.getAttribute('aria-pressed') !== 'true'
             btn.setAttribute('aria-pressed', String(next))
@@ -4820,11 +6012,22 @@
         }
         wireFlipToggle('btnFlipH')
         wireFlipToggle('btnFlipV')
+        wireFlipToggle('btnPenFlipH')
+        wireFlipToggle('btnPenFlipV')
+        wireFlipToggle('btnRectFlipH')
+        wireFlipToggle('btnRectFlipV')
+        wireFlipToggle('btnCircleFlipH')
+        wireFlipToggle('btnCircleFlipV')
+        wireFlipToggle('btnLineLikeFlipH')
+        wireFlipToggle('btnLineLikeFlipV')
+        wireFlipToggle('btnTextFlipH')
+        wireFlipToggle('btnTextFlipV')
         $('#btnCropMode').addEventListener('click', () => {
           const id = Array.from(app.selectedIds)[0]
           if (!id) return
           const s = getShapeById(id)
-          if (!s || s.type !== 'image') return
+          if (!s || !isShapeCropSupported(s)) return
+          ensureShapeCrop(s)
           app.cropModeId = (app.cropModeId === id) ? null : id
           syncPropsFromSelection()
           render()
