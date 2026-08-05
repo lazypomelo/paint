@@ -1163,6 +1163,8 @@
           updateTextareaFontSizeDisplay(field.value)
           RichTextEngine.execute('fontSize', next + 'px', true)
           updateRichTextPanelButtons()
+          // Trigger syncSize so the bounding box grows/shrinks immediately
+          _richActiveEditor.dispatchEvent(new Event('input', { bubbles: true }))
           return
         }
 
