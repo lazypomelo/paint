@@ -179,7 +179,7 @@
     .card:hover{ border-color: rgba(78,161,255,0.35); }
     .card.active{
       border-color: rgba(255,90,106,0.45);
-      /* box-shadow: 0 0 0 5px rgba(255,90,106,0.25), var(--shadow); */
+      box-shadow: 0 0 0 5px rgba(255,90,106,0.25), var(--shadow);
     }
     .card.active .cardName{
       color: var(--text);
@@ -457,15 +457,64 @@
       position: absolute;
       min-width: 40px;
       min-height: 24px;
-      padding: 2px 4px;
-      border: 1px dashed rgba(78,161,255,0.9);
       outline: none;
       background: rgba(255,255,255,0.85);
       color: #111;
-      font: 16px/1.2 var(--font);
       white-space: pre-wrap;
+      word-wrap: break-word;
       overflow: hidden;
-      resize: none;
+      cursor: text;
+      box-sizing: border-box;
+    }
+    /* List styles inside the rich text editor */
+    .textEdit ul { margin: 0; padding-left: 20px; }
+    .textEdit li { margin-bottom: 2px; }
+    .textEdit div, .textEdit ul { transition: margin-left 0.1s ease; }
+    /* Active state for rich text format buttons */
+    .richFmtBtn.active { background: var(--sel-light, #e6f0ff); border-color: var(--sel, #4ea1ff); color: var(--sel, #4ea1ff); }
+    /* Custom color picker popup */
+    #customColorPicker {
+      position: fixed; z-index: 10000;
+      background: var(--panel); border: 1px solid var(--border);
+      border-radius: 8px; padding: 10px;
+      box-shadow: 0 6px 20px rgba(0,0,0,0.5);
+      display: none; width: 158px;
+    }
+    #customColorPicker .ccp-grid {
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; margin-bottom: 8px;
+    }
+    #customColorPicker .ccp-swatch {
+      width: 28px; height: 28px; border-radius: 4px;
+      border: 1px solid rgba(255,255,255,0.15);
+      cursor: pointer; padding: 0; transition: transform 0.1s, border-color 0.1s;
+    }
+    #customColorPicker .ccp-swatch:hover {
+      transform: scale(1.18); border-color: rgba(255,255,255,0.55);
+    }
+    #customColorPicker .ccp-other {
+      width: 100%; padding: 5px 8px;
+      border: 1px solid var(--border); border-radius: 4px;
+      background: transparent; cursor: pointer;
+      font-size: 11px; color: var(--muted); text-align: center;
+      transition: color 0.1s;
+    }
+    #customColorPicker .ccp-other:hover { color: var(--text); }
+    /* Vertical drag bar shown on hover of text shapes */
+    .textDragHandle {
+      position: absolute;
+      width: 10px;
+      min-height: 32px;
+      border-radius: 0;
+      background: rgba(78, 161, 255, 0.45);
+      cursor: grab;
+      z-index: 20;
+      pointer-events: all;
+      display: none;
+      transition: background 0.12s;
+      touch-action: none;
+    }
+    .textDragHandle:hover {
+      background: rgba(78, 161, 255, 0.82);
     }
     .toast{
       position: absolute;
@@ -667,9 +716,13 @@
               <label id='labelStrokeAlpha'>Stroke alpha</label>
               <input type='range' id='strokeAlpha' min='0' max='1' step='0.01' value='1' />
             </div>
+            <div class='row hidden' id='rowArrowHeadDoubleSided'>
+              <label>Double-sided</label>
+              <input type='checkbox' id='arrowHeadDoubleSided' />
+            </div>
             <div class='row hidden' id='rowArrowHeadSize'>
               <label>Size</label>
-              <input type='range' id='arrowHeadSize' min='0' max='80' step='1' value='12' />
+              <input type='range' id='arrowHeadSize' min='0' max='80' step='1' value='24' />
             </div>
             <div class='row hidden' id='rowArrowHeadStyle'>
               <label>Style</label>
@@ -680,10 +733,27 @@
                 <option value='v-shaped-rounded'>V-shaped (rounded)</option>
               </select>
             </div>
+            <div class='row hidden' id='rowArrowHeadColor'>
+              <label>Color</label>
+              <input type='color' id='arrowHeadColor' value='#111111' />
+            </div>
+            <div class='row hidden' id='rowArrowHeadAlpha'>
+              <label>Alpha</label>
+              <input type='range' id='arrowHeadAlpha' min='0' max='1' step='0.01' value='1' />
+            </div>
+            <div class='row hidden' id='rowArrowHeadWidth'>
+              <label>Width</label>
+              <input type='range' id='arrowHeadWidth' min='0' max='60' step='1' value='3' />
+            </div>
+            <div class='row hidden' id='rowArrowHeadAngle'>
+              <label>Angle</label>
+              <input type='range' id='arrowHeadAngle' min='0' max='80' step='1' value='40' />
+            </div>
             <div class='row hidden' id='rowLineStyle'>
               <label>Style</label>
               <select id='lineStyle'>
-                <option value='solid'>Solid</option>
+                <option value='solid'>Solid (round)</option>
+                <option value='solid-sharp'>Solid (sharp)</option>
                 <option value='dashed'>Dashed</option>
                 <option value='dotted'>Dotted</option>
                 <option value='double'>Double</option>
@@ -720,22 +790,44 @@
                 <div class='fontSizeDisplay' id='textareaFontSizeDisplay'>18</div>
                 <input type='hidden' id='textareaFontSize' value='18' />
                 <div class='fontSizeStepperGroup' aria-label='Font size fine step controls'>
-                  <button class='btn rotationStep' id='textareaFontSizeDec' type='button' title='Font size -1'>⏷</button>
-                  <button class='btn rotationStep' id='textareaFontSizeInc' type='button' title='Font size +1'>⏶</button>
+                  <button class='btn rotationStep' id='textareaFontSizeDec' type='button' data-richtext-btn title='Font size -1'>⏷</button>
+                  <button class='btn rotationStep' id='textareaFontSizeInc' type='button' data-richtext-btn title='Font size +1'>⏶</button>
                 </div>
                 <div class='fontSizeStepperGroup' aria-label='Font size coarse step controls'>
-                  <button class='btn rotationStep coarse' id='textareaFontSizeDecFast' type='button' title='Font size -8'>▼</button>
-                  <button class='btn rotationStep coarse' id='textareaFontSizeIncFast' type='button' title='Font size +8'>▲</button>
+                  <button class='btn rotationStep coarse' id='textareaFontSizeDecFast' type='button' data-richtext-btn title='Font size -8'>▼</button>
+                  <button class='btn rotationStep coarse' id='textareaFontSizeIncFast' type='button' data-richtext-btn title='Font size +8'>▲</button>
                 </div>
               </div>
             </div>
+            <div class='row hidden' id='rowRichTextFormat' style='align-items:flex-start; padding-top:4px;'>
+              <label style='padding-top:6px;'>Format</label>
+              <div style='display:flex; gap:4px; flex-wrap:wrap;'>
+                <button class='btn icon richFmtBtn' id='btnRichBold' data-richtext-btn title='Bold'><b>B</b></button>
+                <button class='btn icon richFmtBtn' id='btnRichItalic' data-richtext-btn title='Italic'><i>I</i></button>
+                <button class='btn icon richFmtBtn' id='btnRichUnderline' data-richtext-btn title='Underline'><u>U</u></button>
+                <button class='btn icon richFmtBtn' id='btnRichStrike' data-richtext-btn title='Strikethrough'><del>S</del></button>
+                <button class='btn icon richFmtBtn' id='btnRichSuper' data-richtext-btn title='Superscript'>X<sup>2</sup></button>
+                <button class='btn icon richFmtBtn' id='btnRichSub' data-richtext-btn title='Subscript'>X<sub>2</sub></button>
+              </div>
+            </div>
+            <div class='row hidden' id='rowRichTextHighlight'>
+              <label>Highlight</label>
+              <div style='display:flex; gap:6px; align-items:center;'>
+                <input type='color' id='richHighlightColor' value='#ffff00' />
+                <button class='btn icon richFmtBtn' id='btnRichHighlight' data-richtext-btn title='Highlight'>▮</button>
+              </div>
+            </div>
+            <div class='row hidden' id='rowBulletList'>
+              <label>List</label>
+              <button class='btn richFmtBtn' id='btnBulletList' data-richtext-btn title='Toggle bullet list'>• Bullets</button>
+            </div>
             <div class='row hidden' id='rowTextareaTextColor'>
               <label>Text color</label>
-              <input type='color' id='textareaTextColor' value='#111111' />
+              <input type='color' id='textareaTextColor' value='#111111' data-richtext-btn />
             </div>
             <div class='row hidden' id='rowTextareaTextAlpha'>
               <label>Text alpha</label>
-              <input type='range' id='textareaTextAlpha' min='0' max='1' step='0.01' value='1' />
+              <input type='range' id='textareaTextAlpha' min='0' max='1' step='0.01' value='1' data-richtext-btn />
             </div>
             <div class='row hidden' id='rowTextareaWrapText'>
               <label>Wrap text</label>
@@ -776,28 +868,6 @@
             <div class='row hidden' id='rowTextareaBackgroundAlpha'>
               <label>Background alpha</label>
               <input type='range' id='textareaBackgroundAlpha' min='0' max='1' step='0.01' value='0.25' />
-            </div>
-
-            <!-- Keep old rowFontSize for backward compatibility with existing text selection code -->
-            <div class='row hidden' id='rowFontSize'>
-              <label>Font size</label>
-              <input type='number' id='fontSize' min='6' max='200' step='1' value='18' />
-            </div>
-            <div class='row hidden' id='rowTextBorderEnabled'>
-              <label>Text border</label>
-              <input type='checkbox' id='textBorderEnabled' />
-            </div>
-            <div class='row hidden' id='rowTextBorderColor'>
-              <label>Border color</label>
-              <input type='color' id='textBorderColor' value='#111111' />
-            </div>
-            <div class='row hidden' id='rowTextBorderAlpha'>
-              <label>Border alpha</label>
-              <input type='range' id='textBorderAlpha' min='0' max='1' step='0.01' value='1' />
-            </div>
-            <div class='row hidden' id='rowTextBorderWidth'>
-              <label>Border width</label>
-              <input type='range' id='textBorderWidth' min='0' max='20' step='0.5' value='1' />
             </div>
 
             <div class='row hidden' id='rowImageGeneralHeader' style='margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--border);'>
@@ -952,7 +1022,7 @@
       const clamp = (v, a, b) => Math.max(a, Math.min(b, v))
       const normalizeLineStyle = (value) => {
         const v = String(value || '').trim().toLowerCase()
-        if (v === 'dashed' || v === 'dotted' || v === 'double') return v
+        if (v === 'solid-sharp' || v === 'dashed' || v === 'dotted' || v === 'double') return v
         return 'solid'
       }
       const normalizeArrowHeadStyle = (value) => {
@@ -1047,10 +1117,17 @@
       const adjustTextareaFontSize = (delta) => {
         const field = $('#textareaFontSize')
         if (!field) return
-        const next = clamp((Number(field.value) || app.style.fontSize) + delta, 6, 200)
+        const cur = Number(field.value) || app.style.fontSize
+        const next = clamp(cur + delta, 6, 200)
         field.value = String(next)
         updateTextareaFontSizeDisplay(field.value)
-        field.dispatchEvent(new Event('input', { bubbles: true }))
+        if (_richActiveEditor) {
+          // Apply font size to the selected text via RichTextEngine
+          RichTextEngine.execute('fontSize', next + 'px', true)
+          updateRichTextPanelButtons()
+        } else {
+          field.dispatchEvent(new Event('input', { bubbles: true }))
+        }
       }
 
       /* =========================
@@ -1153,8 +1230,13 @@
           strokeAlpha: 1,
           strokeWidth: 3,
           lineStyle: 'solid',
-          arrowHeadSize: 12,
-          arrowHeadStyle: 'triangle-sharp',
+          arrowHeadDoubleSided: false,
+          arrowHeadSize: 24,
+          arrowHeadStyle: 'triangle-rounded',
+          arrowHeadColor: '#111111',
+          arrowHeadAlpha: 1,
+          arrowHeadWidth: 3,
+          arrowHeadAngle: 40,
           lineLockAspect: false,
           arrowLockAspect: false,
           fill: '#ffffff',
@@ -1166,12 +1248,10 @@
           textBorderColor: '#111111',
           textBorderAlpha: 1,
           textPadding: 5,
-          textBackgroundEnabled: false,
           textBackground: '#ffffff',
           textBackgroundAlpha: 0.25,
-          textBorderEnabled: false,
-          textBorder: '#111111',
           textWrap: false,
+          penSmoothness: 20,
           penLockAspect: false,
           rectLockAspect: false,
           circleLockAspect: true,
@@ -1254,8 +1334,13 @@
           strokeAlpha: app.style.strokeAlpha,
           strokeWidth: app.style.strokeWidth,
           lineStyle: app.style.lineStyle,
+          arrowHeadDoubleSided: app.style.arrowHeadDoubleSided,
           arrowHeadSize: app.style.arrowHeadSize,
           arrowHeadStyle: app.style.arrowHeadStyle,
+          arrowHeadColor: app.style.arrowHeadColor,
+          arrowHeadAlpha: app.style.arrowHeadAlpha,
+          arrowHeadWidth: app.style.arrowHeadWidth,
+          arrowHeadAngle: app.style.arrowHeadAngle,
           fill: app.style.fill,
           fillAlpha: app.style.fillAlpha
         }
@@ -1906,10 +1991,14 @@
         const x2 = Number(s.x2 || 0)
         const y2 = Number(s.y2 || 0)
         const strokeWidth = Math.max(0, Number(st.strokeWidth ?? 3))
+        const arrowHeadDoubleSided = !!(st.arrowHeadDoubleSided ?? app.style.arrowHeadDoubleSided ?? false)
         const arrowHeadSize = Math.max(0, Number(st.arrowHeadSize ?? 0))
         const arrowHeadStyle = normalizeArrowHeadStyle(st.arrowHeadStyle ?? app.style.arrowHeadStyle)
+        const arrowHeadWidth = Math.max(0, Number(st.arrowHeadWidth ?? app.style.arrowHeadWidth ?? 3))
+        const arrowHeadAngle = Math.max(0, Math.min(80, Number(st.arrowHeadAngle ?? app.style.arrowHeadAngle ?? 40)))
         const lineStyle = normalizeLineStyle(st.lineStyle)
         const strokeColor = rgbaFromHexAlpha(st.stroke || '#111111', st.strokeAlpha ?? 1)
+        const arrowHeadColor = rgbaFromHexAlpha(st.arrowHeadColor || app.style.arrowHeadColor || '#111111', st.arrowHeadAlpha ?? app.style.arrowHeadAlpha ?? 1)
 
         const wrap = svgEl('g')
         const dx = x2 - x1
@@ -1931,9 +2020,28 @@
         const arrowLen = arrowHeadSize > 0 ? Math.min(arrowHeadSize, lineLen * 0.5) : 0
         const shaftX2 = x2 - ux * arrowLen
         const shaftY2 = y2 - uy * arrowLen
+        // For double-sided: also pull back the start of the shaft
+        const shaftX1 = arrowHeadDoubleSided ? x1 + ux * arrowLen : x1
+        const shaftY1 = arrowHeadDoubleSided ? y1 + uy * arrowLen : y1
         const usesOpenVHead = arrowHeadStyle === 'v-shaped-sharp' || arrowHeadStyle === 'v-shaped-rounded'
-        const lineEndX = arrowLen > 0 && usesOpenVHead ? x2 : shaftX2
-        const lineEndY = arrowLen > 0 && usesOpenVHead ? y2 : shaftY2
+        
+        // Compute how far from the tip the line shaft should end so the arrowhead fully covers it.
+        // Filled triangle: triangle half-width at distance d = d * tan(angle/2) must >= strokeWidth/2
+        //   → d = (strokeWidth/2) / tan(angle/2)
+        // V-shaped (open): inner edge of v-stroke at distance d = d*tan(angle/2) - arrowHeadWidth/2
+        //   must >= strokeWidth/2 → d = (strokeWidth + arrowHeadWidth) / (2*tan(angle/2))
+        // Subtract 1px to eliminate the antialiasing seam at the junction.
+        const _tanHalfAngle = Math.tan((arrowHeadAngle * Math.PI / 180) / 2)
+        const headEndDist = arrowLen > 0 && _tanHalfAngle > 0.001
+          ? Math.max(0, Math.min(arrowLen, usesOpenVHead
+              ? (strokeWidth + arrowHeadWidth) / (2 * _tanHalfAngle)
+              : (strokeWidth / 2) / _tanHalfAngle) - 1)
+          : 0
+
+        const lineEndX = arrowLen > 0 ? (x2 - ux * headEndDist) : x2
+        const lineEndY = arrowLen > 0 ? (y2 - uy * headEndDist) : y2
+        const lineStartX = arrowHeadDoubleSided && arrowLen > 0 ? (x1 + ux * headEndDist) : x1
+        const lineStartY = arrowHeadDoubleSided && arrowLen > 0 ? (y1 + uy * headEndDist) : y1
 
         const dashForStyle = () => {
           if (lineStyle === 'dashed') return `${Math.max(4, strokeWidth * 3)} ${Math.max(3, strokeWidth * 2)}`
@@ -1942,11 +2050,12 @@
         }
 
         const applyLineAttrs = (lineEl, width) => {
+          const isSharp = lineStyle === 'solid-sharp'
           lineEl.setAttribute('fill', 'none')
           lineEl.setAttribute('stroke', strokeColor)
           lineEl.setAttribute('stroke-width', String(Math.max(0, width)))
-          lineEl.setAttribute('stroke-linecap', 'round')
-          lineEl.setAttribute('stroke-linejoin', 'round')
+          lineEl.setAttribute('stroke-linecap', isSharp ? 'butt' : 'round')
+          lineEl.setAttribute('stroke-linejoin', isSharp ? 'miter' : 'round')
           lineEl.setAttribute('vector-effect', 'non-scaling-stroke')
           const dash = dashForStyle()
           if (dash) lineEl.setAttribute('stroke-dasharray', dash)
@@ -1957,8 +2066,8 @@
           const separation = Math.max(2, strokeWidth * 0.9)
           const off = separation / 2
           const lines = [
-            { x1: x1 + px * off, y1: y1 + py * off, x2: lineEndX + px * off, y2: lineEndY + py * off },
-            { x1: x1 - px * off, y1: y1 - py * off, x2: lineEndX - px * off, y2: lineEndY - py * off }
+            { x1: lineStartX + px * off, y1: lineStartY + py * off, x2: lineEndX + px * off, y2: lineEndY + py * off },
+            { x1: lineStartX - px * off, y1: lineStartY - py * off, x2: lineEndX - px * off, y2: lineEndY - py * off }
           ]
           for (const seg of lines) {
             const lineEl = svgEl('line', seg)
@@ -1966,53 +2075,75 @@
             wrap.appendChild(lineEl)
           }
         } else {
-          const lineEl = svgEl('line', { x1, y1, x2: lineEndX, y2: lineEndY })
+          const lineEl = svgEl('line', { x1: lineStartX, y1: lineStartY, x2: lineEndX, y2: lineEndY })
           applyLineAttrs(lineEl, strokeWidth)
           wrap.appendChild(lineEl)
         }
 
-        if (arrowLen > 0) {
-          const wingHalf = Math.max(2, arrowHeadSize * 0.5)
-          const leftX = shaftX2 + px * wingHalf
-          const leftY = shaftY2 + py * wingHalf
-          const rightX = shaftX2 - px * wingHalf
-          const rightY = shaftY2 - py * wingHalf
+        const drawArrowHead = (tipX, tipY, shaftBaseX, shaftBaseY) => {
+          const angleRad = arrowHeadAngle * Math.PI / 180
+          const wingHalf = Math.max(2, arrowLen * Math.tan(angleRad / 2))
+          const leftX = shaftBaseX + px * wingHalf
+          const leftY = shaftBaseY + py * wingHalf
+          const rightX = shaftBaseX - px * wingHalf
+          const rightY = shaftBaseY - py * wingHalf
           if (arrowHeadStyle === 'triangle-rounded') {
-            const c1x = x2 - ux * arrowLen * 0.35 + px * wingHalf * 0.35
-            const c1y = y2 - uy * arrowLen * 0.35 + py * wingHalf * 0.35
-            const c2x = shaftX2
-            const c2y = shaftY2
-            const c3x = x2 - ux * arrowLen * 0.35 - px * wingHalf * 0.35
-            const c3y = y2 - uy * arrowLen * 0.35 - py * wingHalf * 0.35
+            const ax = tipX, ay = tipY
+            const bx = leftX, by = leftY
+            const cx = rightX, cy = rightY
+            const r = Math.min(arrowLen, wingHalf) * 0.35
+            const n = (dx, dy) => { const l = Math.hypot(dx, dy) || 1; return [dx / l, dy / l] }
+            const [abX, abY] = n(bx - ax, by - ay)
+            const [bcX, bcY] = n(cx - bx, cy - by)
+            const [caX, caY] = n(ax - cx, ay - cy)
             const d = [
-              `M ${x2} ${y2}`,
-              `Q ${c1x} ${c1y} ${leftX} ${leftY}`,
-              `Q ${c2x} ${c2y} ${rightX} ${rightY}`,
-              `Q ${c3x} ${c3y} ${x2} ${y2}`,
+              `M ${ax + abX * r} ${ay + abY * r}`,
+              `L ${bx - abX * r} ${by - abY * r}`,
+              `Q ${bx} ${by} ${bx + bcX * r} ${by + bcY * r}`,
+              `L ${cx - bcX * r} ${cy - bcY * r}`,
+              `Q ${cx} ${cy} ${cx + caX * r} ${cy + caY * r}`,
+              `L ${ax - caX * r} ${ay - caY * r}`,
+              `Q ${ax} ${ay} ${ax + abX * r} ${ay + abY * r}`,
               'Z'
             ].join(' ')
             const head = svgEl('path', { d })
-            head.setAttribute('fill', strokeColor)
-            head.setAttribute('stroke', strokeColor)
-            head.setAttribute('stroke-width', String(Math.max(1, strokeWidth * 0.3)))
+            head.setAttribute('fill', arrowHeadColor)
+            head.setAttribute('stroke', arrowHeadColor)
+            head.setAttribute('stroke-width', String(Math.max(1, arrowHeadWidth * 0.3)))
             head.setAttribute('stroke-linejoin', 'round')
             head.setAttribute('stroke-linecap', 'round')
             head.setAttribute('vector-effect', 'non-scaling-stroke')
             wrap.appendChild(head)
           } else if (arrowHeadStyle === 'v-shaped-sharp' || arrowHeadStyle === 'v-shaped-rounded') {
-            const head = svgEl('polyline', { points: `${leftX},${leftY} ${x2},${y2} ${rightX},${rightY}` })
+            const head = svgEl('polyline', { points: `${leftX},${leftY} ${tipX},${tipY} ${rightX},${rightY}` })
             head.setAttribute('fill', 'none')
-            head.setAttribute('stroke', strokeColor)
-            head.setAttribute('stroke-width', String(Math.max(1, strokeWidth * 0.85)))
+            head.setAttribute('stroke', arrowHeadColor)
+            head.setAttribute('stroke-width', String(Math.max(1, arrowHeadWidth * 0.85)))
             head.setAttribute('stroke-linejoin', arrowHeadStyle === 'v-shaped-rounded' ? 'round' : 'miter')
             head.setAttribute('stroke-linecap', arrowHeadStyle === 'v-shaped-rounded' ? 'round' : 'butt')
             head.setAttribute('vector-effect', 'non-scaling-stroke')
             wrap.appendChild(head)
           } else {
-            const head = svgEl('polygon', { points: `${x2},${y2} ${leftX},${leftY} ${rightX},${rightY}` })
-            head.setAttribute('fill', strokeColor)
+            const head = svgEl('polygon', { points: `${tipX},${tipY} ${leftX},${leftY} ${rightX},${rightY}` })
+            head.setAttribute('fill', arrowHeadColor)
             head.setAttribute('stroke', 'none')
             wrap.appendChild(head)
+          }
+        }
+
+        if (arrowLen > 0) {
+          // Calculate wing half-width based on opening angle
+          // angle ranges 0-80 degrees, where each wing makes angle/2 from centerline
+          const angleRad = arrowHeadAngle * Math.PI / 180
+          const wingHalf = Math.max(2, arrowLen * Math.tan(angleRad / 2))
+          const leftX = shaftX2 + px * wingHalf
+          const leftY = shaftY2 + py * wingHalf
+          const rightX = shaftX2 - px * wingHalf
+          const rightY = shaftY2 - py * wingHalf
+          drawArrowHead(x2, y2, shaftX2, shaftY2)
+          if (arrowHeadDoubleSided) {
+            // Start head: tip at x1,y1 pointing backwards; shaft base is shaftX1,shaftY1
+            drawArrowHead(x1, y1, shaftX1, shaftY1)
           }
         }
 
@@ -2083,7 +2214,7 @@
             transforms.push(`matrix(${sx} 0 0 ${sy} ${tx} ${ty})`)
           }
           const pts = s.points || []
-          const smoothness = st.penSmoothness ?? 0
+          const smoothness = st.penSmoothness ?? app.style.penSmoothness
           const smoothedPts = smoothPenPoints(pts, smoothness)
           const d = smoothedPts.map((p, i) => (i === 0 ? `M ${p.x} ${p.y}` : `L ${p.x} ${p.y}`)).join(' ')
           const penEl = svgEl('path', { d })
@@ -2170,13 +2301,11 @@
             transforms.push(`matrix(${sx} 0 0 ${sy} ${tx} ${ty})`)
           }
 
-          // Render optional text background, border, and text content.
           const fontSize = s.fontSize || app.style.fontSize
-          const lineHeight = fontSize * 1.2
+          const fontFamily = s.fontFamily || 'sans-serif'
           const textPadding = clamp(Number(st.textPadding ?? app.style.textPadding ?? 5), 0, 20)
-          // Snap anchors to the pixel grid to reduce sub-pixel rendering jitter.
-          const textX = Math.round(s.x + textPadding)
-          const baseY = Math.round(s.y + textPadding + fontSize)
+          const textColor = rgbaFromHexAlpha(st.textColor || app.style.textColor || '#111111', st.textAlpha ?? app.style.textAlpha ?? 1)
+          const wrapEnabled = isTextWrapEnabled(s)
 
           const textWrap = svgEl('g')
 
@@ -2184,12 +2313,9 @@
           const bgAlpha = st.textBackgroundAlpha ?? app.style.textBackgroundAlpha ?? 0
           if (bgAlpha > 0) {
             const background = svgEl('rect', {
-              x: s.x,
-              y: s.y,
-              width: Math.max(0, s.w),
-              height: Math.max(0, s.h),
-              rx: 2,
-              ry: 2
+              x: s.x, y: s.y,
+              width: Math.max(0, s.w), height: Math.max(0, s.h),
+              rx: 2, ry: 2
             })
             background.setAttribute('fill', rgbaFromHexAlpha(st.textBackground || app.style.textBackground || '#ffffff', bgAlpha))
             background.setAttribute('stroke', 'none')
@@ -2200,12 +2326,9 @@
           const borderWidth = st.textBorderWidth ?? app.style.textBorderWidth ?? 0
           if (borderWidth > 0) {
             const border = svgEl('rect', {
-              x: s.x,
-              y: s.y,
-              width: Math.max(0, s.w),
-              height: Math.max(0, s.h),
-              rx: 2,
-              ry: 2
+              x: s.x, y: s.y,
+              width: Math.max(0, s.w), height: Math.max(0, s.h),
+              rx: 2, ry: 2
             })
             border.setAttribute('fill', 'none')
             border.setAttribute('stroke', rgbaFromHexAlpha(st.textBorderColor || app.style.textBorderColor || '#111111', st.textBorderAlpha ?? app.style.textBorderAlpha ?? 1))
@@ -2214,20 +2337,32 @@
             textWrap.appendChild(border)
           }
 
-          const textEl = svgEl('text', { x: textX, y: baseY, 'xml:space': 'preserve' })
-          textEl.setAttribute('fill', rgbaFromHexAlpha(st.textColor || app.style.textColor || '#111111', st.textAlpha ?? app.style.textAlpha ?? 1))
-          textEl.setAttribute('font-size', fontSize)
-          textEl.setAttribute('font-family', s.fontFamily || 'inherit')
-          textEl.setAttribute('stroke', 'none')
-          const lines = getTextRenderLines(s)
-          lines.forEach((line, idx) => {
-            const y = Math.round(baseY + idx * lineHeight)
-            const tspan = svgEl('tspan', { x: textX, y })
-            // Use non-breaking spaces in SVG text to preserve visible indentation exactly.
-            tspan.textContent = line.replace(/ /g, '\u00A0')
-            textEl.appendChild(tspan)
-          })
-          textWrap.appendChild(textEl)
+          // Render rich text via foreignObject
+          const foEl = document.createElementNS('http://www.w3.org/2000/svg', 'foreignObject')
+          foEl.setAttribute('x', String(s.x))
+          foEl.setAttribute('y', String(s.y))
+          foEl.setAttribute('width', String(Math.max(1, s.w)))
+          foEl.setAttribute('height', String(Math.max(1, s.h)))
+          const foDiv = document.createElementNS('http://www.w3.org/1999/xhtml', 'div')
+          foDiv.setAttribute('xmlns', 'http://www.w3.org/1999/xhtml')
+          foDiv.style.cssText = [
+            `width:100%`,
+            `height:100%`,
+            `box-sizing:border-box`,
+            `padding:${textPadding}px`,
+            `font-size:${fontSize}px`,
+            `font-family:${fontFamily}`,
+            `line-height:${fontSize * 1.2 / fontSize}`,
+            `color:${textColor}`,
+            `white-space:${wrapEnabled ? 'pre-wrap' : 'pre'}`,
+            `word-wrap:${wrapEnabled ? 'break-word' : 'normal'}`,
+            `overflow:hidden`,
+            `pointer-events:none`,
+          ].join(';')
+          foDiv.innerHTML = normalizeRichText(s.text || '')
+          _applyListStyles(foDiv)
+          foEl.appendChild(foDiv)
+          textWrap.appendChild(foEl)
           el = textWrap
         } else if (s.type === 'group') {
           // Group-level flip: handled at outer level with rotation
@@ -2467,6 +2602,7 @@
 
         renderSelectionOverlay()
         updateHud()
+        syncTextDragHandle()
       }
 
 
@@ -2578,6 +2714,123 @@
       //   URL.revokeObjectURL(url)
       //   return c.toDataURL('image/png')
       // }
+      // Browsers taint a canvas when drawImage receives an SVG containing
+      // <foreignObject>, making toDataURL() throw a SecurityError.
+      // This helper replaces every <foreignObject> in a cloned SVG with plain
+      // SVG <text>/<tspan> elements so the canvas stays untainted.
+      const replaceForeignObjectsForExport = (svgNode) => {
+        const NS = 'http://www.w3.org/2000/svg'
+        const fos = Array.from(svgNode.querySelectorAll('foreignObject'))
+        for (const fo of fos) {
+          const x  = parseFloat(fo.getAttribute('x')      || '0')
+          const y  = parseFloat(fo.getAttribute('y')      || '0')
+
+          // Find the inner HTML container (the div we created in shapeToSvg)
+          const innerDiv = fo.querySelector('div') || fo.firstElementChild
+          if (!innerDiv) { fo.remove(); continue }
+
+          const styleStr = innerDiv.getAttribute('style') || ''
+          const cssProp  = (prop) => {
+            const m = styleStr.match(new RegExp(prop + '\\s*:\\s*([^;]+)'))
+            return m ? m[1].trim() : null
+          }
+          const baseFontSize = parseFloat(cssProp('font-size')   || '16') || 16
+          const fontFamily   = cssProp('font-family') || 'sans-serif'
+          const baseColor    = cssProp('color')        || '#000000'
+          const padding      = parseFloat(cssProp('padding') || '5') || 5
+          const lineHeight   = baseFontSize * 1.2
+
+          const g = document.createElementNS(NS, 'g')
+          let lineY = y + padding + baseFontSize
+
+          // Build a <text> element for one line of content
+          const makeLine = (blockEl, lineX) => {
+            const textEl = document.createElementNS(NS, 'text')
+            textEl.setAttribute('font-size',   String(baseFontSize))
+            textEl.setAttribute('font-family', fontFamily)
+            textEl.setAttribute('fill',        baseColor)
+            textEl.setAttribute('stroke',      'none')
+            let hasContent = false
+
+            const addSpan = (txt, spanEl) => {
+              if (!txt || !txt.replace(/\u200B/g, '').length) return
+              const ts = document.createElementNS(NS, 'tspan')
+              ts.setAttribute('x', String(lineX))
+              ts.setAttribute('y', String(lineY))
+              ts.textContent = txt.replace(/\u200B/g, '').replace(/ /g, '\u00A0')
+              if (spanEl) {
+                const ss  = spanEl.getAttribute('style') || ''
+                const sp  = (p) => { const m = ss.match(new RegExp(p + '\\s*:\\s*([^;]+)')); return m ? m[1].trim() : null }
+                const fw  = sp('font-weight');  const fi = sp('font-style')
+                const td  = sp('text-decoration-line') || sp('text-decoration')
+                const col = sp('color');         const fs = parseFloat(sp('font-size') || '0')
+                const va  = sp('vertical-align')
+                if (fw === 'bold' || parseInt(fw) >= 700) ts.setAttribute('font-weight', 'bold')
+                if (fi === 'italic')  ts.setAttribute('font-style', 'italic')
+                if (td && td !== 'none') ts.setAttribute('text-decoration', td)
+                if (col) ts.setAttribute('fill', col)
+                if (fs > 0) ts.setAttribute('font-size', String(fs))
+                if (va === 'super') ts.setAttribute('baseline-shift', 'super')
+                if (va === 'sub')   ts.setAttribute('baseline-shift', 'sub')
+              }
+              textEl.appendChild(ts)
+              hasContent = true
+            }
+
+            const walkInline = (node) => {
+              if (node.nodeType === 3) {
+                addSpan(node.textContent, node.parentElement?.tagName === 'SPAN' ? node.parentElement : null)
+              } else if (node.nodeType === 1) {
+                const t = node.tagName?.toUpperCase()
+                if (t === 'SPAN') { for (const c of node.childNodes) if (c.nodeType === 3) addSpan(c.textContent, node) }
+                else              { for (const c of node.childNodes) walkInline(c) }
+              }
+            }
+            for (const c of blockEl.childNodes) walkInline(c)
+            return hasContent ? textEl : null
+          }
+
+          // Process each top-level block inside the foreignObject div
+          for (const block of innerDiv.childNodes) {
+            if (block.nodeType === 3) {
+              const txt = block.textContent.replace(/\u200B/g, '').trim()
+              if (txt) {
+                const t = makeLine({ childNodes: [block] }, x + padding)
+                if (t) { g.appendChild(t); lineY += lineHeight }
+              }
+              continue
+            }
+            if (block.nodeType !== 1) continue
+            const tag = block.tagName?.toUpperCase()
+
+            if (tag === 'UL') {
+              const ml = parseFloat(block.style?.marginLeft || '0') || 0
+              for (const li of block.querySelectorAll('li')) {
+                const lineX = x + padding + ml + 20
+                const t = makeLine(li, lineX)
+                if (t) {
+                  // Prepend bullet
+                  const bts = document.createElementNS(NS, 'tspan')
+                  bts.setAttribute('x', String(x + padding + ml + 5))
+                  bts.setAttribute('y', String(lineY))
+                  bts.textContent = '\u2022'
+                  t.insertBefore(bts, t.firstChild)
+                  g.appendChild(t)
+                }
+                lineY += lineHeight
+              }
+            } else if (tag === 'DIV' || tag === 'P') {
+              const ml = parseFloat(block.style?.marginLeft || '0') || 0
+              const t = makeLine(block, x + padding + ml)
+              if (t) g.appendChild(t)
+              lineY += lineHeight
+            }
+          }
+
+          fo.parentNode.replaceChild(g, fo)
+        }
+      }
+
       const generateThumbnail = async () => {
         if (document.fonts && document.fonts.ready) {
           try { await document.fonts.ready } catch {}
@@ -2602,6 +2855,8 @@
         // Remove selection overlay / editor-only visuals from thumbnail
         svgNode.querySelectorAll('.selOverlay').forEach(n => n.remove())
         svgNode.querySelectorAll('.hit').forEach(n => n.remove())
+        // Replace foreignObject elements so the canvas stays untainted
+        replaceForeignObjectsForExport(svgNode)
 
         // Make sure background is included (your live SVG uses CSS background)
         // Put a rect as the first drawable element (after <defs> if present).
@@ -3091,6 +3346,7 @@
         app.selectedIds = new Set([g.id])
         pushHistory()
         render()
+        syncPropsFromSelection()
         markDirty()
         toast('Grouped (logical)')
       }
@@ -3106,6 +3362,83 @@
         render()
         markDirty()
         toast('Ungrouped')
+      }
+
+      const copySelectionToClipboard = async () => {
+        if (!app.selectedIds.size) return
+        // Collect all shapes including group children
+        const seen = new Set()
+        const shapesToCopy = []
+        const queue = Array.from(app.selectedIds)
+        while (queue.length) {
+          const id = queue.shift()
+          if (seen.has(id)) continue
+          seen.add(id)
+          const s = getShapeById(id)
+          if (!s) continue
+          shapesToCopy.push(structuredClone(s))
+          if (s.type === 'group') {
+            for (const cid of (s.childrenIds || [])) queue.push(cid)
+          }
+        }
+        if (!shapesToCopy.length) return
+        const payload = JSON.stringify({ _paintShapes: shapesToCopy })
+        try {
+          await navigator.clipboard.writeText(payload)
+          toast('Copied')
+        } catch (e) {
+          console.error('Copy failed:', e)
+          toast('Copy failed')
+        }
+      }
+
+      const pasteShapesFromClipboard = (shapes) => {
+        if (!shapes || !shapes.length || !app.drawing) return
+        const idMap = new Map()
+        for (const s of shapes) idMap.set(s.id, uuid())
+        const copiedIds = new Set(shapes.map(s => s.id))
+        const copies = []
+        for (const s of shapes) {
+          const copy = structuredClone(s)
+          copy.id = idMap.get(s.id)
+          if (copy.type === 'group') {
+            copy.childrenIds = (copy.childrenIds || []).map(cid => idMap.get(cid) || null).filter(Boolean)
+          }
+          if (copy.type === 'line' && copy.links) {
+            for (const ep of ['start', 'end']) {
+              const link = copy.links[ep]
+              if (!link?.targetId) continue
+              if (copiedIds.has(link.targetId)) copy.links[ep] = { ...link, targetId: idMap.get(link.targetId) }
+              else copy.links[ep] = null
+            }
+            cleanupLineLinks(copy)
+          }
+          copies.push(copy)
+        }
+        // Center copies at cursor
+        const movable = copies.filter(s => s.type !== 'group')
+        if (movable.length) {
+          const boxes = movable.map(shapeBBox)
+          const minX = Math.min(...boxes.map(b => b.x))
+          const minY = Math.min(...boxes.map(b => b.y))
+          const maxX = Math.max(...boxes.map(b => b.x + b.w))
+          const maxY = Math.max(...boxes.map(b => b.y + b.h))
+          const dx = clamp(app.lastPointer.x, 0, app.canvas.width) - (minX + maxX) / 2
+          const dy = clamp(app.lastPointer.y, 0, app.canvas.height) - (minY + maxY) / 2
+          for (const copy of movable) moveShapeBy(copy, dx, dy)
+        }
+        app.shapes.push(...copies)
+        // Select root-level shapes (not group children)
+        const childIds = new Set()
+        for (const copy of copies) {
+          if (copy.type === 'group') for (const cid of (copy.childrenIds || [])) childIds.add(cid)
+        }
+        app.selectedIds = new Set(copies.filter(c => !childIds.has(c.id)).map(c => c.id))
+        pushHistory()
+        render()
+        syncPropsFromSelection()
+        markDirty()
+        toast('Pasted')
       }
 
       const duplicateSelection = () => {
@@ -3211,142 +3544,660 @@
         toast('Duplicated')
       }
 
-      // Bullet symbols for each indentation level
-      const bulletSymbols = {
-        1: '•',      // level 1: bullet
-        2: '-',      // level 2: dash
-        3: '◦',      // level 3: white circle
-        // level 4+ uses long dash
-      }
-
-      // Convert bullets to dashes for editing
-      const bulletsToEditableDashes = (text) => {
-        // Convert rendered symbols back to canonical editable dashes.
-        // Normalize indentation so same-level lines stay visually identical.
-        const lines = text.split('\n')
-        const processedLines = lines.map(line => {
-          // Level 1: •
-          if (line.match(/^\s*•\s+/)) {
-            return line.replace(/^\s*•\s+/, '- ')
-          }
-          // Level 2: -
-          if (line.match(/^\s*-\s+/)) {
-            return line.replace(/^\s*-\s+/, '-- ')
-          }
-          // Level 3: ◦
-          if (line.match(/^\s*◦\s+/)) {
-            return line.replace(/^\s*◦\s+/, '--- ')
-          }
-          // Level 4+: long dash –
-          if (line.match(/^\s*–\s+/)) {
-            return line.replace(/^\s*–\s+/, '---- ')
-          }
-          return line
-        })
-        return processedLines.join('\n')
-      }
-
-      // Convert dashes to bullets when exiting edit mode
-      const dashesToBullets = (text) => {
-        // Flexible syntax: leading dashes at start of line, with or without a space after them.
-        // Level is defined by dash count: -, --, ---, ---- ...
-        // Examples: "-item", "- item", "--item", "-- item"
-        // Not a list item: "  - item" (not leading dashes).
-        const lines = text.split('\n')
-        const processedLines = lines.map(line => {
-          const match = line.match(/^(-{1,})[ \t]*(.*)$/)
-          if (!match) return line
-          
-          const dashes = match[1]
-          const level = dashes.length
-          
-          let symbol, indentMultiplier
-          if (level === 1) {
-            symbol = bulletSymbols[1] // •
-            indentMultiplier = 1
-          } else if (level === 2) {
-            symbol = bulletSymbols[2] // -
-            indentMultiplier = 2
-          } else if (level === 3) {
-            symbol = bulletSymbols[3] // ◦
-            indentMultiplier = 3
-          } else {
-            // level 4+: use long dash
-            symbol = '–'
-            indentMultiplier = level
-          }
-          
-          // Level 1 uses 2 leading spaces; deeper levels keep existing spacing.
-          const indent = level === 1 ? '  ' : '    '.repeat(indentMultiplier)
-          const spacing = '  ' // wider spacing between bullet and text
-          
-          // Rebuild line from parsed pieces so level strictly follows dash count.
-          return indent + symbol + spacing + match[2]
-        })
-        return processedLines.join('\n')
-      }
-
-      const getContinuationIndentForLine = (line) => {
-        // Editable bullet syntax: -, --, ---, ---- ...
-        const editableBullet = line.match(/^(-{1,})[ \t]*/)
-        if (editableBullet) {
-          const level = editableBullet[1].length
-          const bulletIndent = level === 1 ? '  ' : '    '.repeat(level)
-          // Keep continuation text aligned with bullet text, not bullet symbol.
-          return bulletIndent + '   '
-        }
-
-        // Rendered bullet syntax fallback (for pasted content).
-        const renderedBullet = line.match(/^(\s*)([•◦–]|-)\s+/)
-        if (renderedBullet) {
-          const offset = renderedBullet[1].length + renderedBullet[2].length + 2
-          return ' '.repeat(offset)
-        }
-
-        // For non-bullet lines, preserve existing leading whitespace.
-        const leadingWs = line.match(/^([ \t]+)/)
-        return leadingWs ? leadingWs[1] : ''
-      }
-
       const isTextWrapEnabled = (s) => !!(s && s.style && s.style.textWrap)
+
+      // =========================================================
+      // Rich Text helpers
+      // =========================================================
+
+      const escapeHtml = (str) => String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+
+      // Apply consistent <ul>/<li> styles inline so SVG foreignObject and off-screen
+      // measurement divs render identically to the editor (which uses .textEdit ul CSS).
+      const _applyListStyles = (container) => {
+        container.querySelectorAll('ul').forEach(ul => {
+          ul.style.marginTop = '0'
+          ul.style.marginBottom = '0'
+          if (!ul.style.paddingLeft) ul.style.paddingLeft = '20px'
+        })
+        container.querySelectorAll('li').forEach(li => {
+          if (!li.style.marginBottom) li.style.marginBottom = '2px'
+        })
+      }
+
+      // Scale all inline font-size values in rich HTML proportionally when the base
+      // font size of a text shape changes.  This keeps the visual size of each run of
+      // text consistent with the new base, instead of only changing the CSS line-height
+      // strut (which manifests as extra row spacing without growing the glyphs).
+      const rescaleRichTextFontSizes = (html, oldBase, newBase) => {
+        if (!html || oldBase === newBase || oldBase <= 0 || newBase <= 0) return html
+        const scale = newBase / oldBase
+        const div = document.createElement('div')
+        div.innerHTML = html
+        div.querySelectorAll('*').forEach(el => {
+          if (el.style && el.style.fontSize) {
+            const px = parseFloat(el.style.fontSize)
+            if (!isNaN(px) && px > 0) el.style.fontSize = (Math.round(px * scale * 10) / 10) + 'px'
+          }
+        })
+        return div.innerHTML
+      }
+
+      // Convert legacy plain-text s.text to rich HTML if needed
+      const normalizeRichText = (text) => {
+        if (!text) return '<div>&#8203;</div>'
+        if (String(text).trimStart().startsWith('<')) return text
+        return String(text).split('\n').map(line =>
+          `<div>${line ? escapeHtml(line) : '&#8203;'}</div>`
+        ).join('')
+      }
+
+      // Module-level state for the rich text editor
+      let _richSavedRange = null
+      let _richActiveEditor = null
+      let _richActiveShapeId = null
+
+      // =========================================================
+      // ⚙️ RICH TEXT ENGINE (ported from text-by-gemini.html)
+      // =========================================================
+      const RichTextEngine = {
+        configs: {
+          bold:      { prop: 'fontWeight',       on: 'bold',         off: 'normal',      isMatch: (v) => v === 'bold' || parseInt(v) >= 700 },
+          italic:    { prop: 'fontStyle',         on: 'italic',       off: 'normal',      isMatch: (v) => v === 'italic' },
+          underline: { prop: 'textDecorationLine',on: 'underline',    off: 'none',        isMatch: (v) => v.includes('underline') },
+          strike:    { prop: 'textDecorationLine',on: 'line-through', off: 'none',        isMatch: (v) => v.includes('line-through') },
+          super:     { prop: 'verticalAlign',     on: 'super',        off: 'baseline',    isMatch: (v) => v === 'super',     extraOn: { fontSize: '0.65em' }, extraOff: { fontSize: 'inherit' } },
+          sub:       { prop: 'verticalAlign',     on: 'sub',          off: 'baseline',    isMatch: (v) => v === 'sub',       extraOn: { fontSize: '0.65em' }, extraOff: { fontSize: 'inherit' } },
+          highlight: { prop: 'backgroundColor',  off: 'transparent', isMatch: (v) => v !== 'rgba(0, 0, 0, 0)' && v !== 'transparent' && v !== '' },
+          color:     { prop: 'color',             off: 'inherit',     isMatch: (v) => v !== '' },
+          fontSize:  { prop: 'fontSize',          off: 'inherit',     isMatch: (v) => !!v && v !== 'inherit' }
+        },
+        restoreSelection() {
+          if (!_richSavedRange || !_richActiveEditor) return null
+          _richActiveEditor.focus()
+          const sel = window.getSelection()
+          sel.removeAllRanges()
+          sel.addRange(_richSavedRange)
+          return _richSavedRange
+        },
+        checkActive(node, format) {
+          let el = node.nodeType === 3 ? node.parentNode : node
+          if (!_richActiveEditor || !_richActiveEditor.contains(el)) return false
+          const computed = window.getComputedStyle(el)
+          let styleVal = computed[this.configs[format].prop]
+          if (format === 'underline' || format === 'strike') {
+            styleVal = computed.textDecorationLine || computed.textDecoration
+          }
+          return this.configs[format].isMatch(styleVal)
+        },
+        getAction(range, format) {
+          if (range.collapsed) return this.checkActive(range.commonAncestorContainer, format) ? 'off' : 'on'
+          const walker = document.createTreeWalker(range.commonAncestorContainer, NodeFilter.SHOW_TEXT)
+          let total = 0, active = 0, node
+          while ((node = walker.nextNode())) {
+            if (range.intersectsNode(node) && node.nodeValue.replace(/\u200B/g, '').trim().length > 0) {
+              total++
+              if (this.checkActive(node, format)) active++
+            }
+          }
+          return (active === total && total > 0) ? 'off' : 'on'
+        },
+        execute(format, dynamicValue = null, forceOn = false) {
+          const range = this.restoreSelection()
+          if (!range || !_richActiveEditor) return
+          const conf = this.configs[format]
+          const onValue = dynamicValue || conf.on
+          const action = forceOn ? 'on' : this.getAction(range, format)
+          const targetValue = action === 'on' ? onValue : conf.off
+
+          if (range.collapsed) {
+            let el = range.commonAncestorContainer.nodeType === 3 ? range.commonAncestorContainer.parentNode : range.commonAncestorContainer
+            let computed = window.getComputedStyle(el)
+            const span = document.createElement('span')
+            span.style.fontWeight = computed.fontWeight
+            span.style.fontStyle = computed.fontStyle
+            span.style.textDecorationLine = computed.textDecorationLine || computed.textDecoration
+            span.style.color = computed.color
+            span.style.backgroundColor = computed.backgroundColor
+            span.style.verticalAlign = computed.verticalAlign
+            span.style.fontSize = computed.fontSize
+            this._applyStylesToElement(span, format, targetValue, action, conf)
+            span.innerHTML = '&#8203;'
+            range.insertNode(span)
+            const newRange = document.createRange()
+            newRange.setStart(span.firstChild, 1)
+            newRange.collapse(true)
+            const sel = window.getSelection()
+            sel.removeAllRanges(); sel.addRange(newRange)
+            _richSavedRange = newRange.cloneRange()
+            updateRichTextPanelButtons()
+            return
+          }
+
+          const startMarker = document.createElement('span'); startMarker.id = 'rte-sel-start'
+          const endMarker   = document.createElement('span'); endMarker.id   = 'rte-sel-end'
+          const rangeEnd = range.cloneRange(); rangeEnd.collapse(false); rangeEnd.insertNode(endMarker)
+          const rangeStart = range.cloneRange(); rangeStart.collapse(true); rangeStart.insertNode(startMarker)
+
+          const walker = document.createTreeWalker(_richActiveEditor, NodeFilter.SHOW_ALL)
+          const textData = []
+          let inSelection = false, node
+          while ((node = walker.nextNode())) {
+            if (node.id === 'rte-sel-start') { inSelection = true; continue }
+            if (node.id === 'rte-sel-end')   { inSelection = false; continue }
+            if (node.nodeType === 3) {
+              if (node.nodeValue.length === 0) continue
+              const computed = window.getComputedStyle(node.parentNode)
+              textData.push({
+                node, inSelection,
+                styles: {
+                  fontWeight: computed.fontWeight, fontStyle: computed.fontStyle,
+                  textDecorationLine: computed.textDecorationLine || computed.textDecoration,
+                  color: computed.color, backgroundColor: computed.backgroundColor,
+                  verticalAlign: computed.verticalAlign, fontSize: computed.fontSize
+                }
+              })
+            }
+          }
+
+          textData.forEach(data => {
+            const span = document.createElement('span')
+            span.className = 'rte-flat'
+            span.style.fontWeight = data.styles.fontWeight
+            span.style.fontStyle = data.styles.fontStyle
+            span.style.textDecorationLine = data.styles.textDecorationLine
+            span.style.textDecoration = data.styles.textDecorationLine
+            span.style.color = data.styles.color
+            span.style.backgroundColor = data.styles.backgroundColor
+            span.style.verticalAlign = data.styles.verticalAlign
+            span.style.fontSize = data.styles.fontSize
+            if (data.inSelection) this._applyStylesToElement(span, format, targetValue, action, conf)
+            span.textContent = data.node.nodeValue
+            data.node.parentNode.replaceChild(span, data.node)
+          })
+
+          const inlineQuery = 'B,I,U,STRONG,EM,STRIKE,DEL,SUP,SUB,SPAN:not(.rte-flat):not(#rte-sel-start):not(#rte-sel-end)'
+          Array.from(_richActiveEditor.querySelectorAll(inlineQuery)).forEach(tag => {
+            while (tag.firstChild) tag.parentNode.insertBefore(tag.firstChild, tag)
+            tag.remove()
+          })
+          _richActiveEditor.querySelectorAll('.rte-flat').forEach(s => s.removeAttribute('class'))
+
+          const newRange = document.createRange()
+          newRange.setStartAfter(startMarker)
+          newRange.setEndBefore(endMarker)
+          const sel = window.getSelection()
+          sel.removeAllRanges(); sel.addRange(newRange)
+          _richSavedRange = newRange.cloneRange()
+          startMarker.remove(); endMarker.remove()
+          updateRichTextPanelButtons()
+        },
+        _applyStylesToElement(el, format, val, action, conf) {
+          if (format === 'underline' || format === 'strike') {
+            const currentDec = el.style.textDecorationLine || el.style.textDecoration || ''
+            let decorations = currentDec.split(' ').filter(d => d === 'underline' || d === 'line-through')
+            if (action === 'on') { if (!decorations.includes(val)) decorations.push(val) }
+            else decorations = decorations.filter(d => d !== conf.on)
+            el.style.textDecorationLine = decorations.length > 0 ? decorations.join(' ') : 'none'
+            el.style.textDecoration = el.style.textDecorationLine
+          } else {
+            el.style[conf.prop] = val
+          }
+          if (conf.extraOn || conf.extraOff) {
+            const extraStyles = (action === 'on') ? conf.extraOn : conf.extraOff
+            Object.keys(extraStyles).forEach(k => { el.style[k] = extraStyles[k] })
+          }
+        }
+      }
+
+      // Update the active/inactive state of format buttons in the properties panel
+      const updateRichTextPanelButtons = () => {
+        if (!_richSavedRange || !_richActiveEditor) {
+          ;['btnRichBold','btnRichItalic','btnRichUnderline','btnRichStrike','btnRichSuper','btnRichSub','btnRichHighlight','btnBulletList'].forEach(id => {
+            const btn = $('#' + id); if (btn) btn.classList.remove('active')
+          })
+          return
+        }
+        // isActive: for collapsed → check cursor position; for range → all-on means action is 'off'
+        const isActive = (format) => {
+          if (_richSavedRange.collapsed) {
+            let el = _richSavedRange.commonAncestorContainer
+            if (el.nodeType === 3) el = el.parentNode
+            return RichTextEngine.checkActive(el, format)
+          }
+          return RichTextEngine.getAction(_richSavedRange, format) === 'off'
+        }
+        $('#btnRichBold')?.classList.toggle('active',      isActive('bold'))
+        $('#btnRichItalic')?.classList.toggle('active',    isActive('italic'))
+        $('#btnRichUnderline')?.classList.toggle('active', isActive('underline'))
+        $('#btnRichStrike')?.classList.toggle('active',    isActive('strike'))
+        $('#btnRichSuper')?.classList.toggle('active',     isActive('super'))
+        $('#btnRichSub')?.classList.toggle('active',       isActive('sub'))
+        $('#btnRichHighlight')?.classList.toggle('active', isActive('highlight'))
+        $('#btnBulletList')?.classList.toggle('active',    isRichListActive())
+
+        // Sync font size display to the cursor/selection's computed font size
+        const cursorEl = (() => {
+          let el = _richSavedRange.commonAncestorContainer
+          return el.nodeType === 3 ? el.parentNode : el
+        })()
+        const computedFs = parseFloat(window.getComputedStyle(cursorEl).fontSize)
+        if (!isNaN(computedFs) && computedFs > 0) {
+          setInputValue('textareaFontSize', Math.round(computedFs))
+          updateTextareaFontSizeDisplay(Math.round(computedFs))
+        }
+
+        // Sync text color display to the cursor/selection's computed color
+        const computedColor = window.getComputedStyle(cursorEl).color
+        if (computedColor) {
+          // Convert rgb(...) to hex for the color input
+          const m = computedColor.match(/\d+/g)
+          if (m && m.length >= 3) {
+            const hex = '#' + [m[0], m[1], m[2]].map(n => parseInt(n).toString(16).padStart(2, '0')).join('')
+            setInputValue('textareaTextColor', hex)
+          }
+        }
+      }
+
+      // Check if cursor/selection is inside a <ul> block
+      const isRichListActive = () => {
+        if (!_richSavedRange || !_richActiveEditor) return false
+        let node = _richSavedRange.startContainer
+        let el = node.nodeType === 3 ? node.parentNode : node
+        while (el && el !== _richActiveEditor) {
+          if (el.tagName === 'UL') return true
+          el = el.parentNode
+        }
+        return false
+      }
+
+      // Apply a RichTextEngine format to ALL content in a shape's stored HTML.
+      // Used when format buttons are clicked while NO text editor is open —
+      // i.e. the shape is selected but not being edited.
+      const applyFormatToShapeHtml = (html, fontSize, format, dynamicValue, forceOn) => {
+        const conf = RichTextEngine.configs[format]
+        if (!conf) return html
+        const onValue = dynamicValue || conf.on
+
+        // Attach a hidden div so getComputedStyle works for accurate style reads
+        const div = document.createElement('div')
+        div.style.cssText = `position:absolute;visibility:hidden;top:-9999px;pointer-events:none;font-size:${fontSize || 16}px`
+        div.innerHTML = normalizeRichText(html || '')
+        _applyListStyles(div)
+        document.body.appendChild(div)
+
+        // Collect every text node with its computed styles
+        const textData = []
+        const walker = document.createTreeWalker(div, NodeFilter.SHOW_TEXT)
+        // Walk up the ancestor chain (up to the container) to find an explicitly-set inline style.
+        // Returns '' if the property was never set inline (i.e. it's inherited from the container).
+        const getInlineStyle = (node, prop) => {
+          let el = node.nodeType === 3 ? node.parentElement : node
+          while (el && el !== div) {
+            if (el.style?.[prop]) return el.style[prop]
+            el = el.parentElement
+          }
+          return ''
+        }
+        let node
+        while ((node = walker.nextNode())) {
+          if (!node.nodeValue.length) continue
+          const computed = window.getComputedStyle(node.parentNode)
+          let styleVal = computed[conf.prop]
+          if (format === 'underline' || format === 'strike') {
+            styleVal = computed.textDecorationLine || computed.textDecoration
+          }
+          textData.push({
+            node, isActive: conf.isMatch(styleVal),
+            // Use INLINE styles (not computed) so we never bake in inherited values
+            // such as the container's text colour or base font-size.
+            styles: {
+              fontWeight:         getInlineStyle(node, 'fontWeight'),
+              fontStyle:          getInlineStyle(node, 'fontStyle'),
+              textDecorationLine: getInlineStyle(node, 'textDecorationLine') || getInlineStyle(node, 'textDecoration'),
+              color:              getInlineStyle(node, 'color'),
+              backgroundColor:    getInlineStyle(node, 'backgroundColor'),
+              verticalAlign:      getInlineStyle(node, 'verticalAlign'),
+              fontSize:           getInlineStyle(node, 'fontSize'),
+            }
+          })
+        }
+
+        // Determine toggle action: if ALL text already has the format → turn off, else on
+        const action = forceOn !== undefined ? (forceOn ? 'on' : 'off') :
+          (textData.length > 0 && textData.every(d => d.isActive) ? 'off' : 'on')
+        const targetValue = action === 'on' ? onValue : conf.off
+
+        // Flatten (same logic as RichTextEngine.execute for a full-content selection)
+        textData.forEach(data => {
+          const span = document.createElement('span')
+          span.className = 'rte-flat'
+          span.style.fontWeight = data.styles.fontWeight
+          span.style.fontStyle = data.styles.fontStyle
+          span.style.textDecorationLine = data.styles.textDecorationLine
+          span.style.textDecoration = data.styles.textDecorationLine
+          span.style.color = data.styles.color
+          span.style.backgroundColor = data.styles.backgroundColor
+          span.style.verticalAlign = data.styles.verticalAlign
+          span.style.fontSize = data.styles.fontSize
+          RichTextEngine._applyStylesToElement(span, format, targetValue, action, conf)
+          span.textContent = data.node.nodeValue
+          data.node.parentNode.replaceChild(span, data.node)
+        })
+        const inlineQ = 'B,I,U,STRONG,EM,STRIKE,DEL,SUP,SUB,SPAN:not(.rte-flat)'
+        Array.from(div.querySelectorAll(inlineQ)).forEach(tag => {
+          while (tag.firstChild) tag.parentNode.insertBefore(tag.firstChild, tag)
+          tag.remove()
+        })
+        div.querySelectorAll('.rte-flat').forEach(s => s.removeAttribute('class'))
+
+        const result = div.innerHTML
+        document.body.removeChild(div)
+        return result
+      }
+
+      // Apply a format to all selected text shapes (used when no editor is open)
+      const applyFormatToSelectedShapes = (format, value, forceOn) => {
+        const ctx = getSelectionPropsContext()
+        if (!ctx.hasSelection || !ctx.compatible) return
+        let changed = false
+        for (const s of ctx.selectedShapes) {
+          if (s.type !== 'text') continue
+          s.text = applyFormatToShapeHtml(s.text, s.fontSize || app.style.fontSize, format, value, forceOn)
+          fitTextShapeToContent(s)
+          changed = true
+        }
+        if (changed) { pushHistory(); render(); markDirty() }
+        updateRichTextPanelButtons()
+      }
+
+      // Rotate bullet style based on indent level
+      const updateRichListStyle = (ul) => {
+        const margin = parseInt(ul.style.marginLeft || '0')
+        const level = Math.floor(margin / 40)
+        if (level % 3 === 0)      ul.style.listStyleType = 'disc'
+        else if (level % 3 === 1) ul.style.listStyleType = 'circle'
+        else                       ul.style.listStyleType = 'square'
+      }
+
+      // Ensure a <li> lives in its own single-item <ul>.
+      // If its parent <ul> contains multiple <li> elements (can happen after browser-
+      // default contenteditable deletions), split every <li> into its own <ul> so
+      // indentation never leaks to sibling rows.  Returns the <ul> that now wraps `li`.
+      const splitLiToOwnUl = (li) => {
+        const parentUl = li.parentNode
+        if (!parentUl || parentUl.tagName !== 'UL') return parentUl
+        if (parentUl.childElementCount <= 1) return parentUl  // already sole item
+
+        const allLis  = Array.from(parentUl.children)
+        const liIdx   = allLis.indexOf(li)
+        const cssText = parentUl.style.cssText
+        const domParent = parentUl.parentNode
+
+        // Create one independent <ul> per <li>, in document order
+        const newUls = allLis.map(item => {
+          const ul = document.createElement('ul')
+          ul.style.cssText = cssText
+          updateRichListStyle(ul)
+          ul.appendChild(item)
+          return ul
+        })
+        newUls.forEach(ul => domParent.insertBefore(ul, parentUl))
+        domParent.removeChild(parentUl)
+        return newUls[liIdx]
+      }
+
+      // Extract top-level block elements spanning current selection
+      const getRichSelectedBlocks = (range, startId, endId) => {
+        const startMarker = document.createElement('span'); startMarker.id = startId
+        const endMarker   = document.createElement('span'); endMarker.id   = endId
+        const rangeEnd = range.cloneRange(); rangeEnd.collapse(false); rangeEnd.insertNode(endMarker)
+        const rangeStart = range.cloneRange(); rangeStart.collapse(true); rangeStart.insertNode(startMarker)
+
+        const selectedBlocks = []
+        let inSelection = false
+        const walker = document.createTreeWalker(_richActiveEditor, NodeFilter.SHOW_ALL)
+        let node
+
+        const addBlockOf = (n) => {
+          let block = n.nodeType === 3 ? n.parentNode : n
+          if (!_richActiveEditor.contains(block)) return
+          while (block && block.parentNode !== _richActiveEditor) block = block.parentNode
+          if (block && block !== _richActiveEditor && !selectedBlocks.includes(block)) {
+            if (!['DIV','P','UL'].includes(block.tagName)) {
+              const div = document.createElement('div')
+              block.parentNode.insertBefore(div, block)
+              div.appendChild(block)
+              block = div
+            }
+            selectedBlocks.push(block)
+          }
+        }
+
+        while ((node = walker.nextNode())) {
+          if (node.id === startId) { inSelection = true;  addBlockOf(node); continue }
+          if (node.id === endId)   { inSelection = false; addBlockOf(node); continue }
+          if (inSelection) addBlockOf(node)
+        }
+        if (selectedBlocks.length === 0) addBlockOf(startMarker)
+        return { selectedBlocks, startMarker, endMarker }
+      }
+
+      // Toggle bullet list on selected blocks
+      const toggleRichBulletList = () => {
+        const sel = window.getSelection()
+        if (!sel.rangeCount || !_richActiveEditor) return
+        const range = RichTextEngine.restoreSelection()
+        if (!range) return
+
+        const { selectedBlocks, startMarker, endMarker } = getRichSelectedBlocks(range, 'rte-list-start', 'rte-list-end')
+        if (!selectedBlocks.length) { startMarker.remove(); endMarker.remove(); return }
+
+        const isAllLists = selectedBlocks.every(b => b.tagName === 'UL')
+        selectedBlocks.forEach(block => {
+          if (isAllLists) {
+            if (block.tagName !== 'UL') return
+            const li = block.querySelector('li') || block
+            const div = document.createElement('div')
+            while (li.firstChild) div.appendChild(li.firstChild)
+            div.style.marginLeft = '0px'
+            block.parentNode.replaceChild(div, block)
+          } else {
+            if (block.tagName === 'UL') return
+            const li = document.createElement('li')
+            while (block.firstChild) li.appendChild(block.firstChild)
+            const ul = document.createElement('ul')
+            ul.style.marginLeft = block.style.marginLeft || '0px'
+            updateRichListStyle(ul)
+            ul.appendChild(li)
+            block.parentNode.replaceChild(ul, block)
+          }
+        })
+
+        const newRange = document.createRange()
+        if (_richActiveEditor.contains(startMarker) && _richActiveEditor.contains(endMarker)) {
+          newRange.setStartAfter(startMarker)
+          newRange.setEndBefore(endMarker)
+          sel.removeAllRanges(); sel.addRange(newRange)
+          _richSavedRange = newRange.cloneRange()
+        }
+        startMarker.remove(); endMarker.remove()
+        updateRichTextPanelButtons()
+        // Resize editor overlay to fit the changed list structure
+        if (_richActiveEditor) _richActiveEditor.dispatchEvent(new Event('input', { bubbles: true }))
+      }
+
+      // Tab / Shift+Tab indentation inside the rich text editor.
+      // Works at <li> granularity: every affected row is indented independently,
+      // even if multiple <li> elements share the same parent <ul> (which can
+      // happen after browser-default delete/backspace merges blocks).
+      const handleRichTextIndent = (e) => {
+        if (e.key !== 'Tab') return
+        e.preventDefault()
+        const sel = window.getSelection()
+        if (!sel.rangeCount || !_richActiveEditor) return
+        const range = RichTextEngine.restoreSelection()
+        if (!range) return
+
+        // Insert markers to track the selection boundaries across DOM mutations
+        const startMarker = document.createElement('span'); startMarker.id = 'rte-indent-start'
+        const endMarker   = document.createElement('span'); endMarker.id   = 'rte-indent-end'
+        const rangeEnd = range.cloneRange(); rangeEnd.collapse(false); rangeEnd.insertNode(endMarker)
+        const rangeStart = range.cloneRange(); rangeStart.collapse(true);  rangeStart.insertNode(startMarker)
+
+        // Collect affected rows at <li> (or top-level block) granularity.
+        // Walking to <li> instead of the top-level <ul> ensures a multi-item <ul>
+        // only yields the specific item(s) the cursor touches.
+        const rowsToIndent = []
+        let inSel = false
+        const walker = document.createTreeWalker(_richActiveEditor, NodeFilter.SHOW_ALL)
+        let node
+        const addRow = (n) => {
+          let el = n.nodeType === 3 ? n.parentNode : n
+          if (!_richActiveEditor.contains(el)) return
+          let block = el
+          while (block && block.parentNode !== _richActiveEditor) {
+            if (block.tagName === 'LI') break   // stop at list-item level
+            block = block.parentNode
+          }
+          // Never add a <ul> element directly: its <li> children are always visited
+          // separately by the walker and will be added via the LI branch above.
+          // Adding both the <ul> and its <li> would apply the indent step twice to
+          // every row whose <ul> is visited after the start-marker (rows 2..n).
+          if (block && block !== _richActiveEditor && block.tagName !== 'UL' && !rowsToIndent.includes(block)) {
+            rowsToIndent.push(block)
+          }
+        }
+        while ((node = walker.nextNode())) {
+          if (node.id === 'rte-indent-start') { inSel = true;  addRow(node); continue }
+          if (node.id === 'rte-indent-end')   { inSel = false; addRow(node); continue }
+          if (inSel) addRow(node)
+        }
+        if (rowsToIndent.length === 0) addRow(startMarker)
+
+        // Apply indentation. <li> rows are first split into their own <ul> so that
+        // indenting one item never drags sibling items along with it.
+        rowsToIndent.forEach(block => {
+          let target
+          if (block.tagName === 'LI') {
+            target = splitLiToOwnUl(block)   // returns the wrapping <ul>
+          } else {
+            target = block                   // <div>/<p>/<ul> already at correct level
+          }
+          const cur = parseInt(target.style.marginLeft || '0')
+          target.style.marginLeft = (e.shiftKey ? Math.max(0, cur - 40) : cur + 40) + 'px'
+          if (target.tagName === 'UL') updateRichListStyle(target)
+        })
+
+        // Restore selection via markers (still in DOM inside their respective blocks)
+        const newRange = document.createRange()
+        if (_richActiveEditor.contains(startMarker) && _richActiveEditor.contains(endMarker)) {
+          newRange.setStartAfter(startMarker)
+          newRange.setEndBefore(endMarker)
+          sel.removeAllRanges(); sel.addRange(newRange)
+          _richSavedRange = newRange.cloneRange()
+        }
+        startMarker.remove(); endMarker.remove()
+        updateRichTextPanelButtons()
+        // Resize editor overlay to fit the changed content
+        if (_richActiveEditor) _richActiveEditor.dispatchEvent(new Event('input', { bubbles: true }))
+      }
+
+      // Paste plain-text as block rows in the rich text editor
+      const handleRichTextPaste = (e) => {
+        e.preventDefault()
+        const text = (e.clipboardData || window.clipboardData).getData('text/plain')
+        if (!text) return
+        const lines = text.split(/\r?\n/)
+        const sel = window.getSelection()
+        if (!sel.rangeCount || !_richActiveEditor) return
+        const range = sel.getRangeAt(0)
+        range.deleteContents()
+
+        if (lines.length === 1) {
+          const textNode = document.createTextNode(lines[0])
+          range.insertNode(textNode)
+          range.setStartAfter(textNode); range.collapse(true)
+          sel.removeAllRanges(); sel.addRange(range)
+          _richSavedRange = range.cloneRange()
+          if (_richActiveEditor) _richActiveEditor.dispatchEvent(new Event('input', { bubbles: true }))
+          return
+        }
+
+        let currentBlock = range.commonAncestorContainer
+        if (currentBlock.nodeType === 3) currentBlock = currentBlock.parentNode
+        while (currentBlock && currentBlock.parentNode !== _richActiveEditor) currentBlock = currentBlock.parentNode
+        if (!currentBlock || currentBlock === _richActiveEditor) {
+          currentBlock = document.createElement('div')
+          currentBlock.innerHTML = '&#8203;'
+          _richActiveEditor.appendChild(currentBlock)
+        }
+
+        const marker = document.createElement('span'); marker.id = 'rte-paste-marker'
+        range.insertNode(marker)
+        const leftRange = document.createRange()
+        leftRange.setStart(currentBlock, 0); leftRange.setEndBefore(marker)
+        const leftFrag = leftRange.extractContents()
+        marker.remove()
+
+        const isList = currentBlock.tagName === 'UL'
+        const wrapBlock = (tagName, cssText) => {
+          const b = document.createElement(tagName)
+          b.style.cssText = cssText
+          return b
+        }
+
+        const firstBlock = wrapBlock(isList ? 'UL' : 'DIV', currentBlock.style.cssText)
+        const firstText = document.createTextNode(lines[0])
+        if (isList) { const li = document.createElement('li'); li.appendChild(leftFrag); li.appendChild(firstText); firstBlock.appendChild(li) }
+        else { firstBlock.appendChild(leftFrag); firstBlock.appendChild(firstText) }
+        currentBlock.parentNode.insertBefore(firstBlock, currentBlock)
+
+        for (let i = 1; i < lines.length - 1; i++) {
+          const lb = wrapBlock(isList ? 'UL' : 'DIV', currentBlock.style.cssText)
+          const tn = document.createTextNode(lines[i] || '\u200B')
+          if (isList) { const li = document.createElement('li'); li.appendChild(tn); lb.appendChild(li) }
+          else lb.appendChild(tn)
+          currentBlock.parentNode.insertBefore(lb, currentBlock)
+        }
+
+        const lastBlock = wrapBlock(isList ? 'UL' : 'DIV', currentBlock.style.cssText)
+        const lastText = document.createTextNode(lines[lines.length - 1])
+        if (isList) {
+          const li = document.createElement('li'); li.appendChild(lastText)
+          const origLi = currentBlock.querySelector('li') || currentBlock
+          while (origLi.firstChild) li.appendChild(origLi.firstChild)
+          lastBlock.appendChild(li)
+        } else {
+          lastBlock.appendChild(lastText)
+          while (currentBlock.firstChild) lastBlock.appendChild(currentBlock.firstChild)
+        }
+        currentBlock.parentNode.replaceChild(lastBlock, currentBlock)
+
+        if (isList) {
+          [firstBlock, lastBlock].forEach(b => { if (b.tagName === 'UL') updateRichListStyle(b) })
+        }
+
+        const newRange = document.createRange()
+        newRange.setStart(lastText, lines[lines.length - 1].length); newRange.collapse(true)
+        sel.removeAllRanges(); sel.addRange(newRange)
+        _richSavedRange = newRange.cloneRange()
+        updateRichTextPanelButtons()
+        // Resize editor overlay to fit the pasted content
+        if (_richActiveEditor) _richActiveEditor.dispatchEvent(new Event('input', { bubbles: true }))
+      }
 
       const parseTextLineLayout = (line) => {
         const raw = String(line || '')
-        const renderedBullet = raw.match(/^(\s*(?:[•◦–]|-)\s+)(.*)$/)
-        if (renderedBullet) {
-          return {
-            firstPrefix: renderedBullet[1],
-            continuationPrefix: getContinuationIndentForLine(raw),
-            content: renderedBullet[2]
-          }
-        }
-
         const leadingWs = (raw.match(/^[ \t]*/) || [''])[0]
         return {
           firstPrefix: leadingWs,
           continuationPrefix: leadingWs,
           content: raw.slice(leadingWs.length)
         }
-      }
-
-      const measureWrappedMinContentWidth = (lines, measureCtx) => {
-        let maxWidth = 0
-        for (const line of lines) {
-          const { firstPrefix, continuationPrefix, content } = parseTextLineLayout(line)
-          const words = String(content || '').trim().split(/\s+/).filter(Boolean)
-
-          if (!words.length) {
-            maxWidth = Math.max(maxWidth, measureCtx.measureText(String(line || ' ')).width)
-            continue
-          }
-
-          for (let i = 0; i < words.length; i += 1) {
-            const prefix = i === 0 ? firstPrefix : continuationPrefix
-            const probe = prefix + words[i]
-            maxWidth = Math.max(maxWidth, measureCtx.measureText(probe).width)
-          }
-        }
-        return Math.ceil(maxWidth)
       }
 
       const wrapLineByWords = (line, maxContentWidth, measureCtx) => {
@@ -3375,194 +4226,228 @@
         return out
       }
 
-      const getTextRenderLines = (s, measureCtxOverride = null) => {
-        const sourceLines = String(s.text || '').split('\n')
-        if (!isTextWrapEnabled(s)) return sourceLines
-
+      // Measure a rich-text shape via an offscreen DOM element
+      const _measureRichText = (s, overrideW = null) => {
         const fontSize = Number(s.fontSize || app.style.fontSize)
         const fontFamily = s.fontFamily || 'sans-serif'
         const textPadding = clamp(Number(s.style?.textPadding ?? app.style.textPadding ?? 5), 0, 20)
-        const measureCtx = measureCtxOverride || document.createElement('canvas').getContext('2d')
-        measureCtx.font = `${fontSize}px ${fontFamily}`
-
-        const maxContentWidth = Math.max(1, Number(s.w || 0) - textPadding * 2)
-        const wrapped = []
-        for (const line of sourceLines) {
-          wrapped.push(...wrapLineByWords(line, maxContentWidth, measureCtx))
-        }
-        return wrapped
+        const wrapEnabled = isTextWrapEnabled(s)
+        const div = document.createElement('div')
+        const width = overrideW !== null ? overrideW : (wrapEnabled ? s.w : null)
+        div.style.cssText = [
+          'position:absolute', 'visibility:hidden', 'top:-9999px', 'left:-9999px',
+          `font-size:${fontSize}px`, `font-family:${fontFamily}`,
+          `line-height:${fontSize * 1.2 / fontSize}`,
+          `padding:${textPadding}px`,
+          'box-sizing:border-box',
+          width !== null ? `width:${width}px` : 'width:max-content',
+          wrapEnabled ? 'white-space:pre-wrap' : 'white-space:pre',
+          wrapEnabled ? 'word-wrap:break-word' : 'word-wrap:normal',
+        ].join(';')
+        div.innerHTML = normalizeRichText(s.text || '')
+        _applyListStyles(div)
+        document.body.appendChild(div)
+        const measuredH = div.scrollHeight || div.offsetHeight
+        const measuredW = div.scrollWidth || div.offsetWidth
+        document.body.removeChild(div)
+        return { w: measuredW, h: measuredH }
       }
 
-      const getTextMinBoxSize = (s, measureCtxOverride = null) => {
+      // Keep for resize constraints - returns minimum box dimensions
+      const getTextMinBoxSize = (s) => {
         const fontSize = Number(s.fontSize || app.style.fontSize)
-        const fontFamily = s.fontFamily || 'sans-serif'
         const textPadding = clamp(Number(s.style?.textPadding ?? app.style.textPadding ?? 5), 0, 20)
-        const measureCtx = measureCtxOverride || document.createElement('canvas').getContext('2d')
-        measureCtx.font = `${fontSize}px ${fontFamily}`
-
-        const sourceLines = String(s.text || '').split('\n')
-        const minContentWidth = measureWrappedMinContentWidth(sourceLines, measureCtx)
-        const minW = Math.max(1, minContentWidth + textPadding * 2)
-        const minH = Math.max(24, fontSize + fontSize * 0.3 + textPadding * 2)
+        const minW = Math.max(80, fontSize * 2 + textPadding * 2)
+        const minH = Math.max(24, fontSize + textPadding * 2)
         return { minW, minH }
+      }
+
+      // Natural (unwrapped) content width - used to cap wrap-mode resize
+      const getMaxTextLineWidth = (s) => {
+        if (!isTextWrapEnabled(s)) return Infinity
+        const { w } = _measureRichText(s, null)
+        return Math.max(80, w)
       }
 
       const fitTextShapeToContent = (s) => {
         if (!s || s.type !== 'text') return
-        const fontSize = s.fontSize || app.style.fontSize
-        const fontFamily = s.fontFamily || 'sans-serif'
+        const fontSize = Number(s.fontSize || app.style.fontSize)
         const textPadding = clamp(Number(s.style?.textPadding ?? app.style.textPadding ?? 5), 0, 20)
-        const measureCtx = document.createElement('canvas').getContext('2d')
-        measureCtx.font = `${fontSize}px ${fontFamily}`
-
-        const minSize = getTextMinBoxSize(s, measureCtx)
-
-        if (isTextWrapEnabled(s)) {
-          s.w = Math.max(minSize.minW, Number(s.w) || minSize.minW)
-          const wrappedLines = getTextRenderLines(s, measureCtx)
-          const lineCount = Math.max(1, wrappedLines.length)
-          const lineHeight = fontSize * 1.2
-          s.h = Math.max(minSize.minH, fontSize + (lineCount - 1) * lineHeight + fontSize * 0.3 + textPadding * 2)
-          return
-        }
-
-        const textLines = String(s.text || '').split('\n')
-        const lineCount = Math.max(1, textLines.length)
-
-        // Keep the text box as a tight envelope around rendered text.
-        const lineHeight = fontSize * 1.2
-        s.h = Math.max(minSize.minH, fontSize + (lineCount - 1) * lineHeight + fontSize * 0.3 + textPadding * 2)
-        const maxLineW = Math.max(...textLines.map(line => measureCtx.measureText(line).width))
-        s.w = Math.max(80, Math.ceil(maxLineW) + textPadding * 2)
+        const minH = Math.max(24, fontSize + textPadding * 2)
+        const { w, h } = _measureRichText(s)
+        s.h = Math.max(minH, h)
+        if (!isTextWrapEnabled(s)) s.w = Math.max(80, w)
       }
 
       const startTextEdit = (shapeId, clientX, clientY) => {
         const s = getShapeById(shapeId)
         if (!s || s.type !== 'text') return
 
-        // Create overlay textarea positioned over SVG
-        const ta = document.createElement('textarea')
-        ta.className = 'textEdit'
+        // Clear any lingering alignment guide lines so they don't persist into edit mode
+        if (app.alignGuides) { app.alignGuides = null; render() }
+
+        const fontSize = s.fontSize || app.style.fontSize
+        const fontFamily = s.fontFamily || 'inherit'
+        const textPadding = clamp(Number(s.style?.textPadding ?? app.style.textPadding ?? 5), 0, 20)
         const wrapEnabled = isTextWrapEnabled(s)
-        ta.wrap = wrapEnabled ? 'soft' : 'off'
-        // Convert any bullets back to editable dashes when entering edit mode
-        ta.value = bulletsToEditableDashes(s.text || '')
-        ta.style.fontSize = (s.fontSize || app.style.fontSize) + 'px'
-        ta.style.fontFamily = s.fontFamily || 'inherit'
-        ta.style.padding = clamp(Number(s.style?.textPadding ?? app.style.textPadding ?? 5), 0, 20) + 'px'
-        ta.style.whiteSpace = wrapEnabled ? 'pre-wrap' : 'pre'
-        ta.style.resize = wrapEnabled ? 'horizontal' : 'none'
-        ta.style.overflow = wrapEnabled ? 'auto' : 'hidden'
+
+        const editor = document.createElement('div')
+        editor.className = 'textEdit'
+        editor.contentEditable = 'true'
+        editor.spellcheck = false
+        editor.innerHTML = normalizeRichText(s.text || '')
+        editor.style.fontSize = fontSize + 'px'
+        editor.style.fontFamily = fontFamily || 'inherit'
+        editor.style.lineHeight = String(fontSize * 1.2 / fontSize)
+        editor.style.padding = textPadding + 'px'
+        editor.style.whiteSpace = wrapEnabled ? 'pre-wrap' : 'pre'
+        editor.style.overflowWrap = wrapEnabled ? 'break-word' : 'normal'
+        editor.style.color = rgbaFromHexAlpha(s.style?.textColor || app.style.textColor || '#111111', s.style?.textAlpha ?? app.style.textAlpha ?? 1)
 
         const wrap = $('#canvasWrap')
-        wrap.appendChild(ta)
+        wrap.appendChild(editor)
 
         const svgRect = svg.getBoundingClientRect()
         const x = svgRect.left + (s.x / app.canvas.width) * svgRect.width
         const y = svgRect.top + (s.y / app.canvas.height) * svgRect.height
-        const w = Math.max(60, (s.w / app.canvas.width) * svgRect.width)
-        const h = Math.max(120, (s.h / app.canvas.height) * svgRect.height)
+        let w = Math.max(60, (s.w / app.canvas.width) * svgRect.width)
+        const h = Math.max(40, (s.h / app.canvas.height) * svgRect.height)
 
-        ta.style.left = (x - wrap.getBoundingClientRect().left) + 'px'
-        ta.style.top = (y - wrap.getBoundingClientRect().top) + 'px'
-        ta.style.width = w + 'px'
-        ta.style.height = h + 'px'
+        const wrapRect = wrap.getBoundingClientRect()
+        editor.style.left = (x - wrapRect.left) + 'px'
+        editor.style.top  = (y - wrapRect.top)  + 'px'
+        editor.style.width  = w + 'px'
+        // Use a content-based minimum (one line) instead of the initial shape height
+        // so the editor can shrink freely when rows are deleted.
+        editor.style.minHeight = Math.ceil(fontSize * 1.2 + textPadding * 2) + 'px'
 
-        const measureCtx = document.createElement('canvas').getContext('2d')
-        const baseW = w
-        const baseH = h
-        const updateEditorSize = () => {
-          if (!wrapEnabled) {
-            const wrapRect = wrap.getBoundingClientRect()
-            const left = parseFloat(ta.style.left) || 0
-            const cs = window.getComputedStyle(ta)
-            const pl = parseFloat(cs.paddingLeft) || 0
-            const pr = parseFloat(cs.paddingRight) || 0
-            const maxAllowedW = Math.max(baseW, wrapRect.width - left - 8)
-
-            measureCtx.font = `${ta.style.fontSize} ${ta.style.fontFamily || 'sans-serif'}`
-            const lines = ta.value.split('\n')
-            const maxLineW = Math.max(...lines.map(line => measureCtx.measureText(line || ' ').width))
-            const neededW = Math.ceil(maxLineW + pl + pr + 2)
-
-            ta.style.width = Math.min(maxAllowedW, Math.max(baseW, neededW)) + 'px'
+        const syncSize = () => {
+          if (wrapEnabled) {
+            // Wrap mode: width is fixed at the shape's current pixel width so text wraps
+            // inside the box, matching the rendered foreignObject behaviour.
+            // The only reason to expand w is deep Tab-indentation: measure the minimum
+            // viable width by packing content as narrow as possible (1px) with
+            // word-break active, which yields margin-left-depth + ~1 char width.
+            editor.style.width = '1px'
+            void editor.offsetWidth             // flush layout
+            const minW = editor.scrollWidth + 4  // indentation-based minimum
+            if (minW > w) w = minW
+            editor.style.width = w + 'px'
+          } else {
+            // Non-wrap: measure via an offscreen div so margin-left offsets of indented
+            // blocks are correctly included (scrollWidth on overflow:hidden misses them).
+            const tmpDiv = document.createElement('div')
+            tmpDiv.style.cssText = [
+              'position:absolute', 'visibility:hidden', 'top:-9999px', 'left:-9999px',
+              `font-size:${fontSize}px`, `font-family:${fontFamily || 'sans-serif'}`,
+              `padding:${textPadding}px`, 'box-sizing:border-box',
+              'width:max-content', 'white-space:pre', 'word-wrap:normal'
+            ].join(';')
+            tmpDiv.innerHTML = editor.innerHTML
+            _applyListStyles(tmpDiv)
+            document.body.appendChild(tmpDiv)
+            const naturalW = tmpDiv.scrollWidth + 8
+            document.body.removeChild(tmpDiv)
+            const needed = Math.max(w, naturalW)
+            const curWrapRect = wrap.getBoundingClientRect()
+            const editorLeft = parseFloat(editor.style.left) || 0
+            const maxAllowed = Math.max(w, curWrapRect.width - editorLeft - 16)
+            editor.style.width = Math.min(maxAllowed, needed) + 'px'
           }
-          ta.style.height = 'auto'
-          ta.style.height = Math.max(baseH, ta.scrollHeight) + 'px'
+          // Height: size purely to content so it shrinks when rows are deleted.
+          editor.style.height = 'auto'
+          void editor.offsetHeight
+          editor.style.height = editor.scrollHeight + 'px'
+          // Sync shape dimensions → update selection box and drag bar in real time
+          const liveSvgRect = svg.getBoundingClientRect()
+          if (liveSvgRect.width > 0 && liveSvgRect.height > 0) {
+            const scaleX = app.canvas.width  / liveSvgRect.width
+            const scaleY = app.canvas.height / liveSvgRect.height
+            const editorW = parseFloat(editor.style.width)  || w
+            const editorH = parseFloat(editor.style.height) || h
+            s.w = Math.max(80, Math.ceil(editorW * scaleX))
+            s.h = Math.max(24, Math.ceil(editorH * scaleY))
+            renderSelectionOverlay()
+            positionTextDragHandle(shapeId)
+          }
         }
-        updateEditorSize()
+        syncSize()
 
-        // Hide the original SVG shape while editing so it doesn't show through
+        // Hide original SVG shape during editing
         const shapeEl = svg.querySelector(`[data-id="${shapeId}"]`)
         if (shapeEl) shapeEl.style.visibility = 'hidden'
 
-        ta.focus()
-        ta.setSelectionRange(ta.value.length, ta.value.length)
+        // Set up rich-text engine state
+        _richActiveEditor = editor
+        _richActiveShapeId = shapeId
+
+        // Place cursor at end
+        editor.focus()
+        const sel = window.getSelection()
+        const range = document.createRange()
+        range.selectNodeContents(editor)
+        range.collapse(false)
+        sel.removeAllRanges()
+        sel.addRange(range)
+        _richSavedRange = range.cloneRange()
+        updateRichTextPanelButtons()
 
         let didFinish = false
-        const finish = (commit) => {
+        let finish = (commit) => {
           if (didFinish) return
           didFinish = true
+          _richActiveEditor = null
+          _richActiveShapeId = null
+          _richSavedRange = null
+          updateRichTextPanelButtons()
           if (shapeEl) shapeEl.style.visibility = ''
           if (commit) {
-            if (wrapEnabled) {
-              const taRect = ta.getBoundingClientRect()
-              s.w = Math.max(1, (taRect.width / svgRect.width) * app.canvas.width)
-              s.h = Math.max(1, (taRect.height / svgRect.height) * app.canvas.height)
+            // Commit rich HTML; strip zero-width spaces from leading-only placeholders
+            s.text = editor.innerHTML.replace(/&#8203;/g, '\u200B').replace(/\u200B/g, '')
+            // After stripping placeholders re-set a clean empty state if nothing left
+            if (!s.text || s.text.replace(/<[^>]*>/g, '').trim() === '') {
+              s.text = '<div>&#8203;</div>'
             }
-            // Convert dashes to bullets when exiting edit mode
-            const processedText = dashesToBullets(ta.value)
-            s.text = processedText
             fitTextShapeToContent(s)
-
+            if (wrapEnabled) s.w = Math.max(getTextMinBoxSize(s).minW, s.w)
             pushHistory()
             render()
             markDirty()
           }
-          if (ta.parentNode) ta.remove()
+          if (editor.parentNode) editor.remove()
           setTool('select')
         }
 
-        ta.addEventListener('keydown', (ev) => {
-          // Enter exits edit mode; Shift+Enter inserts newline.
-          // key='Enter' covers both regular Enter and Numpad Enter.
-          const isEnter = ev.key === 'Enter'
-
-          if (isEnter && !ev.shiftKey) {
-            // Regular enter without shift: exit edit mode.
-            ev.preventDefault()
-            ev.stopPropagation()
-            finish(true)
-            return
-          }
-
-          if (isEnter && ev.shiftKey) {
-            // Shift+Enter and Shift+NumpadEnter: insert a raw newline.
-            ev.preventDefault()
-            ev.stopPropagation()
-            const start = ta.selectionStart
-            const end = ta.selectionEnd
-            const next = ta.value.slice(0, start) + '\n' + ta.value.slice(end)
-            ta.value = next
-            const caret = start + 1
-            ta.setSelectionRange(caret, caret)
-            updateEditorSize()
-            return
-          }
-          
-          if (ev.key === 'Escape') {
-            ev.preventDefault()
-            ev.stopPropagation()
-            finish(false)
-            return
-          }
-          
+        editor.addEventListener('input', syncSize)
+        editor.addEventListener('keydown', (ev) => {
+          if (ev.key === 'Tab') { handleRichTextIndent(ev); return }
+          if (ev.key === 'Escape') { ev.preventDefault(); ev.stopPropagation(); finish(true); return }
           ev.stopPropagation()
         })
+        editor.addEventListener('paste', handleRichTextPaste)
 
-        ta.addEventListener('input', updateEditorSize)
+        editor.addEventListener('blur', (ev) => {
+          // Don't finish if focus moved to a richtext format button
+          const related = ev.relatedTarget
+          if (related && (related.hasAttribute('data-richtext-btn') || related.closest?.('[data-richtext-btn]'))) return
+          finish(true)
+        })
 
-        ta.addEventListener('blur', () => finish(true), { once: true })
+        // Clicking outside the editor blurs it
+        const onDocumentPointerDown = (ev) => {
+          const isRichBtn = ev.target.hasAttribute('data-richtext-btn') || ev.target.closest?.('[data-richtext-btn]')
+          if (!editor.contains(ev.target) && !isRichBtn) {
+            editor.blur()
+          }
+        }
+        // Defer registration so the current pointerdown event (that created the shape)
+        // doesn't immediately trigger onDocumentPointerDown and blur the editor
+        setTimeout(() => document.addEventListener('pointerdown', onDocumentPointerDown), 0)
+        const origFinish = finish
+        finish = (commit) => {
+          document.removeEventListener('pointerdown', onDocumentPointerDown)
+          origFinish(commit)
+        }
       }
 
       const createTextAt = (x, y) => {
@@ -3570,15 +4455,15 @@
         s.type = 'text'
         s.x = x
         s.y = y
-        s.w = 400
-        s.h = 120
-        s.text = ''
         s.fontSize = app.style.fontSize
         s.fontFamily = 'Verdana'
+        const textPadding = clamp(Number(app.style.textPadding ?? 5), 0, 20)
+        // Size for a single empty line so the box starts tight and grows as the user types
+        s.w = Math.max(80, Math.round(s.fontSize * 6))  // rough width for a few chars
+        s.h = Math.ceil(s.fontSize * 1.2 + textPadding * 2)
+        s.text = '<div>&#8203;</div>'
         // text uses stroke color as fill
         s.style.fillAlpha = 0
-        s.style.textBorderEnabled = app.style.textBorderEnabled
-        s.style.textBorder = app.style.textBorder
         s.style.textBorderAlpha = app.style.textBorderAlpha
         s.style.textBorderWidth = app.style.textBorderWidth
         s.style.textPadding = app.style.textPadding
@@ -3633,6 +4518,7 @@
         if (!app.drawing) return
         if (ev.button !== 0) return
         app.isPointerDown = true
+        app.didDragMove = false  // reset per-pointer-down drag flag
 
         const p = clientToSvgPoint(ev.clientX, ev.clientY)
         app.startPt = { ...p }
@@ -3667,8 +4553,10 @@
           app.startBox = shapeBBox(selectedShape)
           app.startAngle = (selectedShape?.rot || 0)
           app.lineResizeState = null
-          // Hide selection box and handles during resize/rotate operations
-          app.hideSelectionDuringDrag = true
+          // For wrap-enabled text, keep selection visible so the bounding box is visible while resizing.
+          // For all other shapes hide selection during drag to reduce visual noise.
+          const isWrapTextResize = selectedShape?.type === 'text' && isTextWrapEnabled(selectedShape) && handle !== 'rot'
+          app.hideSelectionDuringDrag = !isWrapTextResize
 
           if (selectedShape && selectedShape.type === 'line' && handle !== 'rot') {
             const corner = {
@@ -3724,6 +4612,9 @@
                 const currentId = Array.from(app.selectedIds)[0]
                 if (hits.includes(currentId)) selectedId = currentId
               }
+              // Capture pre-click selection state: true = shape was already the sole selection
+              // (used by pointerUp to require two clicks before entering text edit mode)
+              app.textClickWasAlreadySelected = app.selectedIds.size === 1 && app.selectedIds.has(selectedId)
               selectSingle(selectedId)
               app.lastHitStack = buildCycleStackForShapeArea(selectedId)
               app.lastHitIndex = 0
@@ -3734,7 +4625,7 @@
             // Hide selection box and handles during move operations
             app.hideSelectionDuringDrag = true
           } else {
-            if (!ev.shiftKey) selectSingle(null)
+            if (!ev.shiftKey) { selectSingle(null); app.textClickWasAlreadySelected = false }
             app.dragMode = 'marquee'
           }
           ev.preventDefault()
@@ -3750,6 +4641,7 @@
           s.rot = 0
           s.style.fillAlpha = 0
           s.style.penLockAspect = app.style.penLockAspect
+          s.style.penSmoothness = app.style.penSmoothness
           app.shapes.push(s)
           app.activeShapeId = s.id
           selectSingle(s.id)
@@ -3781,6 +4673,12 @@
           s.type = 'line'
           s.x1 = p.x
           s.y1 = p.y
+          // Set stroke color based on tool: gray for arrow, black for line
+          if (app.tool === 'arrow') {
+            s.style.stroke = '#878787'  // rgb(135,135,135)
+          } else {
+            s.style.stroke = '#111111'  // black (default)
+          }
           s.style.lineStyle = normalizeLineStyle(app.style.lineStyle)
           s.style.arrowHeadSize = app.tool === 'line' ? 0 : Math.max(1, Number(app.style.arrowHeadSize || 12))
           s.style.arrowHeadStyle = normalizeArrowHeadStyle(app.style.arrowHeadStyle)
@@ -3807,6 +4705,30 @@
         }
 
         if (app.tool === 'text') {
+          // If a text editor is already open, don't create a new text object.
+          // Instead behave like the select tool: hit-test the click position and
+          // either select the shape that was hit or deselect on empty canvas.
+          // The open editor will commit itself via the blur triggered by onDocumentPointerDown.
+          if (_richActiveEditor) {
+            const hits = hitTest(p.x, p.y)
+            if (hits.length) {
+              const selectedId = hits[0]
+              app.textClickWasAlreadySelected = app.selectedIds.size === 1 && app.selectedIds.has(selectedId)
+              selectSingle(selectedId)
+              app.lastHitStack = buildCycleStackForShapeArea(selectedId)
+              app.lastHitIndex = 0
+              app.dragMode = 'move'
+              app.activeShapeId = selectedId
+              app.startBox = shapeBBox(getShapeById(selectedId))
+              app.hideSelectionDuringDrag = true
+            } else {
+              selectSingle(null)
+              app.textClickWasAlreadySelected = false
+              app.dragMode = null
+            }
+            ev.preventDefault()
+            return
+          }
           createTextAt(p.x, p.y)
           ev.preventDefault()
           return
@@ -4017,6 +4939,33 @@
         const p = clientToSvgPoint(ev.clientX, ev.clientY)
         app.lastPointer = { ...p }
 
+        // Update text drag handle visibility/position
+        if (textDragHandle) {
+          if (app.isPointerDown) {
+            // Hide during any drag to avoid visual clutter
+            textDragHandle.style.display = 'none'
+          } else {
+            // If a text shape is selected the handle is managed by render().
+            // For unselected shapes, show on hover so the user can drag them.
+            const hits = hitTest(p.x, p.y)
+            const topShape = hits.length ? getShapeById(hits[0]) : null
+            const selectedTextId = app.selectedIds.size === 1
+              ? (() => { const s = getShapeById(Array.from(app.selectedIds)[0]); return s?.type === 'text' ? s.id : null })()
+              : null
+            if (selectedTextId) {
+              // Keep selected text shape's handle positioned under the mouse
+              _hoveredTextId = selectedTextId
+              positionTextDragHandle(selectedTextId)
+            } else if (topShape && topShape.type === 'text') {
+              _hoveredTextId = topShape.id
+              positionTextDragHandle(topShape.id)
+            } else if (!_mouseOnDragHandle) {
+              _hoveredTextId = null
+              textDragHandle.style.display = 'none'
+            }
+          }
+        }
+
         if (!app.isPointerDown) return
         if (!app.dragMode) return
 
@@ -4108,6 +5057,9 @@
               movedTargetIds.add(s.id)
             }
           }
+          // Mark that the pointer actually dragged the shape so pointerUp
+          // won't mistake this for a click and enter text edit mode.
+          if (dx !== 0 || dy !== 0) app.didDragMove = true
           updateLinkedEndpointsForTargets(movedTargetIds)
           app.startPt = { ...p }
 
@@ -4173,8 +5125,14 @@
             const minSize = getTextMinBoxSize(s)
             const anchorX = handle.includes('w') ? (bb0.x + bb0.w) : bb0.x
             const anchorY = handle.includes('n') ? (bb0.y + bb0.h) : bb0.y
-            const nextW = Math.max(minSize.minW, Math.abs(p.x - anchorX))
+            let nextW = Math.max(minSize.minW, Math.abs(p.x - anchorX))
             const nextH = Math.max(minSize.minH, Math.abs(p.y - anchorY))
+            
+            // Cap width to not exceed the maximum line length when wrapped
+            s.w = nextW
+            const maxLineW = getMaxTextLineWidth(s)
+            nextW = Math.min(nextW, maxLineW)
+            
             s.w = nextW
             s.h = nextH
             s.x = handle.includes('w') ? (anchorX - s.w) : anchorX
@@ -4328,6 +5286,26 @@
         // Show selection box and handles after drag operation completes
         app.hideSelectionDuringDrag = false
 
+        // Detect a plain click (no real drag) on a text shape → open inline editor
+        // Requires the shape to have been already selected (second click), not freshly selected.
+        // Also requires that no actual drag movement occurred during this pointer-down/up cycle.
+        if (app.dragMode === 'move' && app.activeShapeId && app.startPt && !ev.shiftKey && !app.didDragMove) {
+          const upPt = clientToSvgPoint(ev.clientX, ev.clientY)
+          if (Math.hypot(upPt.x - app.startPt.x, upPt.y - app.startPt.y) < 4) {
+            const s = getShapeById(app.activeShapeId)
+            if (s && s.type === 'text' && app.selectedIds.size === 1 && app.textClickWasAlreadySelected) {
+              app.dragMode = null
+              app.activeHandle = null
+              app.activeShapeId = null
+              app.startPt = null
+              app.startBox = null
+              app.textClickWasAlreadySelected = false
+              startTextEdit(s.id, ev.clientX, ev.clientY)
+              return
+            }
+          }
+        }
+
         if (app.dragMode === 'draw') {
           // Snap line/arrow to grid if width or height is within tolerance
           const s = getShapeById(app.activeShapeId)
@@ -4419,13 +5397,6 @@
       /* =========================
          Properties panel sync
       ========================= */
-      const updateTextBorderControlState = (isText, isEnabled) => {
-        $('#textBorderEnabled').disabled = !isText
-        $('#textBorderColor').disabled = !isText || !isEnabled
-        $('#textBorderAlpha').disabled = !isText || !isEnabled
-        $('#textBorderWidth').disabled = !isText || !isEnabled
-      }
-
       const setRowHidden = (rowId, hidden) => {
         const row = $('#' + rowId)
         if (!row) return
@@ -4461,6 +5432,9 @@
           'rowPenFlip',
           'rowTextGeneralHeader',
           'rowTextFlip',
+          'rowRichTextFormat',
+          'rowRichTextHighlight',
+          'rowBulletList',
           'rowShortcutsHeader',
           'rowShortcuts',
           'rowImageCrop',
@@ -4471,7 +5445,14 @@
           'rowFillAlpha',
           'rowLineLockAspect',
           'rowArrowLockAspect',
+          'rowArrowHeadSize',
           'rowArrowHeadStyle',
+          'rowArrowHeadColor',
+          'rowArrowHeadAlpha',
+          'rowArrowHeadDoubleSided',
+          'rowArrowHeadWidth',
+          'rowArrowHeadAngle',
+          'rowLineStyle',
           'rowPenLockAspect',
           'rowRotation'
         ]
@@ -4523,13 +5504,18 @@
         setRowOrder('rowImageCrop', -87)
         setRowOrder('rowRotation', -86)
         setRowOrder('rowLineLikeArrowHeader', -85)
-        setRowOrder('rowArrowHeadSize', -84)
-        setRowOrder('rowArrowHeadStyle', -83)
-        setRowOrder('rowLineLikeLineHeader', -82)
-        setRowOrder('rowLineStyle', -81)
-        setRowOrder('rowStrokeWidth', -80)
-        setRowOrder('rowStroke', -79)
-        setRowOrder('rowStrokeAlpha', -78)
+        setRowOrder('rowArrowHeadDoubleSided', -84)
+        setRowOrder('rowArrowHeadSize', -83)
+        setRowOrder('rowArrowHeadStyle', -82)
+        setRowOrder('rowArrowHeadColor', -81)
+        setRowOrder('rowArrowHeadAlpha', -80)
+        setRowOrder('rowArrowHeadWidth', -79)
+        setRowOrder('rowArrowHeadAngle', -78)
+        setRowOrder('rowLineLikeLineHeader', -77)
+        setRowOrder('rowLineStyle', -76)
+        setRowOrder('rowStrokeWidth', -75)
+        setRowOrder('rowStroke', -74)
+        setRowOrder('rowStrokeAlpha', -73)
         setRowOrder('rowShortcutsHeader', 98)
         setRowOrder('rowShortcuts', 99)
       }
@@ -4559,9 +5545,12 @@
         setRowOrder('rowRotation', -87)
         setRowOrder('rowTextareaTextHeader', -70)
         setRowOrder('rowTextareaFontSize', -69)
-        setRowOrder('rowTextareaTextColor', -68)
-        setRowOrder('rowTextareaTextAlpha', -67)
-        setRowOrder('rowTextareaWrapText', -66)
+        setRowOrder('rowRichTextFormat', -68)
+        setRowOrder('rowRichTextHighlight', -67)
+        setRowOrder('rowBulletList', -66)
+        setRowOrder('rowTextareaTextColor', -65)
+        setRowOrder('rowTextareaTextAlpha', -64)
+        setRowOrder('rowTextareaWrapText', -63)
         setRowOrder('rowTextareaBorderHeader', -60)
         setRowOrder('rowTextareaBorderWidth', -59)
         setRowOrder('rowTextareaBorderColor', -58)
@@ -4614,11 +5603,10 @@
         resetBaseRowOrder()
 
         const commonRows = ['rowStroke', 'rowFill', 'rowStrokeWidth', 'rowStrokeAlpha', 'rowFillAlpha', 'rowRotation']
-        const textRows = ['rowFontSize', 'rowTextBorderEnabled', 'rowTextBorderColor', 'rowTextBorderAlpha', 'rowTextBorderWidth']
-        const textareaRows = ['rowTextareaTextHeader', 'rowTextareaFontSize', 'rowTextareaTextColor', 'rowTextareaTextAlpha', 'rowTextareaWrapText', 'rowTextareaBorderHeader', 'rowTextareaBorderWidth', 'rowTextareaBorderColor', 'rowTextareaBorderAlpha', 'rowTextareaPadding', 'rowTextareaBackgroundHeader', 'rowTextareaBackgroundColor', 'rowTextareaBackgroundAlpha']
+        const textareaRows = ['rowTextareaTextHeader', 'rowTextareaFontSize', 'rowRichTextFormat', 'rowRichTextHighlight', 'rowBulletList', 'rowTextareaTextColor', 'rowTextareaTextAlpha', 'rowTextareaWrapText', 'rowTextareaBorderHeader', 'rowTextareaBorderWidth', 'rowTextareaBorderColor', 'rowTextareaBorderAlpha', 'rowTextareaPadding', 'rowTextareaBackgroundHeader', 'rowTextareaBackgroundColor', 'rowTextareaBackgroundAlpha']
         const imageRows = ['rowImageGeneralHeader', 'rowImageLockAspect', 'rowImageAlpha', 'rowImageFlip', 'rowImageBorderHeader', 'rowImageBorderWidth', 'rowImageBorderColor', 'rowImageBorderAlpha', 'rowImageTransparencyHeader', 'rowImageTransparencyEnabled', 'rowImageTransparencyColor', 'rowImageTransparencyTolerance']
         const cropRows = ['rowImageCrop']
-        const lineLikeRows = ['rowLineLikeGeneralHeader', 'rowLineLikeArrowHeader', 'rowLineLikeLineHeader', 'rowArrowHeadSize', 'rowArrowHeadStyle', 'rowLineStyle', 'rowLineLockAspect', 'rowArrowLockAspect', 'rowLineLikeFlip']
+        const lineLikeRows = ['rowLineLikeGeneralHeader', 'rowLineLikeArrowHeader', 'rowLineLikeLineHeader', 'rowArrowHeadDoubleSided', 'rowArrowHeadSize', 'rowArrowHeadStyle', 'rowArrowHeadColor', 'rowArrowHeadAlpha', 'rowArrowHeadWidth', 'rowArrowHeadAngle', 'rowLineStyle', 'rowLineLockAspect', 'rowArrowLockAspect', 'rowLineLikeFlip']
         const rectSectionRows = ['rowRectGeneralHeader', 'rowRectLockAspect', 'rowRectBorderHeader', 'rowRectFillHeader', 'rowRectFlip']
         const circleSectionRows = ['rowCircleGeneralHeader', 'rowCircleStrokeHeader', 'rowCircleFillHeader', 'rowCircleLockAspect', 'rowCircleFlip']
         const penOnlyRows = ['rowPenGeneralHeader', 'rowPenStrokeHeader', 'rowPenTransformHeader', 'rowPenSmoothness', 'rowPenLockAspect', 'rowPenFlip']
@@ -4649,7 +5637,6 @@
         setRowHidden('rowTextGeneralHeader', mode !== 'textarea')
         setRowHidden('rowLineLikeArrowHeader', mode !== 'lineLike')
         setRowHidden('rowLineLikeLineHeader', mode !== 'lineLike')
-        for (const id of textRows) setRowHidden(id, mode !== 'text')
         for (const id of textareaRows) setRowHidden(id, mode !== 'textarea')
         setRowHidden('rowTextFlip', mode !== 'textarea')
         for (const id of imageRows) setRowHidden(id, mode !== 'image')
@@ -4735,7 +5722,6 @@
           updatePropsPanelMode('default', false)
           $('#selectedTypeDisplay').textContent = 'none'
           syncCropButtonState(null)
-          updateTextBorderControlState(false, false)
           return
         }
         const s = ctx.firstShape
@@ -4765,7 +5751,6 @@
           setCheckedValue('imageTransparencyEnabled', st.imageTransparencyEnabled ?? app.style.imageTransparencyEnabled)
           setInputValue('imageTransparencyColor', st.imageTransparencyColor || app.style.imageTransparencyColor)
           setInputValue('imageTransparencyTolerance', st.imageTransparencyTolerance ?? app.style.imageTransparencyTolerance)
-          updateTextBorderControlState(false, false)
           return
         }
 
@@ -4783,6 +5768,11 @@
           setInputValue('lineStyle', normalizeLineStyle(st.lineStyle ?? app.style.lineStyle))
           setInputValue('arrowHeadSize', Math.max(0, Number(st.arrowHeadSize ?? (s.type === 'line' ? 0 : app.style.arrowHeadSize))))
           setInputValue('arrowHeadStyle', normalizeArrowHeadStyle(st.arrowHeadStyle ?? app.style.arrowHeadStyle))
+          setCheckedValue('arrowHeadDoubleSided', !!(st.arrowHeadDoubleSided ?? app.style.arrowHeadDoubleSided))
+          setInputValue('arrowHeadColor', st.arrowHeadColor || app.style.arrowHeadColor)
+          setInputValue('arrowHeadAlpha', st.arrowHeadAlpha ?? app.style.arrowHeadAlpha)
+          setInputValue('arrowHeadWidth', st.arrowHeadWidth ?? app.style.arrowHeadWidth)
+          setInputValue('arrowHeadAngle', st.arrowHeadAngle ?? app.style.arrowHeadAngle)
           setCheckedValue('lineLockAspect', plainLineShapes[0]?.style?.lineLockAspect ?? app.style.lineLockAspect)
           setCheckedValue('arrowLockAspect', arrowShapes[0]?.style?.arrowLockAspect ?? app.style.arrowLockAspect)
           // Sync flip for line-like shapes
@@ -4796,7 +5786,6 @@
           setRowHidden('rowArrowLockAspect', !hasArrow)
           setInputValue('rotation', s.rot || 0)
           syncCropButtonState(s)
-          updateTextBorderControlState(false, false)
           return
         }
 
@@ -4806,7 +5795,7 @@
           setInputValue('strokeColor', st.stroke || app.style.stroke)
           setInputValue('strokeWidth', st.strokeWidth ?? app.style.strokeWidth)
           setInputValue('strokeAlpha', st.strokeAlpha ?? app.style.strokeAlpha)
-          setInputValue('penSmoothness', st.penSmoothness ?? 0)
+          setInputValue('penSmoothness', st.penSmoothness ?? app.style.penSmoothness)
           setCheckedValue('penLockAspect', st.penLockAspect ?? app.style.penLockAspect)
           const penFlipH = !!(st.penFlipH ?? app.style.penFlipH)
           const penFlipV = !!(st.penFlipV ?? app.style.penFlipV)
@@ -4816,7 +5805,6 @@
           $('#btnPenFlipV').setAttribute('aria-pressed', String(penFlipV))
           setInputValue('rotation', s.rot || 0)
           syncCropButtonState(s)
-          updateTextBorderControlState(false, false)
           return
         }
 
@@ -4882,17 +5870,9 @@
           $('#btnTextFlipV').classList.toggle('primary', textFlipV)
           $('#btnTextFlipH').setAttribute('aria-pressed', String(textFlipH))
           $('#btnTextFlipV').setAttribute('aria-pressed', String(textFlipV))
-          // Keep old properties for backward compatibility
-          setInputValue('fontSize', s.fontSize || app.style.fontSize)
-          setCheckedValue('textBorderEnabled', st.textBorderWidth > 0)
-          setInputValue('textBorderColor', st.textBorderColor || app.style.textBorderColor)
-          setInputValue('textBorderAlpha', st.textBorderAlpha ?? app.style.textBorderAlpha)
-          setInputValue('textBorderWidth', st.textBorderWidth ?? app.style.textBorderWidth)
           syncCropButtonState(s)
-          updateTextBorderControlState(false, false)
         } else {
           syncCropButtonState(s)
-          updateTextBorderControlState(false, false)
         }
       }
 
@@ -4900,14 +5880,6 @@
         const ctx = getSelectionPropsContext()
         if (!ctx.hasSelection || !ctx.compatible) return
         const ids = ctx.selectedShapes.map(s => s.id)
-        const hasTextSelection = ids.some(id => {
-          const s = getShapeById(id)
-          return !!s && s.type === 'text'
-        })
-        const textBorderEnabled = $('#textBorderEnabled').checked
-        const textBorderColor = $('#textBorderColor').value
-        const textBorderAlpha = Number($('#textBorderAlpha').value)
-        const textBorderWidth = Number($('#textBorderWidth').value)
         // New textarea properties
         const textareaFontSize = Number($('#textareaFontSize').value) || app.style.fontSize
         const textareaTextColor = $('#textareaTextColor').value
@@ -4944,8 +5916,13 @@
         const imageTransparencyEnabled = $('#imageTransparencyEnabled').checked
         const imageTransparencyColor = $('#imageTransparencyColor').value
         const imageTransparencyTolerance = Number($('#imageTransparencyTolerance').value)
+        const arrowHeadDoubleSided = $('#arrowHeadDoubleSided').checked
         const arrowHeadSize = Number($('#arrowHeadSize').value)
         const arrowHeadStyle = normalizeArrowHeadStyle($('#arrowHeadStyle').value)
+        const arrowHeadColor = $('#arrowHeadColor').value
+        const arrowHeadAlpha = Number($('#arrowHeadAlpha').value)
+        const arrowHeadWidth = Number($('#arrowHeadWidth').value)
+        const arrowHeadAngle = Number($('#arrowHeadAngle').value)
         const lineStyle = normalizeLineStyle($('#lineStyle').value)
         const penSmoothness = Number($('#penSmoothness').value)
         const targetRotation = normalizeRotationDeg($('#rotation').value)
@@ -4986,8 +5963,13 @@
             s.style.strokeWidth = Number($('#strokeWidth').value)
             s.style.strokeAlpha = Number($('#strokeAlpha').value)
             s.style.lineStyle = lineStyle
+            s.style.arrowHeadDoubleSided = arrowHeadDoubleSided
             s.style.arrowHeadSize = Math.max(0, arrowHeadSize)
             s.style.arrowHeadStyle = arrowHeadStyle
+            s.style.arrowHeadColor = arrowHeadColor
+            s.style.arrowHeadAlpha = arrowHeadAlpha
+            s.style.arrowHeadWidth = Math.max(0, arrowHeadWidth)
+            s.style.arrowHeadAngle = Math.max(0, Math.min(80, arrowHeadAngle))
             s.style.lineLockAspect = lineLockAspect
             s.style.arrowLockAspect = arrowLockAspect
             const toggledH = prevFlipH !== !!lineLikeFlipH
@@ -5036,7 +6018,10 @@
             const prevFlipH = !!(s.style.textFlipH ?? app.style.textFlipH)
             const prevFlipV = !!(s.style.textFlipV ?? app.style.textFlipV)
             mirrorShapeCropForFlip(s, prevFlipH, prevFlipV, textFlipH, textFlipV)
+            const oldFs = Number(s.fontSize || app.style.fontSize)
             s.fontSize = textareaFontSize
+            if (textareaFontSize !== oldFs)
+              s.text = rescaleRichTextFontSizes(s.text, oldFs, textareaFontSize)
             s.style.textColor = textareaTextColor
             s.style.textAlpha = textareaTextAlpha
             s.style.textWrap = !!textareaWrapText
@@ -5046,8 +6031,6 @@
             s.style.textPadding = clamp(textareaPadding, 0, 20)
             s.style.textBackground = textareaBackgroundColor
             s.style.textBackgroundAlpha = textareaBackgroundAlpha
-            s.style.textBorderEnabled = textareaBorderWidth > 0
-            s.style.textBorder = textareaBorderColor
             s.style.textFlipH = textFlipH
             s.style.textFlipV = textFlipV
             // Keep text shape as a tight envelope when spacing/font/wrap changes.
@@ -5089,7 +6072,6 @@
           }
         }
         updateLinkedEndpointsForTargets(new Set(ids))
-        updateTextBorderControlState(hasTextSelection, hasTextSelection && textBorderEnabled)
         render()
         markDirty()
       }
@@ -5304,6 +6286,8 @@
         // Remove editor-only visuals
         svgNode.querySelectorAll('.selOverlay').forEach(n => n.remove())
         svgNode.querySelectorAll('.hit').forEach(n => n.remove())
+        // Replace foreignObject elements so the canvas stays untainted
+        replaceForeignObjectsForExport(svgNode)
 
         // Inject background rect (CSS background won’t reliably rasterize)
         const bg = document.createElementNS('http://www.w3.org/2000/svg', 'rect')
@@ -5381,7 +6365,14 @@
           }
         }
 
+        // Hide the text drag handle if the shape it was attached to was deleted
+        if (_hoveredTextId && toDelete.has(_hoveredTextId)) {
+          _hoveredTextId = null
+          if (textDragHandle) textDragHandle.style.display = 'none'
+        }
+
         app.selectedIds = new Set()
+        syncPropsFromSelection()
         pushHistory()
         render()
         markDirty()
@@ -5426,8 +6417,16 @@
         }
         updateLinkedEndpointsForTargets(movedTargetIds)
 
-        // Update guide visuals after the move
+        // Update guide visuals after the move, then filter to the relevant axis:
+        // horizontal moves → vertical guides only; vertical moves → horizontal guides only.
         updateAlignGuideVisuals()
+        if (app.alignGuides) {
+          if (dx !== 0 && dy === 0) {
+            app.alignGuides = { ...app.alignGuides, activeHLines: [] }
+          } else if (dy !== 0 && dx === 0) {
+            app.alignGuides = { ...app.alignGuides, activeVLines: [] }
+          }
+        }
 
         // Clear guides after keyboard inactivity
         clearTimeout(app._nudgeGuideTimer)
@@ -5442,6 +6441,7 @@
         render()
         app.hideSelectionDuringDrag = false
         markDirty()
+        syncTextDragHandleAfterKeyboard()
       }
 
       const resizeShapeByDelta = (s, delta) => {
@@ -5452,6 +6452,7 @@
           const prevFs = Number(s.fontSize || app.style.fontSize)
           const nextFs = clamp(prevFs + delta, 6, 200)
           s.fontSize = nextFs
+          s.text = rescaleRichTextFontSizes(s.text, prevFs, nextFs)
           if (isTextWrapEnabled(s) && prevFs > 0) {
             const scale = nextFs / prevFs
             const minSize = getTextMinBoxSize(s)
@@ -5546,8 +6547,7 @@
           if (!s) continue
           resizeShapeByDelta(s, delta)
           // Only update UI if this is the single selected item (or first in multi-selection)
-          if (app.selectedIds.size === 1 && (s.type === 'text' || s.type === 'textarea')) {
-            $('#fontSize').value = s.fontSize || app.style.fontSize
+          if (app.selectedIds.size === 1 && s.type === 'text') {
             setInputValue('textareaFontSize', s.fontSize || app.style.fontSize)
           }
         }
@@ -5558,6 +6558,7 @@
         render()
         app.hideSelectionDuringDrag = false
         markDirty()
+        syncTextDragHandleAfterKeyboard()
       }
 
       const convertSelectedRectanglesToSquares = () => {
@@ -5594,7 +6595,8 @@
         }
 
         // If text editor is open, do not handle shortcuts
-        if (document.activeElement && document.activeElement.classList && document.activeElement.classList.contains('textEdit')) return
+        const _activeEl = document.activeElement
+        if (_activeEl && _activeEl.classList?.contains('textEdit')) return
         if (!bypassInputGuard && document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA' || document.activeElement.isContentEditable)) {
           // allow Esc to blur
           if (ev.key === 'Escape') document.activeElement.blur()
@@ -5616,46 +6618,21 @@
           return
         }
 
-        // Tool shortcuts
+        // Copy selection (Cmd+C / Ctrl+C) — only intercepts when canvas has selection
         const k = ev.key.toLowerCase()
+        if (modKey(ev) && k === 'c' && !bypassInputGuard && app.selectedIds.size > 0) {
+          ev.preventDefault()
+          copySelectionToClipboard()
+          return
+        }
+
+        // Tool shortcuts
         if (k === 'v') { setTool('select'); return }
         if (k === 'p') { selectSingle(null); setTool('pen'); return }
         if (k === 'r') { selectSingle(null); setTool('rect'); return }
         if (k === 'c') { selectSingle(null); setTool('ellipse'); return }
         if (k === 'a') { selectSingle(null); setTool('arrow'); return }
         if (k === 'l') { selectSingle(null); setTool('line'); return }
-        // Edit selected text (E)
-        if (k === 'e') {
-          let textId = null
-
-          for (const id of app.selectedIds) {
-            const s = getShapeById(id)
-            if (!s) continue
-
-            if (s.type === 'text') {
-              textId = s.id
-              break
-            }
-
-            if (s.type === 'group') {
-              const kids = (s.childrenIds || []).map(getShapeById).filter(Boolean)
-              const textKid = kids.find(x => x.type === 'text')
-              if (textKid) {
-                textId = textKid.id
-                break
-              }
-            }
-          }
-
-          if (textId) {
-            ev.preventDefault()
-            ev.stopPropagation()
-            selectSingle(textId)
-            startTextEdit(textId, ev.clientX, ev.clientY)
-          }
-          return
-        }
-
 
         if (k === 't') {
           ev.preventDefault()
@@ -5669,6 +6646,13 @@
         if (k === 'g') { groupSelection(); return }
         if (k === 'u') { ungroupSelection(); return }
         if (k === 'd') { ev.preventDefault(); duplicateSelection(); return }
+        if (k === 'e') {
+          // Enter typing mode for the first selected text shape
+          const textShape = Array.from(app.selectedIds)
+            .map(id => getShapeById(id))
+            .find(s => s && s.type === 'text')
+          if (textShape) { ev.preventDefault(); startTextEdit(textShape.id); return }
+        }
         if (k === 'n') {
           createNewDrawing()
           return
@@ -5772,6 +6756,19 @@
         const active = document.activeElement
         if (active && active.classList && active.classList.contains('textEdit')) return
         if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.isContentEditable)) return
+
+        // Check for our cross-canvas shape JSON format first
+        const plainText = ev.clipboardData?.getData('text/plain') || ''
+        if (plainText.startsWith('{"_paintShapes":')) {
+          try {
+            const payload = JSON.parse(plainText)
+            if (Array.isArray(payload._paintShapes) && payload._paintShapes.length > 0) {
+              ev.preventDefault()
+              pasteShapesFromClipboard(payload._paintShapes)
+              return
+            }
+          } catch {}
+        }
 
         const items = Array.from(ev.clipboardData?.items || [])
         const imageItem = items.find(it => it && it.kind === 'file' && /^image\//i.test(it.type || ''))
@@ -5886,8 +6883,158 @@
 
 
       /* =========================
+         Text drag handle state
+      ========================= */
+      let textDragHandle = null
+      let _hoveredTextId = null
+      let _mouseOnDragHandle = false
+
+      const positionTextDragHandle = (shapeId) => {
+        if (!textDragHandle) return
+        const s = getShapeById(shapeId)
+        if (!s) { textDragHandle.style.display = 'none'; return }
+        const bbox = shapeBBox(s)
+        const svgRect = svg.getBoundingClientRect()
+        const wrapRect = $('#canvasWrap').getBoundingClientRect()
+        const scaleX = svgRect.width / app.canvas.width
+        const scaleY = svgRect.height / app.canvas.height
+        const screenLeft = svgRect.left + bbox.x * scaleX
+        const screenTop  = svgRect.top  + bbox.y * scaleY
+        const screenH    = bbox.h * scaleY
+        textDragHandle.style.height = Math.max(32, screenH) + 'px'
+        textDragHandle.style.left   = (screenLeft - wrapRect.left - 10) + 'px'
+        textDragHandle.style.top    = (screenTop  - wrapRect.top)  + 'px'
+        textDragHandle.style.display = 'block'
+      }
+
+      // Refresh drag bar after keyboard move/resize if it is currently visible.
+      const syncTextDragHandleAfterKeyboard = () => {
+        if (!textDragHandle || textDragHandle.style.display === 'none') return
+        if (_hoveredTextId) positionTextDragHandle(_hoveredTextId)
+      }
+
+      // Show the drag bar whenever exactly one text shape is selected
+      // (i.e. whenever its bounding box is visible).  Called from render().
+      const syncTextDragHandle = () => {
+        if (!textDragHandle) return
+        if (app.isPointerDown) return   // hide during any active drag
+        if (app.selectedIds.size === 1) {
+          const s = getShapeById(Array.from(app.selectedIds)[0])
+          if (s && s.type === 'text') {
+            _hoveredTextId = s.id
+            positionTextDragHandle(s.id)
+            return
+          }
+        }
+        // No single text shape selected — fall back to hover-based visibility
+        if (!_hoveredTextId) textDragHandle.style.display = 'none'
+      }
+
+      /* =========================
          UI wiring
       ========================= */
+      // =========================================================
+      // Custom color picker – intercepts every <input type="color">
+      // and shows a 4×4 preset swatch grid. "Other colors…" opens
+      // the native browser picker.
+      // =========================================================
+      const initCustomColorPicker = () => {
+        const PRESETS = [
+          '#ffffff', '#aaaaaa', '#555555', '#000000',
+          '#f44336', '#ff9800', '#ffeb3b', '#cddc39',
+          '#4caf50', '#009688', '#00bcd4', '#2196f3',
+          '#3f51b5', '#9c27b0', '#e91e63', '#795548'
+        ]
+
+        let popup = null
+        let activeInput = null
+        let openNativeNext = false
+
+        const buildPopup = () => {
+          const el = document.createElement('div')
+          el.id = 'customColorPicker'
+
+          const grid = document.createElement('div')
+          grid.className = 'ccp-grid'
+          PRESETS.forEach(color => {
+            const sw = document.createElement('button')
+            sw.className = 'ccp-swatch'
+            sw.style.background = color
+            sw.title = color
+            sw.addEventListener('mousedown', e => e.preventDefault())
+            sw.addEventListener('click', e => {
+              e.stopPropagation()
+              if (activeInput) {
+                activeInput.value = color
+                activeInput.dispatchEvent(new Event('input',  { bubbles: true }))
+                activeInput.dispatchEvent(new Event('change', { bubbles: true }))
+              }
+              close()
+            })
+            grid.appendChild(sw)
+          })
+          el.appendChild(grid)
+
+          const btn = document.createElement('button')
+          btn.className = 'ccp-other'
+          btn.textContent = 'Other colors\u2026'
+          btn.addEventListener('mousedown', e => e.preventDefault())
+          btn.addEventListener('click', e => {
+            e.stopPropagation()
+            const inp = activeInput
+            close()
+            if (inp) { openNativeNext = true; inp.click() }
+          })
+          el.appendChild(btn)
+
+          document.body.appendChild(el)
+
+          // Close on outside click (capture phase so it runs before other handlers)
+          document.addEventListener('click', e => {
+            if (popup && popup.style.display !== 'none' &&
+                !popup.contains(e.target) && e.target !== activeInput) {
+              close()
+            }
+          }, true)
+          document.addEventListener('keydown', e => {
+            if (e.key === 'Escape' && popup && popup.style.display !== 'none') close()
+          })
+          return el
+        }
+
+        const open = (input) => {
+          if (!popup) popup = buildPopup()
+          activeInput = input
+          popup.style.display = 'block'
+
+          const rect  = input.getBoundingClientRect()
+          const pw = 178, ph = 162
+          let top  = rect.bottom + 6
+          let left = rect.left
+
+          if (top  + ph > window.innerHeight) top  = rect.top - ph - 4
+          if (left + pw > window.innerWidth)  left = window.innerWidth - pw - 8
+          if (left < 4) left = 4
+
+          popup.style.top  = top  + 'px'
+          popup.style.left = left + 'px'
+        }
+
+        const close = () => {
+          if (popup) popup.style.display = 'none'
+          activeInput = null
+        }
+
+        // Attach click interceptor to every color input on the page
+        document.querySelectorAll('input[type="color"]').forEach(input => {
+          input.addEventListener('click', e => {
+            if (openNativeNext) { openNativeNext = false; return }
+            e.preventDefault()
+            open(input)
+          })
+        })
+      }
+
       const toggleGallery = () => {
         app.galleryOpen = !app.galleryOpen
         const main = $('#main')
@@ -5957,11 +7104,24 @@
         })
 
         // Properties
-        const livePropInputIds = ['strokeWidth', 'strokeAlpha', 'fillAlpha', 'rotation', 'fontSize', 'textBorderAlpha', 'textBorderWidth', 'imageAlpha', 'imageBorderAlpha', 'imageBorderWidth', 'arrowHeadSize', 'imageTransparencyTolerance', 'textareaFontSize', 'textareaBorderWidth', 'textareaBorderAlpha', 'textareaPadding', 'textareaTextAlpha', 'textareaBackgroundAlpha', 'penSmoothness']
+        const livePropInputIds = ['strokeWidth', 'strokeAlpha', 'fillAlpha', 'rotation', 'imageAlpha', 'imageBorderAlpha', 'imageBorderWidth', 'arrowHeadSize', 'arrowHeadAlpha', 'arrowHeadWidth', 'arrowHeadAngle', 'imageTransparencyTolerance', 'textareaFontSize', 'textareaBorderWidth', 'textareaBorderAlpha', 'textareaPadding', 'textareaBackgroundAlpha', 'penSmoothness']
         for (const id of livePropInputIds) {
           const el = $('#' + id)
           el.addEventListener('input', applyPropsToSelection)
         }
+        // textareaTextAlpha: apply via RichTextEngine when editing, otherwise all spans in shape
+        $('#textareaTextAlpha').addEventListener('input', () => {
+          const color = $('#textareaTextColor').value
+          const alpha = Number($('#textareaTextAlpha').value)
+          const rgba  = rgbaFromHexAlpha(color, alpha)
+          if (_richActiveEditor) {
+            RichTextEngine.execute('color', rgba, true)
+            updateRichTextPanelButtons()
+          } else {
+            applyFormatToSelectedShapes('color', rgba, true)
+            applyPropsToSelection()
+          }
+        })
         $('#rotation').addEventListener('input', (ev) => updateRotationValueDisplay(ev.target.value))
         $('#rotationDec').addEventListener('click', () => adjustRotationSlider(-1))
         $('#rotationReset').addEventListener('click', () => {
@@ -5978,17 +7138,49 @@
         $('#textareaFontSizeDecFast').addEventListener('click', () => adjustTextareaFontSize(-8))
         $('#textareaFontSizeIncFast').addEventListener('click', () => adjustTextareaFontSize(8))
         updateTextareaFontSizeDisplay($('#textareaFontSize').value)
-        const colorPropInputIds = ['strokeColor', 'fillColor', 'textBorderColor', 'imageBorderColor', 'imageTransparencyColor', 'textareaTextColor', 'textareaBorderColor', 'textareaBackgroundColor']
+        const colorPropInputIds = ['strokeColor', 'fillColor', 'imageBorderColor', 'imageTransparencyColor', 'textareaBorderColor', 'textareaBackgroundColor']
         for (const id of colorPropInputIds) {
           const el = $('#' + id)
           // Live preview while the color picker is open.
           el.addEventListener('input', applyPropsToSelection)
           el.addEventListener('change', applyPropsToSelection)
         }
-        $('#textBorderEnabled').addEventListener('input', applyPropsToSelection)
+        // textareaTextColor: apply via RichTextEngine when editing, otherwise all spans in shape
+        const applyTextColor = () => {
+          const color = $('#textareaTextColor').value
+          const alpha = Number($('#textareaTextAlpha').value)
+          const rgba  = rgbaFromHexAlpha(color, alpha)
+          if (_richActiveEditor) {
+            RichTextEngine.execute('color', rgba, true)
+            updateRichTextPanelButtons()
+          } else {
+            applyFormatToSelectedShapes('color', rgba, true)
+            applyPropsToSelection()  // also update s.style.textColor as the default
+          }
+        }
+        $('#textareaTextColor').addEventListener('input', applyTextColor)
+        $('#textareaTextColor').addEventListener('change', applyTextColor)
+        $('#arrowHeadDoubleSided').addEventListener('input', applyPropsToSelection)
         $('#lineStyle').addEventListener('change', applyPropsToSelection)
         $('#arrowHeadStyle').addEventListener('change', applyPropsToSelection)
-        $('#textareaWrapText').addEventListener('input', applyPropsToSelection)
+        $('#arrowHeadColor').addEventListener('input', applyPropsToSelection)
+        $('#textareaWrapText').addEventListener('input', () => {
+          // Use a dedicated handler so only textWrap is changed; avoids accidentally
+          // overwriting textColor/textAlpha from potentially-stale panel values.
+          const ctx = getSelectionPropsContext()
+          if (!ctx.hasSelection || !ctx.compatible) return
+          const wrapEnabled = $('#textareaWrapText').checked
+          for (const s of ctx.selectedShapes) {
+            if (!s || s.type !== 'text') continue
+            s.style = s.style || {}
+            s.style.textWrap = wrapEnabled
+            fitTextShapeToContent(s)
+            if (wrapEnabled) s.w = getMaxTextLineWidth(s)
+          }
+          pushHistory()
+          render()
+          markDirty()
+        })
         $('#rectLockAspect').addEventListener('input', applyPropsToSelection)
         $('#circleLockAspect').addEventListener('input', applyPropsToSelection)
         $('#lineLockAspect').addEventListener('input', applyPropsToSelection)
@@ -6033,7 +7225,6 @@
           render()
         })
         updatePropsPanelMode('default', false)
-        updateTextBorderControlState(false, false)
 
         // Global rule: whenever any property-panel control is changed/clicked,
         // return focus to the drawing so keyboard shortcuts remain active.
@@ -6048,7 +7239,7 @@
         })
         propsPanelEl.addEventListener('click', (ev) => {
           const btn = ev.target && ev.target.closest ? ev.target.closest('button') : null
-          if (btn) focusMainDrawing()
+          if (btn && !btn.hasAttribute('data-richtext-btn')) focusMainDrawing()
         })
 
         // Pointer events
@@ -6056,18 +7247,40 @@
         window.addEventListener('pointermove', pointerMove)
         window.addEventListener('pointerup', pointerUp)
 
-        // Double click text to edit
-        svg.addEventListener('dblclick', (ev) => {
-          const p = clientToSvgPoint(ev.clientX, ev.clientY)
-          const hits = hitTest(p.x, p.y)
-          if (!hits.length) return
-          const s = getShapeById(hits[0])
-          if (s && s.type === 'text') {
-            selectSingle(s.id)
-            startTextEdit(s.id, ev.clientX, ev.clientY)
-          }
+        // Text drag handle: create, wire hover and drag
+        textDragHandle = document.createElement('div')
+        textDragHandle.className = 'textDragHandle'
+        $('#canvasWrap').appendChild(textDragHandle)
+
+        textDragHandle.addEventListener('mouseenter', () => { _mouseOnDragHandle = true })
+        textDragHandle.addEventListener('mouseleave', () => {
+          _mouseOnDragHandle = false
+          if (!_hoveredTextId) textDragHandle.style.display = 'none'
         })
-        
+        textDragHandle.addEventListener('pointerdown', (ev) => {
+          if (ev.button !== 0) return
+          ev.preventDefault()
+          ev.stopPropagation()
+          const shapeId = _hoveredTextId
+          if (!shapeId) return
+          // Commit and close any open text editor before moving
+          const editorEl = document.querySelector('.textEdit')
+          if (editorEl) editorEl.blur()
+          selectSingle(shapeId)
+          render()
+          const s = getShapeById(shapeId)
+          if (!s) return
+          const p = clientToSvgPoint(ev.clientX, ev.clientY)
+          app.isPointerDown = true
+          app.dragMode = 'move'
+          app.activeShapeId = shapeId
+          app.startBox = shapeBBox(s)
+          app.hideSelectionDuringDrag = true
+          app.startPt = { ...p }
+          app.lastPointer = { ...p }
+          textDragHandle.setPointerCapture(ev.pointerId)
+        })
+
         // Click to refresh cycle scope from selected/topmost shape area
         svg.addEventListener('click', (ev) => {
           const p = clientToSvgPoint(ev.clientX, ev.clientY)
@@ -6080,6 +7293,54 @@
 
         window.addEventListener('keydown', onKeyDown)
         window.addEventListener('paste', onPaste)
+
+        // ---- Rich text format button wiring ----
+        // mousedown preventDefault keeps editor focused; click applies the format
+        const wireRichBtn = (id, action) => {
+          const btn = $('#' + id)
+          if (!btn) return
+          btn.addEventListener('mousedown', (e) => e.preventDefault())
+          btn.addEventListener('click', () => { action(); updateRichTextPanelButtons() })
+        }
+        wireRichBtn('btnRichBold',      () => _richActiveEditor ? RichTextEngine.execute('bold')      : applyFormatToSelectedShapes('bold'))
+        wireRichBtn('btnRichItalic',    () => _richActiveEditor ? RichTextEngine.execute('italic')    : applyFormatToSelectedShapes('italic'))
+        wireRichBtn('btnRichUnderline', () => _richActiveEditor ? RichTextEngine.execute('underline') : applyFormatToSelectedShapes('underline'))
+        wireRichBtn('btnRichStrike',    () => _richActiveEditor ? RichTextEngine.execute('strike')    : applyFormatToSelectedShapes('strike'))
+        wireRichBtn('btnRichSuper',     () => _richActiveEditor ? RichTextEngine.execute('super')     : applyFormatToSelectedShapes('super'))
+        wireRichBtn('btnRichSub',       () => _richActiveEditor ? RichTextEngine.execute('sub')       : applyFormatToSelectedShapes('sub'))
+        wireRichBtn('btnRichHighlight', () => {
+          const color = $('#richHighlightColor')?.value || '#ffff00'
+          if (_richActiveEditor) RichTextEngine.execute('highlight', color)
+          else applyFormatToSelectedShapes('highlight', color)
+        })
+        wireRichBtn('btnBulletList', () => toggleRichBulletList())
+
+        // Highlight color input: prevent stealing focus while editor is open
+        const hlColorInput = $('#richHighlightColor')
+        if (hlColorInput) {
+          hlColorInput.addEventListener('mousedown', (e) => { if (_richActiveEditor) e.preventDefault() })
+          hlColorInput.addEventListener('focus', () => { if (_richActiveEditor) hlColorInput.click() })
+        }
+
+        // Font size steppers: prevent stealing focus from editor (they have data-richtext-btn)
+        ;['textareaFontSizeDec','textareaFontSizeInc','textareaFontSizeDecFast','textareaFontSizeIncFast'].forEach(id => {
+          const btn = $('#' + id)
+          if (btn) btn.addEventListener('mousedown', (e) => { if (_richActiveEditor) e.preventDefault() })
+        })
+
+        // Track selection changes inside the rich text editor
+        document.addEventListener('selectionchange', () => {
+          const sel = window.getSelection()
+          if (!sel.rangeCount || !_richActiveEditor) return
+          const range = sel.getRangeAt(0)
+          if (_richActiveEditor.contains(range.commonAncestorContainer)) {
+            _richSavedRange = range.cloneRange()
+            updateRichTextPanelButtons()
+          }
+        })
+
+        // ---- Custom color picker (replaces native picker with preset swatches) ----
+        initCustomColorPicker()
       }
 
       /* =========================
