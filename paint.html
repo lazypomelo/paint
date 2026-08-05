@@ -1584,31 +1584,6 @@
         return movedTargetIds
       }
 
-      const shapeBBoxLocal = (s) => {
-        if (s.type === 'pen') return computeBBoxForPen(s.points || [])
-        if (s.type === 'line') {
-          const sw = getLineVisualWidth(s)
-          const hw = sw / 2
-          const x = Math.min(s.x1, s.x2) - hw
-          const y = Math.min(s.y1, s.y2) - hw
-          const w = Math.abs(s.x2 - s.x1) + sw
-          const h = Math.abs(s.y2 - s.y1) + sw
-          return { x, y, w, h }
-        }
-        if (s.type === 'text') return { x: s.x, y: s.y, w: s.w, h: s.h }
-        if (s.type === 'group') {
-          const kids = (s.childrenIds || []).map(getShapeById).filter(Boolean)
-          if (!kids.length) return { x: 0, y: 0, w: 0, h: 0 }
-          const boxes = kids.map(shapeBBox)
-          const minX = Math.min(...boxes.map(b => b.x))
-          const minY = Math.min(...boxes.map(b => b.y))
-          const maxX = Math.max(...boxes.map(b => b.x + b.w))
-          const maxY = Math.max(...boxes.map(b => b.y + b.h))
-          return { x: minX, y: minY, w: maxX - minX, h: maxY - minY }
-        }
-        return { x: s.x, y: s.y, w: s.w, h: s.h }
-      }
-
       const CROP_SUPPORTED_TYPES = new Set(['image', 'pen', 'rect', 'ellipse', 'line', 'text', 'group'])
 
       const isShapeCropSupported = (shape) => {
@@ -2831,38 +2806,6 @@
         debouncedAutosave()
       }
 
-      // const generateThumbnail = async () => {
-      //   // Render current SVG into an image, then draw to offscreen canvas at fixed width 150px
-      //   const targetW = 150
-      //   const w = app.canvas.width
-      //   const h = app.canvas.height
-      //   const scale = targetW / w
-      //   const targetH = Math.max(1, Math.round(h * scale))
-
-      //   const svgText = exportSvgString({ includeBg: true })
-      //   const svgBlob = new Blob([svgText], { type: 'image/svg+xml;charset=utf-8' })
-      //   const url = URL.createObjectURL(svgBlob)
-
-      //   const img = new Image()
-      //   img.decoding = 'async'
-      //   img.crossOrigin = 'anonymous'
-
-      //   await new Promise((resolve, reject) => {
-      //     img.onload = () => resolve(true)
-      //     img.onerror = () => reject(new Error('Thumbnail image load failed'))
-      //     img.src = url
-      //   })
-
-      //   const c = document.createElement('canvas')
-      //   c.width = targetW
-      //   c.height = targetH
-      //   const ctx = c.getContext('2d')
-      //   ctx.clearRect(0, 0, c.width, c.height)
-      //   ctx.drawImage(img, 0, 0, targetW, targetH)
-
-      //   URL.revokeObjectURL(url)
-      //   return c.toDataURL('image/png')
-      // }
       // Browsers taint a canvas when drawImage receives an SVG containing
       // <foreignObject>, making toDataURL() throw a SecurityError.
       // This helper replaces every <foreignObject> in a cloned SVG with plain
@@ -4387,42 +4330,6 @@
         if (_richActiveEditor) _richActiveEditor.dispatchEvent(new Event('input', { bubbles: true }))
       }
 
-      const parseTextLineLayout = (line) => {
-        const raw = String(line || '')
-        const leadingWs = (raw.match(/^[ \t]*/) || [''])[0]
-        return {
-          firstPrefix: leadingWs,
-          continuationPrefix: leadingWs,
-          content: raw.slice(leadingWs.length)
-        }
-      }
-
-      const wrapLineByWords = (line, maxContentWidth, measureCtx) => {
-        const raw = String(line || '')
-        if (!raw) return ['']
-
-        const { firstPrefix, continuationPrefix, content } = parseTextLineLayout(raw)
-        const words = String(content || '').trim().split(/\s+/).filter(Boolean)
-        if (!words.length) return [raw]
-
-        const out = []
-        let current = firstPrefix + words[0]
-
-        for (let i = 1; i < words.length; i += 1) {
-          const next = words[i]
-          const candidate = current + ' ' + next
-          if (measureCtx.measureText(candidate).width <= maxContentWidth) {
-            current = candidate
-            continue
-          }
-          out.push(current)
-          current = continuationPrefix + next
-        }
-
-        out.push(current)
-        return out
-      }
-
       // Measure a rich-text shape via an offscreen DOM element
       const _measureRichText = (s, overrideW = null) => {
         const fontSize = Number(s.fontSize || app.style.fontSize)
@@ -4936,7 +4843,6 @@
          Alignment guides (snap during move)
       ========================= */
       const ALIGN_SNAP_THRESHOLD = 5   // SVG-space px – snap distance
-      const ALIGN_SHOW_THRESHOLD = 60  // SVG-space px – guide visibility distance
 
       const isDirectlyAttachedToIds = (shape, targetIds) => {
         if (!shape || shape.type !== 'line' || !shape.links || !targetIds?.size) return false
