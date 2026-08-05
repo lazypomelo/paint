@@ -5469,6 +5469,7 @@
           setTool('select')
         } else if (app.dragMode === 'crop') {
           pushHistory()
+          render()  // redraw immediately so crop handles stay visible for further adjustments
         } else if (app.dragMode === 'move' || app.dragMode === 'resize' || app.dragMode === 'rotate') {
           if (app.dragMode === 'move') {
             // Apply alignment snap on release
