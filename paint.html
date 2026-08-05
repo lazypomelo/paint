@@ -775,6 +775,10 @@
               <label style='font-weight: 600; color: var(--text);'>Arrow head</label>
               <div></div>
             </div>
+            <div class='row hidden' id='rowPenArrowDoubleSided'>
+              <label>Double-sided</label>
+              <input type='checkbox' id='penArrowDoubleSided' />
+            </div>
             <div class='row hidden' id='rowPenArrowSize'>
               <label>Size</label>
               <input type='range' id='penArrowSize' min='0' max='80' step='1' value='0' />
@@ -809,7 +813,7 @@
               <input type='checkbox' id='penLockAspect' />
             </div>
             <div class='row' id='rowFillAlpha'>
-              <label>Fill alpha</label>
+              <label id='labelFillAlpha'>Fill alpha</label>
               <input type='range' id='fillAlpha' min='0' max='1' step='0.01' value='0' />
             </div>
             <!-- Textarea Text Properties Section -->
@@ -855,11 +859,11 @@
               <button class='btn richFmtBtn' id='btnBulletList' data-richtext-btn title='Toggle bullet list'>• Bullets</button>
             </div>
             <div class='row hidden' id='rowTextareaTextColor'>
-              <label>Text color</label>
+              <label>Color</label>
               <input type='color' id='textareaTextColor' value='#111111' data-richtext-btn />
             </div>
             <div class='row hidden' id='rowTextareaTextAlpha'>
-              <label>Text alpha</label>
+              <label>Alpha</label>
               <input type='range' id='textareaTextAlpha' min='0' max='1' step='0.01' value='1' data-richtext-btn />
             </div>
             <div class='row hidden' id='rowTextareaWrapText'>
@@ -873,15 +877,15 @@
               <div></div>
             </div>
             <div class='row hidden' id='rowTextareaBorderWidth'>
-              <label>Border width</label>
+              <label>Width</label>
               <input type='range' id='textareaBorderWidth' min='0' max='20' step='0.5' value='0' />
             </div>
             <div class='row hidden' id='rowTextareaBorderColor'>
-              <label>Border color</label>
+              <label>Color</label>
               <input type='color' id='textareaBorderColor' value='#111111' />
             </div>
             <div class='row hidden' id='rowTextareaBorderAlpha'>
-              <label>Border alpha</label>
+              <label>Alpha</label>
               <input type='range' id='textareaBorderAlpha' min='0' max='1' step='0.01' value='1' />
             </div>
             <div class='row hidden' id='rowTextareaPadding'>
@@ -895,11 +899,11 @@
               <div></div>
             </div>
             <div class='row hidden' id='rowTextareaBackgroundColor'>
-              <label>Background color</label>
+              <label>Color</label>
               <input type='color' id='textareaBackgroundColor' value='#ffffff' />
             </div>
             <div class='row hidden' id='rowTextareaBackgroundAlpha'>
-              <label>Background alpha</label>
+              <label>Alpha</label>
               <input type='range' id='textareaBackgroundAlpha' min='0' max='1' step='0.01' value='0.25' />
             </div>
 
@@ -2306,24 +2310,36 @@
           penGroup.appendChild(penEl)
           // Arrow head at the end of the stroke
           const penArrowSize = Math.max(0, Number(st.penArrowSize ?? 0))
+          const penArrowDoubleSided = !!(st.penArrowDoubleSided ?? false)
           if (penArrowSize > 0 && smoothedPts.length >= 2) {
+            const arrowOpts = {
+              style: normalizeArrowHeadStyle(st.penArrowStyle ?? 'v-shaped-rounded'),
+              size:  penArrowSize,
+              color: rgbaFromHexAlpha(st.penArrowColor || '#111111', st.penArrowAlpha ?? 1),
+              width: Math.max(0, Number(st.penArrowWidth ?? 3)),
+              angle: Math.max(0, Math.min(80, Number(st.penArrowAngle ?? 40)))
+            }
+            // End arrow head
             const tip  = smoothedPts[smoothedPts.length - 1]
             const prev = smoothedPts[smoothedPts.length - 2]
             const dx = tip.x - prev.x, dy = tip.y - prev.y
             const segLen = Math.hypot(dx, dy)
             if (segLen > 0.5) {
-              // Place the shaft base exactly `penArrowSize` units back from the tip
-              // so Size directly controls wing length (not angle-dependent spread).
               const ux = dx / segLen, uy = dy / segLen
-              const shaftX = tip.x - ux * penArrowSize
-              const shaftY = tip.y - uy * penArrowSize
-              renderArrowHeadOnPath(penGroup, tip.x, tip.y, shaftX, shaftY, {
-                style: normalizeArrowHeadStyle(st.penArrowStyle ?? 'v-shaped-rounded'),
-                size:  penArrowSize,
-                color: rgbaFromHexAlpha(st.penArrowColor || '#111111', st.penArrowAlpha ?? 1),
-                width: Math.max(0, Number(st.penArrowWidth ?? 3)),
-                angle: Math.max(0, Math.min(80, Number(st.penArrowAngle ?? 40)))
-              })
+              renderArrowHeadOnPath(penGroup, tip.x, tip.y,
+                tip.x - ux * penArrowSize, tip.y - uy * penArrowSize, arrowOpts)
+            }
+            // Start arrow head (double-sided)
+            if (penArrowDoubleSided && smoothedPts.length >= 2) {
+              const start = smoothedPts[0]
+              const next  = smoothedPts[1]
+              const bdx = start.x - next.x, bdy = start.y - next.y
+              const bLen = Math.hypot(bdx, bdy)
+              if (bLen > 0.5) {
+                const bux = bdx / bLen, buy = bdy / bLen
+                renderArrowHeadOnPath(penGroup, start.x, start.y,
+                  start.x - bux * penArrowSize, start.y - buy * penArrowSize, arrowOpts)
+              }
             }
           }
           el = penGroup
@@ -5536,6 +5552,7 @@
           'rowPenStrokeHeader',
           'rowPenTransformHeader',
           'rowPenArrowHeader',
+          'rowPenArrowDoubleSided',
           'rowPenArrowSize',
           'rowPenArrowStyle',
           'rowPenArrowColor',
@@ -5645,12 +5662,13 @@
         setRowOrder('rowStroke', -83)
         setRowOrder('rowStrokeAlpha', -82)
         setRowOrder('rowPenArrowHeader', -75)
-        setRowOrder('rowPenArrowSize',   -74)
-        setRowOrder('rowPenArrowStyle',  -73)
-        setRowOrder('rowPenArrowColor',  -72)
-        setRowOrder('rowPenArrowAlpha',  -71)
-        setRowOrder('rowPenArrowWidth',  -70)
-        setRowOrder('rowPenArrowAngle',  -69)
+        setRowOrder('rowPenArrowDoubleSided', -74)
+        setRowOrder('rowPenArrowSize',   -73)
+        setRowOrder('rowPenArrowStyle',  -72)
+        setRowOrder('rowPenArrowColor',  -71)
+        setRowOrder('rowPenArrowAlpha',  -70)
+        setRowOrder('rowPenArrowWidth',  -69)
+        setRowOrder('rowPenArrowAngle',  -68)
         setRowOrder('rowPenTransformHeader', 96)
         setRowOrder('rowPenSmoothness', 97)
         setRowOrder('rowShortcutsHeader', 98)
@@ -5729,7 +5747,7 @@
         const lineLikeRows = ['rowLineLikeGeneralHeader', 'rowLineLikeArrowHeader', 'rowLineLikeLineHeader', 'rowArrowHeadDoubleSided', 'rowArrowHeadSize', 'rowArrowHeadStyle', 'rowArrowHeadColor', 'rowArrowHeadAlpha', 'rowArrowHeadWidth', 'rowArrowHeadAngle', 'rowLineStyle', 'rowLineLockAspect', 'rowArrowLockAspect', 'rowLineLikeFlip']
         const rectSectionRows = ['rowRectGeneralHeader', 'rowRectLockAspect', 'rowRectBorderHeader', 'rowRectFillHeader', 'rowRectFlip']
         const circleSectionRows = ['rowCircleGeneralHeader', 'rowCircleStrokeHeader', 'rowCircleFillHeader', 'rowCircleLockAspect', 'rowCircleFlip']
-        const penOnlyRows = ['rowPenGeneralHeader', 'rowPenStrokeHeader', 'rowPenTransformHeader', 'rowPenSmoothness', 'rowPenArrowHeader', 'rowPenArrowSize', 'rowPenArrowStyle', 'rowPenArrowColor', 'rowPenArrowAlpha', 'rowPenArrowWidth', 'rowPenArrowAngle', 'rowPenLockAspect', 'rowPenFlip']
+        const penOnlyRows = ['rowPenGeneralHeader', 'rowPenStrokeHeader', 'rowPenTransformHeader', 'rowPenSmoothness', 'rowPenArrowHeader', 'rowPenArrowDoubleSided', 'rowPenArrowSize', 'rowPenArrowStyle', 'rowPenArrowColor', 'rowPenArrowAlpha', 'rowPenArrowWidth', 'rowPenArrowAngle', 'rowPenLockAspect', 'rowPenFlip']
         const textareaFlipRows = ['rowTextFlip']
         const groupOnlyRows = ['rowTool', 'rowImageGeneralHeader', 'rowImageFlip', 'rowImageCrop', 'rowRotation', 'rowShortcutsHeader', 'rowShortcuts']
 
@@ -5753,6 +5771,7 @@
         setRowHidden('rowPenTransformHeader', mode !== 'pen')
         setRowHidden('rowPenSmoothness', mode !== 'pen')
         setRowHidden('rowPenArrowHeader', mode !== 'pen')
+        setRowHidden('rowPenArrowDoubleSided', mode !== 'pen')
         setRowHidden('rowPenArrowSize',   mode !== 'pen')
         setRowHidden('rowPenArrowStyle',  mode !== 'pen')
         setRowHidden('rowPenArrowColor',  mode !== 'pen')
@@ -5784,20 +5803,27 @@
         const labelFillColor = $('#labelFillColor')
         if (labelStrokeColor) {
           if (mode === 'lineLike') labelStrokeColor.textContent = 'Color'
-          else if (mode === 'rect') labelStrokeColor.textContent = 'Border color'
+          else if (mode === 'rect') labelStrokeColor.textContent = 'Color'
+          else if (mode === 'pen') labelStrokeColor.textContent = 'Color'
           else labelStrokeColor.textContent = 'Stroke'
         }
         if (labelStrokeAlpha) {
           if (mode === 'lineLike') labelStrokeAlpha.textContent = 'Alpha'
-          else if (mode === 'rect') labelStrokeAlpha.textContent = 'Border alpha'
+          else if (mode === 'rect') labelStrokeAlpha.textContent = 'Alpha'
+          else if (mode === 'pen') labelStrokeAlpha.textContent = 'Alpha'
+          else if (mode === 'circle') labelStrokeAlpha.textContent = 'Alpha'
           else labelStrokeAlpha.textContent = 'Stroke alpha'
         }
         if (labelStrokeWidth) {
-          if (mode === 'lineLike') labelStrokeWidth.textContent = 'Line width'
-          else if (mode === 'rect') labelStrokeWidth.textContent = 'Border width'
+          if (mode === 'lineLike') labelStrokeWidth.textContent = 'Width'
+          else if (mode === 'rect') labelStrokeWidth.textContent = 'Width'
+          else if (mode === 'pen') labelStrokeWidth.textContent = 'Width'
+          else if (mode === 'circle') labelStrokeWidth.textContent = 'Width'
           else labelStrokeWidth.textContent = 'Stroke width'
         }
-        if (labelFillColor) labelFillColor.textContent = (mode === 'rect' || mode === 'circle') ? 'Fill color' : 'Fill'
+        const labelFillAlpha = $('#labelFillAlpha')
+        if (labelFillColor) labelFillColor.textContent = (mode === 'rect' || mode === 'circle') ? 'Color' : 'Fill'
+        if (labelFillAlpha) labelFillAlpha.textContent = (mode === 'rect' || mode === 'circle') ? 'Alpha' : 'Fill alpha'
       }
 
       const getPropsSelectionKind = (shape) => {
@@ -5930,6 +5956,7 @@
           setInputValue('penArrowAlpha', st.penArrowAlpha ?? 1)
           setInputValue('penArrowWidth', st.penArrowWidth ?? 3)
           setInputValue('penArrowAngle', st.penArrowAngle ?? 40)
+          setCheckedValue('penArrowDoubleSided', !!(st.penArrowDoubleSided ?? false))
           const penFlipH = !!(st.penFlipH ?? app.style.penFlipH)
           const penFlipV = !!(st.penFlipV ?? app.style.penFlipV)
           $('#btnPenFlipH').classList.toggle('primary', penFlipH)
@@ -6135,6 +6162,7 @@
             s.style.penArrowAlpha = Number($('#penArrowAlpha').value)
             s.style.penArrowWidth = Math.max(0, Number($('#penArrowWidth').value))
             s.style.penArrowAngle = Math.max(0, Math.min(80, Number($('#penArrowAngle').value)))
+            s.style.penArrowDoubleSided = $('#penArrowDoubleSided').checked
             s.rot = targetRotation
             continue
           }
@@ -7305,6 +7333,7 @@
         $('#arrowHeadColor').addEventListener('input', applyPropsToSelection)
         $('#penArrowStyle').addEventListener('change', applyPropsToSelection)
         $('#penArrowColor').addEventListener('input', applyPropsToSelection)
+        $('#penArrowDoubleSided').addEventListener('input', applyPropsToSelection)
         $('#textareaWrapText').addEventListener('input', () => {
           // Use a dedicated handler so only textWrap is changed; avoids accidentally
           // overwriting textColor/textAlpha from potentially-stale panel values.
