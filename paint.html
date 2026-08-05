@@ -843,8 +843,8 @@
                 <button class='btn icon richFmtBtn' id='btnRichItalic' data-richtext-btn title='Italic'><i>I</i></button>
                 <button class='btn icon richFmtBtn' id='btnRichUnderline' data-richtext-btn title='Underline'><u>U</u></button>
                 <button class='btn icon richFmtBtn' id='btnRichStrike' data-richtext-btn title='Strikethrough'><del>S</del></button>
-                <button class='btn icon richFmtBtn' id='btnRichSuper' data-richtext-btn title='Superscript'>X<sup>2</sup></button>
-                <button class='btn icon richFmtBtn' id='btnRichSub' data-richtext-btn title='Subscript'>X<sub>2</sub></button>
+                <button class='btn icon richFmtBtn' id='btnRichSuper' data-richtext-btn title='Superscript'>x²</button>
+                <button class='btn icon richFmtBtn' id='btnRichSub' data-richtext-btn title='Subscript'>x₂</button>
               </div>
             </div>
             <div class='row hidden' id='rowRichTextHighlight'>
@@ -1154,17 +1154,42 @@
       const adjustTextareaFontSize = (delta) => {
         const field = $('#textareaFontSize')
         if (!field) return
+
+        if (_richActiveEditor) {
+          // Edit mode: apply to the current selection via RichTextEngine
+          const cur = Number(field.value) || app.style.fontSize
+          const next = clamp(cur + delta, 6, 200)
+          field.value = String(next)
+          updateTextareaFontSizeDisplay(field.value)
+          RichTextEngine.execute('fontSize', next + 'px', true)
+          updateRichTextPanelButtons()
+          return
+        }
+
+        // Not in edit mode: before applying the delta, check whether any selected
+        // text shape contains per-span inline font-sizes.  If so, strip them and
+        // reset the base to 18 first so the user gets a clean uniform baseline to
+        // increment/decrement from.
+        const ctx = getSelectionPropsContext()
+        if (ctx.hasSelection && ctx.compatible) {
+          const textShapes = ctx.selectedShapes.filter(s => s.type === 'text')
+          const needsClean = textShapes.some(s => hasInlineFontSizeSpans(s.text))
+          if (needsClean) {
+            const RESET_FS = 18
+            for (const s of textShapes) {
+              s.text = stripInlineFontSizes(s.text)
+              s.fontSize = RESET_FS
+            }
+            field.value = String(RESET_FS)
+            updateTextareaFontSizeDisplay(RESET_FS)
+          }
+        }
+
         const cur = Number(field.value) || app.style.fontSize
         const next = clamp(cur + delta, 6, 200)
         field.value = String(next)
         updateTextareaFontSizeDisplay(field.value)
-        if (_richActiveEditor) {
-          // Apply font size to the selected text via RichTextEngine
-          RichTextEngine.execute('fontSize', next + 'px', true)
-          updateRichTextPanelButtons()
-        } else {
-          field.dispatchEvent(new Event('input', { bubbles: true }))
-        }
+        field.dispatchEvent(new Event('input', { bubbles: true }))
       }
 
       /* =========================
@@ -3708,6 +3733,23 @@
         return div.innerHTML
       }
 
+      // Returns true if any <span> in the HTML carries an explicit inline font-size.
+      const hasInlineFontSizeSpans = (html) => {
+        if (!html) return false
+        const div = document.createElement('div')
+        div.innerHTML = html
+        return Array.from(div.querySelectorAll('span')).some(s => !!s.style.fontSize)
+      }
+
+      // Removes the inline font-size style from every <span> in the HTML.
+      const stripInlineFontSizes = (html) => {
+        if (!html) return html
+        const div = document.createElement('div')
+        div.innerHTML = html
+        div.querySelectorAll('span').forEach(s => { s.style.fontSize = '' })
+        return div.innerHTML
+      }
+
       // Convert legacy plain-text s.text to rich HTML if needed
       const normalizeRichText = (text) => {
         if (!text) return '<div>&#8203;</div>'
@@ -3901,22 +3943,53 @@
         $('#btnRichHighlight')?.classList.toggle('active', isActive('highlight'))
         $('#btnBulletList')?.classList.toggle('active',    isRichListActive())
 
-        // Sync font size display to the cursor/selection's computed font size
+        // Sync font size display to the cursor/selection's computed font size.
+        // For a non-collapsed range, read from the FIRST text node in the selection
+        // (which is a child of a span with the applied inline font-size) rather than
+        // the commonAncestorContainer (usually a div with no explicit font-size that
+        // would always report the editor's base size, breaking repeated increments).
         const cursorEl = (() => {
           let el = _richSavedRange.commonAncestorContainer
           return el.nodeType === 3 ? el.parentNode : el
         })()
-        const computedFs = parseFloat(window.getComputedStyle(cursorEl).fontSize)
+        let computedFs = NaN
+        if (!_richSavedRange.collapsed) {
+          const fsWalker = document.createTreeWalker(cursorEl, NodeFilter.SHOW_TEXT)
+          let fsNode
+          while ((fsNode = fsWalker.nextNode())) {
+            if (_richSavedRange.intersectsNode(fsNode) &&
+                fsNode.nodeValue.replace(/\u200B/g, '').trim().length > 0 &&
+                fsNode.parentElement && _richActiveEditor.contains(fsNode)) {
+              computedFs = parseFloat(window.getComputedStyle(fsNode.parentElement).fontSize)
+              break
+            }
+          }
+        }
+        if (isNaN(computedFs)) {
+          computedFs = parseFloat(window.getComputedStyle(cursorEl).fontSize)
+        }
         if (!isNaN(computedFs) && computedFs > 0) {
           setInputValue('textareaFontSize', Math.round(computedFs))
           updateTextareaFontSizeDisplay(Math.round(computedFs))
         }
 
         // Sync text color display to the cursor/selection's computed color
-        const computedColor = window.getComputedStyle(cursorEl).color
-        if (computedColor) {
-          // Convert rgb(...) to hex for the color input
-          const m = computedColor.match(/\d+/g)
+        const colorSrc = (() => {
+          if (!_richSavedRange.collapsed) {
+            const cWalker = document.createTreeWalker(cursorEl, NodeFilter.SHOW_TEXT)
+            let cNode
+            while ((cNode = cWalker.nextNode())) {
+              if (_richSavedRange.intersectsNode(cNode) &&
+                  cNode.nodeValue.replace(/\u200B/g, '').trim().length > 0 &&
+                  cNode.parentElement && _richActiveEditor.contains(cNode)) {
+                return window.getComputedStyle(cNode.parentElement).color
+              }
+            }
+          }
+          return window.getComputedStyle(cursorEl).color
+        })()
+        if (colorSrc) {
+          const m = colorSrc.match(/\d+/g)
           if (m && m.length >= 3) {
             const hex = '#' + [m[0], m[1], m[2]].map(n => parseInt(n).toString(16).padStart(2, '0')).join('')
             setInputValue('textareaTextColor', hex)
@@ -7120,6 +7193,9 @@
         const buildPopup = () => {
           const el = document.createElement('div')
           el.id = 'customColorPicker'
+          // Mark the popup so onDocumentPointerDown treats any click inside it as a
+          // richtext-button click (won't blur the text editor or call finish).
+          el.setAttribute('data-richtext-btn', '')
 
           const grid = document.createElement('div')
           grid.className = 'ccp-grid'
