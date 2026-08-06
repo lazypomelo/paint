@@ -92,17 +92,70 @@
       font-size: 12px;
       color: var(--muted);
     }
-    #saveState{
-      min-width: calc(9ch + 20px); /* reserve space for "Saving..." + pill padding */
-      justify-content: center;
-      white-space: nowrap;
-    }
     .sep{ width: 1px; height: 20px; background: var(--border); margin: 0 4px; }
     .nameWrap{
       margin-left: auto;
       display: flex;
       align-items: center;
       gap: 8px;
+    }
+    .hintsOverlay{
+      position: absolute;
+      inset: 0;
+      z-index: 9;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0,0,0,0.24);
+      padding: 16px;
+    }
+    .hintsOverlay.show{ display: flex; }
+    .hintsModal{
+      max-width: min(560px, calc(100vw - 40px));
+      width: max-content;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: rgba(10,12,16,0.92);
+      backdrop-filter: blur(8px);
+      box-shadow: var(--shadow);
+      padding: 14px 16px;
+      color: var(--text);
+      font-size: 14px;
+      line-height: 1.35;
+      text-wrap: balance;
+    }
+    .hintsTitle{
+      margin: 0 0 10px 0;
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    .hintsList{
+      margin: 0;
+      padding-left: 18px;
+      display: grid;
+      gap: 6px;
+    }
+    .hintsList li{ line-height: 1.45; }
+    .hintsModal code{
+      font-family: var(--mono);
+      font-size: 12px;
+      padding: 1px 5px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,0.06);
+    }
+    .hintsCallout{
+      margin: 12px 0 0 0;
+      padding: 8px 10px;
+      border-radius: 8px;
+      border: 1px solid rgba(78,161,255,0.35);
+      background: rgba(78,161,255,0.08);
+      color: #dce9ff;
+      font-size: 13px;
+      line-height: 1.4;
     }
     .main{
       position: relative;
@@ -645,7 +698,7 @@
       </div>
 
       <div class='nameWrap'>
-        <span class='pill' id='saveState'>Saved</span>
+        <button class='btn' id='btnHints' type='button' title='Show hints'>Overview</button>
       </div>
     </div>
 
@@ -673,6 +726,25 @@
         </div>
 
         <div class='toast' id='toast'></div>
+
+        <div class='hintsOverlay' id='hintsOverlay' aria-hidden='true'>
+          <div class='hintsModal' id='hintsModal' role='dialog' aria-modal='true' aria-label='Hints'>
+            <p class='hintsTitle'>Features</p>
+            <ul class='hintsList'>
+              <li>Lightweight single-file drawing app</li>
+              <li>No installation required</li>
+              <li>
+                Drawings are stored in browser local storage (IndexedDB)
+                <ul>
+                  <li>IndexedDB stores data per browser and per file. As long as the <code>.html</code> file stays in the same location, and is accessed via the same browser, previously generated drawings remain available.</li>
+                </ul>
+              </li>
+              <li>Shapes are in SVG format, user is invited to paste any SVG graphics - e.g. taken from svgrepo.com</li>
+              <li>Pasting screenshots from clipboard works too</li>
+            </ul>
+            <p class='hintsCallout'>Those not using keyboard shortcuts are doomed to vanish...</p>
+          </div>
+        </div>
 
         <div class='floatingPanel' id='propsPanel'>
           <div class='panelHeader'>
@@ -2870,18 +2942,11 @@
          Autosave + thumbnails
       ========================= */
       const setSaveState = (state) => {
-        const el = $('#saveState')
         const hud = $('#hudSave')
-        if (state === 'saving') {
-          el.textContent = 'Saving...'
-          hud.textContent = 'saving'
-        } else if (state === 'dirty') {
-          el.textContent = 'Unsaved'
-          hud.textContent = 'pending'
-        } else {
-          el.textContent = 'Saved'
-          hud.textContent = 'idle'
-        }
+        if (!hud) return
+        if (state === 'saving') hud.textContent = 'saving'
+        else if (state === 'dirty') hud.textContent = 'pending'
+        else hud.textContent = 'idle'
       }
 
       const markDirty = () => {
@@ -7791,6 +7856,26 @@
 
       const wireUi = () => {
         svg.setAttribute('tabindex', '-1')
+
+        const hintsOverlay = $('#hintsOverlay')
+        const hintsModal = $('#hintsModal')
+        const openHints = () => {
+          if (!hintsOverlay) return
+          hintsOverlay.classList.add('show')
+          hintsOverlay.setAttribute('aria-hidden', 'false')
+        }
+        const closeHints = () => {
+          if (!hintsOverlay) return
+          hintsOverlay.classList.remove('show')
+          hintsOverlay.setAttribute('aria-hidden', 'true')
+        }
+        $('#btnHints').addEventListener('click', openHints)
+        if (hintsOverlay) {
+          hintsOverlay.addEventListener('click', closeHints)
+        }
+        if (hintsModal) {
+          hintsModal.addEventListener('click', (ev) => ev.stopPropagation())
+        }
 
         window.addEventListener('resize', () => setPaperSize(app.canvas.width, app.canvas.height))
         const propsPanel = $('#propsPanel')
