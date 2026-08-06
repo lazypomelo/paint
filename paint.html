@@ -3,7 +3,7 @@
 <head>
   <meta charset='utf-8' />
   <meta name='viewport' content='width=device-width, initial-scale=1' />
-  <title>paint.html (SVG + IndexedDB)</title>
+  <title>paint</title>
   <style>
     :root{
       --bg: #0f1115;
@@ -103,20 +103,7 @@
       display: flex;
       align-items: center;
       gap: 8px;
-      min-width: 260px;
     }
-    .nameInput{
-      height: 24px;
-      width: 220px;
-      font-size: 12px;
-      border-radius: 8px;
-      border: 1px solid var(--border);
-      background: rgba(255,255,255,0.03);
-      color: var(--text);
-      padding: 0 10px;
-      outline: none;
-    }
-    .nameInput:focus{ border-color: rgba(78,161,255,0.55); box-shadow: 0 0 0 3px rgba(78,161,255,0.15); }
     .main{
       position: relative;
       height: 100%;
@@ -194,6 +181,26 @@
       justify-content: center;
       overflow: hidden;
       cursor: pointer;
+      position: relative;
+    }
+    /* Corner ribbon shown on freshly-imported drawings */
+    .thumbRibbon {
+      position: absolute;
+      top: 22px;
+      right: -26px;
+      width: 100px;
+      text-align: center;
+      transform: rotate(45deg);
+      background: rgba(78,161,255,0.92);
+      color: #fff;
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 0.07em;
+      padding: 3px 0;
+      pointer-events: none;
+      text-transform: uppercase;
+      z-index: 5;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.3);
     }
     .thumb img{
       /* max-width: 100%;
@@ -222,6 +229,46 @@
   overflow: hidden;
     }
     .cardName{ font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .cardNameRow{
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      min-width: 0;
+    }
+    .cardNameEditIcon{
+      color: var(--muted);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 12px;
+      height: 12px;
+      flex: 0 0 auto;
+      user-select: none;
+      pointer-events: none;
+    }
+    .cardNameEditIcon svg{
+      width: 12px;
+      height: 12px;
+      display: block;
+    }
+    .cardNameInput{
+      width: 100%;
+      border: 1px solid transparent;
+      border-radius: 6px;
+      background: transparent;
+      color: inherit;
+      font: inherit;
+      font-weight: 600;
+      padding: 0;
+      outline: none;
+      min-width: 0;
+      cursor: text;
+    }
+    .cardNameInput.editing{
+      border-color: rgba(78,161,255,0.55);
+      background: rgba(78,161,255,0.10);
+      padding: 0 4px;
+    }
     .cardTime{ color: var(--muted); font-size: 12px; text-align: left; }
     .cardActions{
       grid-column: 1 / -1;
@@ -326,6 +373,41 @@
       border-bottom: 1px solid var(--border);
     }
     .panelHeader .title{ font-weight: 700; }
+    .propsHoverLabel{
+      margin-left: auto;
+      min-width: 120px;
+      text-align: right;
+      font-size: 11px;
+      color: var(--muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      opacity: 0;
+      transition: opacity 120ms ease;
+      pointer-events: none;
+    }
+    .propsHoverLabel.show{
+      opacity: 1;
+    }
+    .propAction{
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 26px;
+      height: 26px;
+      flex: 0 0 26px;
+    }
+    .propAction > .btn.icon{
+      width: 26px;
+      height: 24px;
+    }
+    .propAction > input[type='color']{
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+    }
     .panelBody{
       padding: 12px;
       display: grid;
@@ -562,13 +644,8 @@
         <button class='btn' id='btnUngroup' title='Ungroup (U)'>Ungroup <span class='kbd'>U</span></button>
       </div>
 
-      <div class='group'>
-        <button class='btn' id='btnExportPng' title='Export PNG'>Export</button>
-      </div>
-
       <div class='nameWrap'>
         <span class='pill' id='saveState'>Saved</span>
-        <input class='nameInput' id='drawingName' value='drawing_1' />
       </div>
     </div>
 
@@ -576,7 +653,10 @@
       <div class='sidebar' id='sidebar'>
         <div class='sidebarHeader'>
           <div class='title'>Gallery</div>
-          <div class='hint'>Autosave • IndexedDB</div>
+          <div style='display:flex; gap:4px; margin-left:auto;'>
+            <button class='btn' id='btnExportAll' title='Export all drawings as .json'>Export all</button>
+            <button class='btn' id='btnImport' title='Import drawings from .json file(s)'>Import</button>
+          </div>
         </div>
         <div class='gallery' id='gallery'></div>
       </div>
@@ -597,8 +677,9 @@
         <div class='floatingPanel' id='propsPanel'>
           <div class='panelHeader'>
             <div class='title'>Properties</div>
-            <div style='margin-left:auto; display:flex; gap:6px; align-items:center;'>
-              <span style='position:relative; display:inline-block; width:34px; height:30px;'>
+            <div class='propsHoverLabel' id='propsHoverLabel' aria-live='polite'></div>
+            <div style='display:flex; gap:6px; align-items:center;'>
+              <span class='propAction' data-tip='Canvas background'>
                 <button class='btn icon' id='btnCanvasBg' title='Canvas background' type='button'
                   style='position:absolute; inset:0;'>
                   <svg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24' role='img' aria-hidden='true'>
@@ -618,12 +699,15 @@
                   id='canvasBgPicker'
                   value='#ffffff'
                   aria-label='Canvas background color'
-                  style='position:absolute; inset:0; opacity:0; cursor:pointer;'
                 />
               </span>
 
-              <button class='btn icon' id='btnPaperSize' title='Paper size' type='button'>⤢</button>
-              <button class='btn icon' id='btnGrid' title='Toggle grid' type='button'>▦</button>
+              <span class='propAction' data-tip='Paper size'>
+                <button class='btn icon' id='btnPaperSize' title='Paper size' type='button'>⤢</button>
+              </span>
+              <span class='propAction' data-tip='Toggle grid'>
+                <button class='btn icon' id='btnGrid' title='Toggle grid' type='button'>▦</button>
+              </span>
             </div>
 
           </div>
@@ -1030,7 +1114,7 @@
                 <div><span class='kbd'>Shift+Arrows</span> move ±10, <span class='kbd'>Shift+Alt+Arrows</span> ±1</div>
                 <div><span class='kbd'>Tab</span>/<span class='kbd'>Shift+Tab</span> cycle through objects at selection</div>
                 <div><span class='kbd'>Del</span> Delete, <span class='kbd'>Z</span> undo, <span class='kbd'>Shift+Z</span> redo</div>
-                <div><span class='kbd'>B</span>/<span class='kbd'>F</span> send back / bring front</div>
+                <div><span class='kbd'>B</span>/<span class='kbd'>F</span> send to back / bring to front</div>
                 <div><span class='kbd'>D</span> duplicate, <span class='kbd'>E</span> edit text</div>
                 <div><span class='kbd'>G</span> group, <span class='kbd'>U</span> ungroup</div>
               </div>
@@ -3039,7 +3123,7 @@
 
         try {
           // Update record
-          app.drawing.name = $('#drawingName').value.trim() || app.drawing.name
+          app.drawing.name = String(app.drawing.name || '').trim() || 'drawing'
           app.drawing.shapes = structuredClone(app.shapes)
           app.drawing.width = app.canvas.width
           app.drawing.height = app.canvas.height
@@ -3051,15 +3135,13 @@
           // Thumbnail (debounced separately, but we also ensure it exists)
           try {
             app.drawing.thumbnail = await generateThumbnail()
+            // First thumbnail regeneration after import clears the 'Imported' ribbon
+            if (app.drawing.imported) delete app.drawing.imported
           } catch (e) {
             console.log(e)
           }
 
           await idbPut(app.db, app.drawing)
-
-          // Leave the name field so shortcuts work again - not used (allow slow typers to finish w/o leaving the input field)
-          // const nameEl = $('#drawingName')
-          // if (document.activeElement === nameEl) nameEl.blur()
 
           app.dirty = false
           setSaveState('saved')
@@ -3082,6 +3164,53 @@
         }
         await saveToDb()
       }, 3000) // was 500ms, but increased to 3s to reduce CPU load
+
+      const galleryNameSaveTimers = new Map()
+      const GALLERY_NAME_SAVE_MS = 700
+
+      const persistDrawingNameById = async (id, rawName) => {
+        if (!app.db) return
+        const nextName = String(rawName || '').trim()
+        if (!nextName) return
+
+        try {
+          const rec = await idbGet(app.db, id)
+          if (!rec) return
+          if ((rec.name || '') === nextName) return
+          rec.name = nextName
+          rec.updatedAt = now()
+          await idbPut(app.db, rec)
+
+          if (app.activeId === id && app.drawing) {
+            app.drawing.name = nextName
+            app.drawing.updatedAt = rec.updatedAt
+          }
+        } catch (e) {
+          console.error(e)
+          toast('Name save failed')
+        }
+      }
+
+      const queueGalleryNameSave = (id, rawName) => {
+        const prev = galleryNameSaveTimers.get(id)
+        if (prev) clearTimeout(prev)
+        const t = setTimeout(async () => {
+          galleryNameSaveTimers.delete(id)
+          await persistDrawingNameById(id, rawName)
+          await refreshGallery()
+        }, GALLERY_NAME_SAVE_MS)
+        galleryNameSaveTimers.set(id, t)
+      }
+
+      const flushGalleryNameSave = async (id, rawName) => {
+        const prev = galleryNameSaveTimers.get(id)
+        if (prev) {
+          clearTimeout(prev)
+          galleryNameSaveTimers.delete(id)
+        }
+        await persistDrawingNameById(id, rawName)
+        await refreshGallery()
+      }
 
       /* =========================
          Gallery
@@ -3108,11 +3237,27 @@
           img.src = rec.thumbnail ? `${rec.thumbnail}#${rec.updatedAt || 0}` : ''
           thumb.appendChild(img)
 
+          // Show a corner ribbon on freshly-imported drawings
+          if (rec.imported) {
+            const ribbon = document.createElement('div')
+            ribbon.className = 'thumbRibbon'
+            ribbon.textContent = 'Imported'
+            thumb.appendChild(ribbon)
+          }
+
           const meta = document.createElement('div')
           meta.className = 'cardMeta'
-          const name = document.createElement('div')
-          name.className = 'cardName'
-          name.textContent = rec.name || rec.id
+          const nameRow = document.createElement('div')
+          nameRow.className = 'cardNameRow'
+          const nameIcon = document.createElement('span')
+          nameIcon.className = 'cardNameEditIcon'
+          nameIcon.innerHTML = "<svg viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg' aria-hidden='true' focusable='false'><path d='M13 21H21' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'></path><path d='M20.0651 7.39423L7.09967 20.4114C6.72438 20.7882 6.21446 21 5.68265 21H4.00383C3.44943 21 3 20.5466 3 19.9922V18.2987C3 17.7696 3.20962 17.2621 3.58297 16.8873L16.5517 3.86681C19.5632 1.34721 22.5747 4.87462 20.0651 7.39423Z' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'></path><path d='M15.3096 5.30981L18.7273 8.72755' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'></path><path opacity='0.1' d='M18.556 8.90942L7.09967 20.4114C6.72438 20.7882 6.21446 21 5.68265 21H4.00383C3.44943 21 3 20.5466 3 19.9922V18.2987C3 17.7696 3.20962 17.2621 3.58297 16.8873L15.0647 5.35974C15.0742 5.4062 15.0969 5.45049 15.1329 5.48653L18.5506 8.90426C18.5524 8.90601 18.5542 8.90773 18.556 8.90942Z' fill='currentColor'></path></svg>"
+          nameIcon.setAttribute('aria-hidden', 'true')
+          const name = document.createElement('input')
+          name.type = 'text'
+          name.className = 'cardName cardNameInput'
+          name.value = rec.name || rec.id
+          name.setAttribute('aria-label', 'Drawing name')
           const time = document.createElement('div')
           time.className = 'cardTime'
           time.textContent = fmtTime(rec.updatedAt || 0)
@@ -3126,16 +3271,83 @@
           delBtn.className = 'btn danger'
           delBtn.textContent = 'Delete'
 
+          const expBtn = document.createElement('button')
+          expBtn.className = 'btn'
+          expBtn.textContent = 'Export'
+          expBtn.addEventListener('click', (ev) => {
+            ev.stopPropagation()
+            showExportPopup(expBtn, rec.id)
+          })
+
           actions.appendChild(dupBtn)
+          actions.appendChild(expBtn)
           actions.appendChild(delBtn)
 
-          meta.appendChild(name)
+          nameRow.appendChild(nameIcon)
+          nameRow.appendChild(name)
+          meta.appendChild(nameRow)
           meta.appendChild(time)
           meta.appendChild(actions)
 
           card.appendChild(thumb)
           card.appendChild(meta)
           el.appendChild(card)
+
+          let isNameEditing = false
+          let startNameValue = name.value
+
+          const beginNameEdit = () => {
+            if (isNameEditing) return
+            isNameEditing = true
+            startNameValue = name.value
+            name.classList.add('editing')
+            name.focus()
+            name.select()
+          }
+
+          const finishNameEdit = async () => {
+            if (!isNameEditing) return
+            isNameEditing = false
+
+            let finalName = String(name.value || '').trim()
+            if (!finalName) finalName = String(startNameValue || rec.id).trim() || rec.id
+
+            name.value = finalName
+            name.classList.remove('editing')
+
+            if (finalName !== startNameValue) {
+              if (app.activeId === rec.id && app.drawing) {
+                app.drawing.name = finalName
+              }
+              await flushGalleryNameSave(rec.id, finalName)
+            }
+          }
+
+          name.addEventListener('click', (ev) => {
+            ev.stopPropagation()
+            beginNameEdit()
+          })
+          name.addEventListener('focus', () => {
+            if (!isNameEditing) return
+            name.select()
+          })
+          name.addEventListener('input', () => {
+            if (!isNameEditing) return
+            if (app.activeId === rec.id && app.drawing) {
+              app.drawing.name = name.value
+            }
+            queueGalleryNameSave(rec.id, name.value)
+          })
+          name.addEventListener('keydown', (ev) => {
+            if (ev.key === 'Enter' || ev.code === 'NumpadEnter' || ev.keyCode === 13) {
+              ev.preventDefault()
+              name.blur()
+              return
+            }
+          })
+          name.addEventListener('blur', () => {
+            finishNameEdit()
+          })
 
           const open = async () => loadDrawing(rec.id)
           thumb.addEventListener('click', open)
@@ -3178,7 +3390,6 @@
           pushHistory()
         }
 
-        $('#drawingName').value = rec.name || 'drawing'
         app.dirty = false
         setSaveState('saved')
         applyGridUi()
@@ -3206,7 +3417,6 @@
         app.selectedIds = new Set()
         app.history = []
         app.historyIndex = -1
-        $('#drawingName').value = rec.name
         pushHistory()
         applyGridUi()
         render()
@@ -6520,6 +6730,360 @@
       }
 
 
+      const exportJson = async (recId) => {
+        // If the target is the currently active drawing, use live app state
+        // (may have unsaved changes); otherwise fetch the saved record from IndexedDB.
+        let name, shapes, width, height, canvasBg, gridEnabled
+        if (recId && recId !== app.activeId) {
+          const rec = await idbGet(app.db, recId)
+          if (!rec) { toast('Export failed'); return }
+          name        = rec.name
+          shapes      = rec.shapes
+          width       = rec.width
+          height      = rec.height
+          canvasBg    = rec.canvasBg
+          gridEnabled = rec.gridEnabled
+        } else {
+          name        = app.drawing?.name
+          shapes      = app.shapes
+          width       = app.canvas.width
+          height      = app.canvas.height
+          canvasBg    = app.canvas.bg
+          gridEnabled = app.grid.enabled
+        }
+
+        const payload = {
+          _paintDrawing: true,          // format marker for import detection
+          name:        name        || 'drawing',
+          shapes:      structuredClone(shapes || []),
+          width:       width       || 1200,
+          height:      height      || 800,
+          canvasBg:    canvasBg    || 'rgb(255,255,255)',
+          gridEnabled: !!gridEnabled,
+          thumbnail:   recId && recId !== app.activeId ? (await idbGet(app.db, recId))?.thumbnail || '' : (app.drawing?.thumbnail || ''),
+          exportedAt:  new Date().toISOString()
+        }
+
+        const json = JSON.stringify(payload, null, 2)
+        const blob = new Blob([json], { type: 'application/json' })
+        downloadBlob((payload.name || 'drawing') + '.json', blob)
+      }
+
+      const exportAllDrawings = async () => {
+        if (!app.db) return
+        // Save current state first so the export reflects the latest content
+        await saveToDb()
+        const list = await idbList(app.db)
+        if (!list.length) { toast('No drawings to export'); return }
+        const payload = {
+          _paintExport: true,
+          version: 1,
+          exportedAt: new Date().toISOString(),
+          drawings: list.map(rec => ({
+            _paintDrawing: true,
+            name:        rec.name        || 'drawing',
+            shapes:      rec.shapes      || [],
+            width:       rec.width       || 1200,
+            height:      rec.height      || 800,
+            canvasBg:    rec.canvasBg    || 'rgb(255,255,255)',
+            gridEnabled: !!rec.gridEnabled,
+            thumbnail:   rec.thumbnail   || ''
+          }))
+        }
+        const json = JSON.stringify(payload, null, 2)
+        const blob = new Blob([json], { type: 'application/json' })
+        const date = new Date().toISOString().slice(0, 10)
+        downloadBlob(`paint-export-${date}.json`, blob)
+        toast(`Exported ${list.length} drawing${list.length !== 1 ? 's' : ''}`)
+      }
+
+      let _exportAllPopup = null
+      const closeExportAllPopup = () => {
+        if (_exportAllPopup) _exportAllPopup.style.display = 'none'
+      }
+      const showExportAllPopup = (btn) => {
+        if (!_exportAllPopup) {
+          const el = document.createElement('div')
+          el.style.cssText = [
+            'position:fixed', 'z-index:10000',
+            'background:var(--panel)', 'border:1px solid var(--border)',
+            'border-radius:8px', 'padding:8px',
+            'box-shadow:0 6px 20px rgba(0,0,0,.5)',
+            'display:none', 'flex-direction:column', 'gap:8px', 'min-width:190px'
+          ].join(';')
+          const note = document.createElement('div')
+          note.style.cssText = 'font-size:11px;color:var(--muted);padding:2px 4px;line-height:1.4;'
+          note.textContent = 'Export all drawings into local downloads folder'
+          const confirmBtn = document.createElement('button')
+          confirmBtn.className = 'btn primary'
+          confirmBtn.style.alignSelf = 'flex-start'
+          confirmBtn.textContent = 'Confirm'
+          confirmBtn.addEventListener('click', () => {
+            closeExportAllPopup()
+            exportAllDrawings()
+          })
+          el.appendChild(note)
+          el.appendChild(confirmBtn)
+          document.body.appendChild(el)
+          document.addEventListener('click', (e) => {
+            if (_exportAllPopup && _exportAllPopup.style.display !== 'none' && !_exportAllPopup.contains(e.target)) {
+              closeExportAllPopup()
+            }
+          }, true)
+          _exportAllPopup = el
+        }
+        _exportAllPopup.style.display = 'flex'
+        const rect = btn.getBoundingClientRect()
+        let top  = rect.bottom + 4
+        let left = rect.left
+        if (top  + 90  > window.innerHeight) top  = rect.top - 90 - 4
+        if (left + 200 > window.innerWidth)  left = window.innerWidth - 200 - 8
+        if (left < 4) left = 4
+        _exportAllPopup.style.top  = top  + 'px'
+        _exportAllPopup.style.left = left + 'px'
+      }
+
+      // Remap every shape ID and all internal cross-references to fresh UUIDs.
+      // Returns the array of shapes with new IDs.
+      const remapShapeIds = (shapes) => {
+        const idMap = new Map()
+        const remapped = structuredClone(shapes || [])
+        // First pass: new IDs
+        for (const s of remapped) {
+          const newId = uuid()
+          idMap.set(s.id, newId)
+          s.id = newId
+        }
+        // Second pass: fix cross-references
+        for (const s of remapped) {
+          if (s.type === 'group' && Array.isArray(s.childrenIds)) {
+            s.childrenIds = s.childrenIds.map(cid => idMap.get(cid) || cid)
+          }
+          if (s.type === 'line' && s.links) {
+            for (const ep of ['start', 'end']) {
+              const link = s.links[ep]
+              if (!link?.targetId) continue
+              const mapped = idMap.get(link.targetId)
+              if (mapped) s.links[ep] = { ...link, targetId: mapped }
+              else s.links[ep] = null  // shouldn't happen (full drawing is always exported); just a defensive fallback
+            }
+            if (!s.links.start) delete s.links.start
+            if (!s.links.end)   delete s.links.end
+            if (!s.links.start && !s.links.end) delete s.links
+          }
+        }
+        return remapped
+      }
+
+      // Validate a single drawing object before import.
+      // Returns { valid: boolean, errors: string[] }.
+      const validateDrawingData = (data) => {
+        const errors = []
+        if (!data || typeof data !== 'object') {
+          errors.push('Not a valid object')
+          return { valid: false, errors }
+        }
+        if (data._paintDrawing !== true) {
+          errors.push('Missing _paintDrawing marker — not a paint.html export')
+          return { valid: false, errors }
+        }
+        if (!Array.isArray(data.shapes))
+          errors.push('"shapes" must be an array')
+        if (!(Number(data.width)  > 0 && Number.isFinite(Number(data.width))))
+          errors.push('"width" must be a positive finite number')
+        if (!(Number(data.height) > 0 && Number.isFinite(Number(data.height))))
+          errors.push('"height" must be a positive finite number')
+        if (typeof data.canvasBg !== 'string' || !data.canvasBg)
+          errors.push('"canvasBg" must be a non-empty string')
+
+        if (Array.isArray(data.shapes)) {
+          const VALID_TYPES = new Set(['rect', 'ellipse', 'line', 'pen', 'text', 'image', 'group'])
+          const BOX_TYPES   = new Set(['rect', 'ellipse', 'text', 'image'])
+          let shapeErrCount = 0
+          for (let i = 0; i < data.shapes.length; i++) {
+            if (shapeErrCount >= 10) { errors.push(`… and more shape issues (truncated)`); break }
+            const s = data.shapes[i]
+            if (!s || typeof s !== 'object') {
+              errors.push(`shapes[${i}]: not a valid object`); shapeErrCount++; continue
+            }
+            if (typeof s.id !== 'string' || !s.id) {
+              errors.push(`shapes[${i}]: missing or empty "id"`); shapeErrCount++
+            }
+            if (!VALID_TYPES.has(s.type)) {
+              errors.push(`shapes[${i}]: unknown type "${s.type}"`); shapeErrCount++; continue
+            }
+            if (BOX_TYPES.has(s.type)) {
+              for (const f of ['x', 'y', 'w', 'h']) {
+                if (!Number.isFinite(Number(s[f]))) {
+                  errors.push(`shapes[${i}] (${s.type}): missing or invalid "${f}"`); shapeErrCount++
+                }
+              }
+            }
+            if (s.type === 'line') {
+              for (const f of ['x1', 'y1', 'x2', 'y2']) {
+                if (!Number.isFinite(Number(s[f]))) {
+                  errors.push(`shapes[${i}] (line): missing or invalid "${f}"`); shapeErrCount++
+                }
+              }
+            }
+            if (s.type === 'pen' && (!Array.isArray(s.points) || s.points.length === 0)) {
+              errors.push(`shapes[${i}] (pen): "points" must be a non-empty array`); shapeErrCount++
+            }
+            if (s.type === 'group' && !Array.isArray(s.childrenIds)) {
+              errors.push(`shapes[${i}] (group): "childrenIds" must be an array`); shapeErrCount++
+            }
+          }
+        }
+        return { valid: errors.length === 0, errors }
+      }
+
+      const importSingleDrawing = async (drawingData) => {
+        if (!app.db || !drawingData?._paintDrawing) return false
+        const rec = {
+          id:          uuid(),  // always a fresh drawing ID — avoids overwriting on re-import
+          name:        drawingData.name        || 'imported drawing',
+          shapes:      remapShapeIds(drawingData.shapes),
+          width:       drawingData.width       || 1200,
+          height:      drawingData.height      || 800,
+          canvasBg:    drawingData.canvasBg    || 'rgb(255,255,255)',
+          gridEnabled: !!drawingData.gridEnabled,
+          thumbnail:   drawingData.thumbnail   || '',
+          imported:    true,  // cleared on first thumbnail regeneration (first edit after import)
+          updatedAt:   now(),
+          history:     [],
+          historyIndex: -1
+        }
+        await idbPut(app.db, rec)
+        return true
+      }
+
+      const importDrawingsFromFiles = () => {
+        if (!app.db) return
+        const input = document.createElement('input')
+        input.type = 'file'
+        input.accept = '.json,application/json'
+        input.multiple = true
+        input.addEventListener('change', async () => {
+          const files = Array.from(input.files || [])
+          if (!files.length) return
+          let imported = 0
+          const failures = []  // { label: string, errors: string[] }
+
+          for (const file of files) {
+            let data
+            try {
+              data = JSON.parse(await file.text())
+            } catch (e) {
+              failures.push({ label: file.name, errors: ['File is not valid JSON'] })
+              continue
+            }
+
+            let drawings = []
+            if (data._paintExport && Array.isArray(data.drawings)) {
+              drawings = data.drawings
+            } else if (data._paintDrawing) {
+              drawings = [data]
+            } else {
+              failures.push({ label: file.name, errors: ['Not a recognised paint.html export file (missing _paintDrawing / _paintExport marker)'] })
+              continue
+            }
+
+            for (let i = 0; i < drawings.length; i++) {
+              const d = drawings[i]
+              const label = drawings.length > 1
+                ? `${file.name}  (drawing ${i + 1} of ${drawings.length})`
+                : file.name
+
+              const { valid, errors } = validateDrawingData(d)
+              if (!valid) {
+                failures.push({ label, errors })
+                continue
+              }
+              try {
+                const ok = await importSingleDrawing(d)
+                if (ok) imported++
+                else failures.push({ label, errors: ['Import failed unexpectedly'] })
+              } catch (e) {
+                failures.push({ label, errors: [`Unexpected error: ${e.message || e}`] })
+              }
+            }
+          }
+
+          await refreshGallery()
+          if (imported > 0) toast(`Imported ${imported} drawing${imported !== 1 ? 's' : ''}`)
+
+          if (failures.length > 0) {
+            const msg = failures.map(f => {
+              const lines = f.errors.slice(0, 8).map(e => `  • ${e}`).join('\n')
+              const extra = f.errors.length > 8 ? `\n  • … and ${f.errors.length - 8} more issue(s)` : ''
+              return `${f.label}\n${lines}${extra}`
+            }).join('\n\n')
+            alert(`Import could not be completed for ${failures.length} drawing${failures.length !== 1 ? 's' : ''}:\n\n${msg}`)
+          }
+        })
+        input.click()
+      }
+
+      /* =========================
+         Export popup (gallery cards)
+      ========================= */
+      let _exportPopup = null
+      let _exportPopupRecId = null
+
+      const closeExportPopup = () => {
+        if (_exportPopup) _exportPopup.style.display = 'none'
+        _exportPopupRecId = null
+      }
+
+      const showExportPopup = (btn, recId) => {
+        if (!_exportPopup) {
+          const el = document.createElement('div')
+          el.style.cssText = [
+            'position:fixed', 'z-index:10000',
+            'background:var(--panel)', 'border:1px solid var(--border)',
+            'border-radius:8px', 'padding:6px',
+            'box-shadow:0 6px 20px rgba(0,0,0,.5)',
+            'display:none', 'flex-direction:column', 'gap:4px', 'min-width:90px'
+          ].join(';')
+          const pngBtn = document.createElement('button')
+          pngBtn.className = 'btn'
+          pngBtn.textContent = '.png'
+          pngBtn.addEventListener('click', async () => {
+            const id = _exportPopupRecId
+            closeExportPopup()
+            if (id && id !== app.activeId) await loadDrawing(id, { silent: true })
+            exportPng()
+          })
+          const jsonBtn = document.createElement('button')
+          jsonBtn.className = 'btn'
+          jsonBtn.textContent = '.json'
+          jsonBtn.addEventListener('click', async () => {
+            const id = _exportPopupRecId
+            closeExportPopup()
+            await exportJson(id)
+          })
+          el.appendChild(pngBtn)
+          el.appendChild(jsonBtn)
+          document.body.appendChild(el)
+          document.addEventListener('click', (e) => {
+            if (_exportPopup && _exportPopup.style.display !== 'none' && !_exportPopup.contains(e.target)) {
+              closeExportPopup()
+            }
+          }, true)
+          _exportPopup = el
+        }
+        _exportPopupRecId = recId
+        _exportPopup.style.display = 'flex'
+        const rect = btn.getBoundingClientRect()
+        let top  = rect.bottom + 4
+        let left = rect.left
+        if (top  + 80 > window.innerHeight) top  = rect.top - 80 - 4
+        if (left + 100 > window.innerWidth)  left = window.innerWidth - 100 - 8
+        if (left < 4) left = 4
+        _exportPopup.style.top  = top  + 'px'
+        _exportPopup.style.left = left + 'px'
+      }
+
       // Deletion of objects
       const deleteSelection = () => {
         if (!app.selectedIds.size) return
@@ -7250,14 +7814,42 @@
         $('#btnGroup').addEventListener('click', groupSelection)
         $('#btnUngroup').addEventListener('click', ungroupSelection)
 
-        $('#btnExportPng').addEventListener('click', exportPng)
-        
+        $('#btnExportAll').addEventListener('click', (ev) => showExportAllPopup(ev.currentTarget))
+        $('#btnImport').addEventListener('click', importDrawingsFromFiles)
+
         $('#btnPaperSize').addEventListener('click', promptPaperSize)
         $('#btnGrid').addEventListener('click', () => {
           app.grid.enabled = !app.grid.enabled
           applyGridUi()
           markDirty()
         })
+
+        const propsHoverLabel = $('#propsHoverLabel')
+        const bindPropHoverLabel = (targetIds, text) => {
+          if (!propsHoverLabel) return
+          const ids = Array.isArray(targetIds) ? targetIds : [targetIds]
+          const show = () => {
+            propsHoverLabel.textContent = text
+            propsHoverLabel.classList.add('show')
+          }
+          const hide = () => {
+            propsHoverLabel.classList.remove('show')
+            propsHoverLabel.textContent = ''
+          }
+
+          for (const id of ids) {
+            const el = $('#' + id)
+            if (!el) continue
+            el.addEventListener('mouseenter', show)
+            el.addEventListener('mouseleave', hide)
+            el.addEventListener('focus', show)
+            el.addEventListener('blur', hide)
+          }
+        }
+
+        bindPropHoverLabel(['btnCanvasBg', 'canvasBgPicker'], 'Canvas background')
+        bindPropHoverLabel('btnPaperSize', 'Paper size')
+        bindPropHoverLabel('btnGrid', 'Toggle grid')
 
         $('#canvasBgPicker').addEventListener('click', () => {
           $('#canvasBgPicker').value = rgbStringToHex(app.canvas.bg || 'rgb(255,255,255)')
@@ -7271,20 +7863,6 @@
           app.canvas.bg = hexToRgbString(ev.target.value)
           render()
           markDirty()
-        })
-
-        $('#drawingName').addEventListener('input', () => {
-          if (!app.drawing) return
-          app.drawing.name = $('#drawingName').value
-          markDirty()
-        })
-
-        // Focus on drawing after enter pressed
-        $('#drawingName').addEventListener('keydown', (ev) => {
-          if (ev.key === 'Enter' || ev.code === 'NumpadEnter' || ev.keyCode === 13) {
-            ev.preventDefault()
-            ev.currentTarget.blur()
-          }
         })
 
         // Properties
