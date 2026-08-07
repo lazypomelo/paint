@@ -996,7 +996,7 @@
               <label style='padding-top:6px;'>Format</label>
               <div style='display:flex; gap:4px; flex-wrap:wrap;'>
                 <button class='btn icon richFmtBtn' id='btnRichBold' data-richtext-btn title='Bold'><b>B</b></button>
-                <button class='btn icon richFmtBtn' id='btnRichItalic' data-richtext-btn title='Italic'><i>I</i></button>
+                <button class='btn icon richFmtBtn' id='btnRichItalic' data-richtext-btn title='Italic'><i style='font-family: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;'>I</i></button>
                 <button class='btn icon richFmtBtn' id='btnRichUnderline' data-richtext-btn title='Underline'><u>U</u></button>
                 <button class='btn icon richFmtBtn' id='btnRichStrike' data-richtext-btn title='Strikethrough'><del>S</del></button>
                 <button class='btn icon richFmtBtn' id='btnRichSuper' data-richtext-btn title='Superscript'>x²</button>
@@ -4042,6 +4042,17 @@
         checkActive(node, format) {
           let el = node.nodeType === 3 ? node.parentNode : node
           if (!_richActiveEditor || !_richActiveEditor.contains(el)) return false
+          if (format === 'highlight') {
+            // Treat highlight as active only when explicitly set inline on the text run
+            // (or one of its ancestors inside the editor), not from editor background.
+            let cur = el
+            while (cur && cur !== _richActiveEditor) {
+              const bg = cur.style?.backgroundColor || ''
+              if (bg && bg !== 'transparent' && bg !== 'rgba(0, 0, 0, 0)') return true
+              cur = cur.parentNode
+            }
+            return false
+          }
           const computed = window.getComputedStyle(el)
           let styleVal = computed[this.configs[format].prop]
           if (format === 'underline' || format === 'strike') {
@@ -4361,6 +4372,99 @@
         updateRichTextPanelButtons()
       }
 
+      // Toggle bullets for all rows in selected text shapes (when editor is closed).
+      // Rule: if every current row is bulleted -> remove bullets from all rows;
+      // otherwise add bullets to all rows. Indentation is preserved per row.
+      const toggleBulletListForShapeHtml = (html) => {
+        const div = document.createElement('div')
+        div.innerHTML = normalizeRichText(html || '')
+        _applyListStyles(div)
+
+        const hasVisibleText = (el) => (el?.textContent || '').replace(/\u200B/g, '').trim().length > 0
+
+        // Normalize top-level rows to DIV/P/UL blocks.
+        Array.from(div.childNodes).forEach(node => {
+          if (node.nodeType === 3) {
+            if (node.nodeValue.replace(/\u200B/g, '').trim().length === 0) {
+              node.remove()
+              return
+            }
+            const row = document.createElement('div')
+            row.appendChild(node)
+            div.appendChild(row)
+          } else if (node.nodeType === 1 && !['DIV', 'P', 'UL'].includes(node.tagName)) {
+            const row = document.createElement('div')
+            node.parentNode.insertBefore(row, node)
+            row.appendChild(node)
+          }
+        })
+
+        const rows = Array.from(div.children).filter(el => ['DIV', 'P', 'UL'].includes(el.tagName))
+        if (!rows.length) return div.innerHTML
+
+        // Ignore empty non-list placeholder rows so toggling bullets does not create
+        // visual bullet-only lines from zero-width editor placeholders.
+        const actionableRows = rows.filter(row => row.tagName === 'UL' || hasVisibleText(row))
+        if (!actionableRows.length) return div.innerHTML
+
+        const isAllLists = actionableRows.every(row => row.tagName === 'UL')
+
+        if (isAllLists) {
+          actionableRows.forEach(row => {
+            if (row.tagName !== 'UL') return
+            const indent = row.style.marginLeft || '0px'
+            const lis = Array.from(row.querySelectorAll(':scope > li'))
+            if (!lis.length) {
+              const out = document.createElement('div')
+              out.style.marginLeft = indent
+              row.parentNode.replaceChild(out, row)
+              return
+            }
+
+            // Preserve row count: one output row per <li> in order.
+            const outRows = lis.map(li => {
+              const out = document.createElement('div')
+              out.style.marginLeft = indent
+              while (li.firstChild) out.appendChild(li.firstChild)
+              return out
+            })
+            outRows.forEach(out => row.parentNode.insertBefore(out, row))
+            row.remove()
+          })
+        } else {
+          actionableRows.forEach(row => {
+            if (row.tagName === 'UL') return
+            const indent = row.style.marginLeft || '0px'
+            const li = document.createElement('li')
+            while (row.firstChild) li.appendChild(row.firstChild)
+            const ul = document.createElement('ul')
+            ul.style.marginLeft = indent
+            updateRichListStyle(ul)
+            ul.appendChild(li)
+            row.parentNode.replaceChild(ul, row)
+          })
+        }
+
+        return div.innerHTML
+      }
+
+      const toggleBulletListOnSelectedShapes = () => {
+        const ctx = getSelectionPropsContext()
+        if (!ctx.hasSelection || !ctx.compatible) return
+        let changed = false
+        for (const s of ctx.selectedShapes) {
+          if (s.type !== 'text') continue
+          const next = toggleBulletListForShapeHtml(s.text)
+          if (next !== s.text) {
+            s.text = next
+            fitTextShapeToContent(s)
+            changed = true
+          }
+        }
+        if (changed) { pushHistory(); render(); markDirty() }
+        updateRichTextPanelButtons()
+      }
+
       // Rotate bullet style based on indent level
       const updateRichListStyle = (ul) => {
         const margin = parseInt(ul.style.marginLeft || '0')
@@ -4395,6 +4499,150 @@
         newUls.forEach(ul => domParent.insertBefore(ul, parentUl))
         domParent.removeChild(parentUl)
         return newUls[liIdx]
+      }
+
+      const INDENT_STEP = 40
+
+      const getRowIndentLevel = (rowOrLi) => {
+        if (!rowOrLi) return 0
+        const row = rowOrLi.tagName === 'LI' ? (rowOrLi.parentNode?.tagName === 'UL' ? rowOrLi.parentNode : rowOrLi) : rowOrLi
+        const ds = parseInt(row.getAttribute('data-row-indent') || '', 10)
+        if (!isNaN(ds) && ds >= 0) return ds
+        const ml = parseInt(row.style.marginLeft || '0', 10)
+        return isNaN(ml) ? 0 : Math.max(0, Math.round(ml / INDENT_STEP))
+      }
+
+      const setRowIndentLevel = (rowOrLi, level) => {
+        if (!rowOrLi) return
+        const row = rowOrLi.tagName === 'LI' ? (rowOrLi.parentNode?.tagName === 'UL' ? rowOrLi.parentNode : rowOrLi) : rowOrLi
+        const lv = Math.max(0, Number(level) || 0)
+        row.setAttribute('data-row-indent', String(lv))
+        row.style.marginLeft = String(lv * INDENT_STEP) + 'px'
+        if (row.tagName === 'UL') updateRichListStyle(row)
+      }
+
+      const syncEditorRowIndentMetadata = () => {
+        if (!_richActiveEditor) return
+        Array.from(_richActiveEditor.children).forEach(row => {
+          if (!['DIV', 'P', 'UL'].includes(row.tagName)) return
+          const ml = parseInt(row.style.marginLeft || '0', 10)
+          const lv = isNaN(ml) ? 0 : Math.max(0, Math.round(ml / INDENT_STEP))
+          row.setAttribute('data-row-indent', String(lv))
+        })
+      }
+
+      const getLogicalRowFromNode = (node) => {
+        if (!_richActiveEditor || !node) return null
+        let el = node.nodeType === 3 ? node.parentNode : node
+        if (!el) return null
+        const li = el.closest ? el.closest('li') : null
+        if (li && _richActiveEditor.contains(li)) return li
+        while (el && el !== _richActiveEditor && el.parentNode !== _richActiveEditor) el = el.parentNode
+        if (el && el !== _richActiveEditor) {
+          if (['DIV', 'P', 'UL'].includes(el.tagName)) return el
+          return null
+        }
+        return null
+      }
+
+      const hasVisibleTextBeforeCaretInRow = (row, range) => {
+        const r = document.createRange()
+        r.setStart(row, 0)
+        r.setEnd(range.startContainer, range.startOffset)
+        const t = String(r.toString() || '').replace(/\u200B/g, '').replace(/\u00A0/g, ' ').replace(/\r?\n/g, '')
+        return t.trim().length > 0
+      }
+
+      const resolveCaretRowContext = ({ requireCollapsed = true } = {}) => {
+        if (!_richActiveEditor) return null
+        const sel = window.getSelection()
+        if (!sel.rangeCount) return null
+        let range = sel.getRangeAt(0)
+        const startInEditor = _richActiveEditor.contains(range.startContainer)
+        const endInEditor = _richActiveEditor.contains(range.endContainer)
+        if (!startInEditor || !endInEditor) return null
+        if (requireCollapsed && !range.collapsed) return null
+        if (!range.collapsed) {
+          const collapsed = range.cloneRange()
+          collapsed.collapse(true)
+          range = collapsed
+        }
+
+        const isRowEl = (n) => !!(n && n.nodeType === 1 && ['DIV', 'P', 'UL'].includes(n.tagName))
+        const nextTopRow = (n) => {
+          let cur = n ? n.nextSibling : null
+          while (cur && !isRowEl(cur)) cur = cur.nextSibling
+          return cur || null
+        }
+        const prevTopRow = (n) => {
+          let cur = n ? n.previousSibling : null
+          while (cur && !isRowEl(cur)) cur = cur.previousSibling
+          return cur || null
+        }
+        const nextLogicalRow = (rowEl) => {
+          if (!rowEl) return null
+          if (rowEl.tagName === 'LI') {
+            let n = rowEl.nextSibling
+            while (n && !(n.nodeType === 1 && n.tagName === 'LI')) n = n.nextSibling
+            if (n) return n
+            const ul = rowEl.parentNode && rowEl.parentNode.tagName === 'UL' ? rowEl.parentNode : null
+            if (!ul) return null
+            return nextTopRow(ul)
+          }
+          return nextTopRow(rowEl)
+        }
+        const normalizeVisible = (s) => String(s || '')
+          .replace(/\u200B/g, '')
+          .replace(/\u00A0/g, ' ')
+          .replace(/\r?\n/g, '')
+          .trim()
+        const normalizeForOffset = (s) => String(s || '')
+          .replace(/\u200B/g, '')
+          .replace(/\u00A0/g, ' ')
+          .replace(/\r?\n/g, '')
+
+        const probe = document.createElement('span')
+        probe.id = 'rte-caret-probe'
+        const probeRange = range.cloneRange()
+        probeRange.insertNode(probe)
+
+        const probeEl = probe.nodeType === 3 ? probe.parentNode : probe
+        let liRow = probeEl?.closest ? probeEl.closest('li') : null
+        let row = liRow || getLogicalRowFromNode(probe)
+
+        // Root-boundary caret can place probe directly under editor.
+        if ((!row || row === probe) && probe.parentNode === _richActiveEditor) {
+          row = nextTopRow(probe) || prevTopRow(probe)
+          liRow = row && row.tagName === 'UL' ? (row.querySelector(':scope > li') || null) : null
+        }
+
+        if (!row) { probe.remove(); return null }
+
+        const beforeRange = document.createRange()
+        beforeRange.setStart(row, 0)
+        beforeRange.setEndBefore(probe)
+        let offsetFromRowStart = normalizeForOffset(beforeRange.toString()).length
+        let atFirstVisibleChar = normalizeVisible(beforeRange.toString()).length === 0
+
+        // Caret affinity: DOM-end of row should be treated as start of next logical row.
+        if (!atFirstVisibleChar) {
+          const afterRange = document.createRange()
+          afterRange.setStartAfter(probe)
+          afterRange.setEnd(row, row.childNodes.length)
+          const atRowEnd = normalizeVisible(afterRange.toString()).length === 0
+          if (atRowEnd) {
+            const next = nextLogicalRow(row)
+            if (next) {
+              row = next
+              liRow = row.tagName === 'LI' ? row : (row.tagName === 'UL' ? (row.querySelector(':scope > li') || null) : null)
+              atFirstVisibleChar = true
+              offsetFromRowStart = 0
+            }
+          }
+        }
+
+        probe.remove()
+        return { range, row, liRow, atFirstVisibleChar, offsetFromRowStart }
       }
 
       // Extract top-level block elements spanning current selection
@@ -4450,7 +4698,8 @@
             const li = block.querySelector('li') || block
             const div = document.createElement('div')
             while (li.firstChild) div.appendChild(li.firstChild)
-            div.style.marginLeft = '0px'
+            // Keep existing row indentation when toggling list off.
+            div.style.marginLeft = block.style.marginLeft || '0px'
             block.parentNode.replaceChild(div, block)
           } else {
             if (block.tagName === 'UL') return
@@ -4472,9 +4721,199 @@
           _richSavedRange = newRange.cloneRange()
         }
         startMarker.remove(); endMarker.remove()
+        syncEditorRowIndentMetadata()
         updateRichTextPanelButtons()
         // Resize editor overlay to fit the changed list structure
         if (_richActiveEditor) _richActiveEditor.dispatchEvent(new Event('input', { bubbles: true }))
+      }
+
+      // Backspace at row start behaves like Shift+Tab (outdent) for rich-text rows.
+      // Bullet-specific rule: on first-level bullets, Backspace removes the bullet on
+      // the current row. Plain rows with no indent keep native Backspace merge behavior.
+      const handleRichTextBackspace = (e) => {
+        if (e.key !== 'Backspace') return false
+        const sel = window.getSelection()
+        if (!sel.rangeCount || !_richActiveEditor) return false
+
+        const caret = resolveCaretRowContext({ requireCollapsed: true })
+        if (!caret || !caret.row) return false
+
+        // Fallback for wrap-mode list rows: compute row-start directly on the current LI
+        // from the live selection if resolver affinity does not report row-start.
+        let atFirstVisible = !!caret.atFirstVisibleChar
+        if (!atFirstVisible) {
+          const r = sel.getRangeAt(0)
+          if (r.collapsed && _richActiveEditor.contains(r.commonAncestorContainer)) {
+            let el = r.startContainer.nodeType === 3 ? r.startContainer.parentNode : r.startContainer
+            const liDirect = el?.closest ? el.closest('li') : null
+            if (liDirect && _richActiveEditor.contains(liDirect)) {
+              const before = document.createRange()
+              before.setStart(liDirect, 0)
+              before.setEnd(r.startContainer, r.startOffset)
+              const txt = String(before.toString() || '')
+                .replace(/\u200B/g, '')
+                .replace(/\u00A0/g, ' ')
+                .replace(/\r?\n/g, '')
+                .trim()
+              atFirstVisible = txt.length === 0
+            }
+          }
+        }
+        if (!atFirstVisible) return false
+
+        const rowNode = caret.liRow || caret.row
+        const isBulletRow = rowNode.tagName === 'LI' || caret.row.tagName === 'UL'
+        const rowIndent = getRowIndentLevel(rowNode)
+
+        // Plain text row: if indent is zero, preserve native merge behavior.
+        if (!isBulletRow && rowIndent <= 0) return false
+
+        e.preventDefault()
+
+        let caretHost = rowNode
+        if (isBulletRow) {
+          const li = rowNode.tagName === 'LI' ? rowNode : (rowNode.querySelector(':scope > li') || null)
+          if (!li) return true
+          const ul = splitLiToOwnUl(li)
+          const level = getRowIndentLevel(ul)
+          if (level > 0) {
+            setRowIndentLevel(ul, level - 1)
+            caretHost = li
+          } else {
+            const div = document.createElement('div')
+            while (li.firstChild) div.appendChild(li.firstChild)
+            setRowIndentLevel(div, 0)
+            ul.parentNode.replaceChild(div, ul)
+            caretHost = div
+          }
+        } else {
+          setRowIndentLevel(rowNode, Math.max(0, rowIndent - 1))
+          caretHost = rowNode
+        }
+
+        const caretRange = document.createRange()
+        const textNode = (() => {
+          const w = document.createTreeWalker(caretHost, NodeFilter.SHOW_TEXT)
+          return w.nextNode()
+        })()
+        if (textNode) caretRange.setStart(textNode, 0)
+        else caretRange.setStart(caretHost, 0)
+        caretRange.collapse(true)
+        sel.removeAllRanges()
+        sel.addRange(caretRange)
+        _richSavedRange = caretRange.cloneRange()
+
+        syncEditorRowIndentMetadata()
+        updateRichTextPanelButtons()
+        if (_richActiveEditor) _richActiveEditor.dispatchEvent(new Event('input', { bubbles: true }))
+        return true
+      }
+
+      // Enter splits the current row and carries over explicit row indentation/style.
+      // This keeps auto-created rows consistent with Tab/Shift+Tab/Backspace logic.
+      const handleRichTextEnter = (e) => {
+        if (e.key !== 'Enter') return false
+        if (e.shiftKey) return false
+        const sel = window.getSelection()
+        if (!sel.rangeCount || !_richActiveEditor) return false
+
+        const toElement = (n) => n && (n.nodeType === 3 ? n.parentNode : n)
+        const findTopLevelBlock = (n) => {
+          let el = toElement(n)
+          while (el && el !== _richActiveEditor && el.parentNode !== _richActiveEditor) el = el.parentNode
+          return (el && el !== _richActiveEditor) ? el : null
+        }
+        const ensurePlaceholder = (el) => {
+          const txt = (el?.textContent || '').replace(/\u200B/g, '').trim()
+          if (txt.length === 0) el.appendChild(document.createTextNode('\u200B'))
+        }
+        const firstTextNode = (root) => {
+          const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT)
+          return w.nextNode()
+        }
+
+        let range = sel.getRangeAt(0)
+        if (!_richActiveEditor.contains(range.commonAncestorContainer)) return false
+
+        e.preventDefault()
+
+        if (!range.collapsed) {
+          range.deleteContents()
+          range = sel.getRangeAt(0)
+        }
+
+        const marker = document.createElement('span')
+        marker.id = 'rte-enter-marker'
+        range.insertNode(marker)
+
+        const startEl = toElement(marker)
+        const li = startEl?.closest ? startEl.closest('li') : null
+
+        if (li) {
+          const ul = splitLiToOwnUl(li)
+
+          const rightRange = document.createRange()
+          rightRange.setStartAfter(marker)
+          rightRange.setEnd(li, li.childNodes.length)
+          const rightFrag = rightRange.extractContents()
+          marker.remove()
+
+          ensurePlaceholder(li)
+
+          const newUl = document.createElement('ul')
+          newUl.style.cssText = ul.style.cssText
+          setRowIndentLevel(newUl, getRowIndentLevel(ul))
+          updateRichListStyle(newUl)
+          const newLi = document.createElement('li')
+          newLi.appendChild(rightFrag)
+          ensurePlaceholder(newLi)
+          newUl.appendChild(newLi)
+
+          const ulParent = ul.parentNode || _richActiveEditor
+          ulParent.insertBefore(newUl, ul.parentNode ? ul.nextSibling : null)
+
+          const caretNode = firstTextNode(newLi) || newLi
+          const newRange = document.createRange()
+          if (caretNode.nodeType === 3) newRange.setStart(caretNode, 0)
+          else newRange.setStart(newLi, 0)
+          newRange.collapse(true)
+          sel.removeAllRanges(); sel.addRange(newRange)
+          _richSavedRange = newRange.cloneRange()
+        } else {
+          const row = findTopLevelBlock(marker)
+          if (!row) { marker.remove(); return true }
+
+          const rightRange = document.createRange()
+          rightRange.setStartAfter(marker)
+          rightRange.setEnd(row, row.childNodes.length)
+          const rightFrag = rightRange.extractContents()
+          marker.remove()
+
+          ensurePlaceholder(row)
+
+          const tag = ['DIV', 'P'].includes(row.tagName) ? row.tagName : 'DIV'
+          const newRow = document.createElement(tag)
+          newRow.style.cssText = row.style.cssText
+          setRowIndentLevel(newRow, getRowIndentLevel(row))
+          newRow.appendChild(rightFrag)
+          ensurePlaceholder(newRow)
+
+          const rowParent = row.parentNode || _richActiveEditor
+          rowParent.insertBefore(newRow, row.parentNode ? row.nextSibling : null)
+
+          const caretNode = firstTextNode(newRow) || newRow
+          const newRange = document.createRange()
+          if (caretNode.nodeType === 3) newRange.setStart(caretNode, 0)
+          else newRange.setStart(newRow, 0)
+          newRange.collapse(true)
+          sel.removeAllRanges(); sel.addRange(newRange)
+          _richSavedRange = newRange.cloneRange()
+        }
+
+        updateRichTextPanelButtons()
+        syncEditorRowIndentMetadata()
+        if (_richActiveEditor) _richActiveEditor.dispatchEvent(new Event('input', { bubbles: true }))
+        return true
       }
 
       // Tab / Shift+Tab indentation inside the rich text editor.
@@ -4488,6 +4927,7 @@
         if (!sel.rangeCount || !_richActiveEditor) return
         const range = RichTextEngine.restoreSelection()
         if (!range) return
+        const wasCollapsed = range.collapsed
 
         // Insert markers to track the selection boundaries across DOM mutations
         const startMarker = document.createElement('span'); startMarker.id = 'rte-indent-start'
@@ -4534,20 +4974,26 @@
           } else {
             target = block                   // <div>/<p>/<ul> already at correct level
           }
-          const cur = parseInt(target.style.marginLeft || '0')
-          target.style.marginLeft = (e.shiftKey ? Math.max(0, cur - 40) : cur + 40) + 'px'
-          if (target.tagName === 'UL') updateRichListStyle(target)
+          const cur = getRowIndentLevel(target)
+          const next = e.shiftKey ? Math.max(0, cur - 1) : (cur + 1)
+          setRowIndentLevel(target, next)
         })
 
         // Restore selection via markers (still in DOM inside their respective blocks)
         const newRange = document.createRange()
         if (_richActiveEditor.contains(startMarker) && _richActiveEditor.contains(endMarker)) {
-          newRange.setStartAfter(startMarker)
-          newRange.setEndBefore(endMarker)
+          if (wasCollapsed) {
+            newRange.setStartAfter(startMarker)
+            newRange.collapse(true)
+          } else {
+            newRange.setStartAfter(startMarker)
+            newRange.setEndBefore(endMarker)
+          }
           sel.removeAllRanges(); sel.addRange(newRange)
           _richSavedRange = newRange.cloneRange()
         }
         startMarker.remove(); endMarker.remove()
+        syncEditorRowIndentMetadata()
         updateRichTextPanelButtons()
         // Resize editor overlay to fit the changed content
         if (_richActiveEditor) _richActiveEditor.dispatchEvent(new Event('input', { bubbles: true }))
@@ -4707,6 +5153,7 @@
         editor.contentEditable = 'true'
         editor.spellcheck = false
         editor.innerHTML = normalizeRichText(s.text || '')
+        syncEditorRowIndentMetadata()
         editor.style.fontSize = fontSize + 'px'
         editor.style.fontFamily = fontFamily || 'inherit'
         editor.style.lineHeight = String(fontSize * 1.2 / fontSize)
@@ -4792,15 +5239,63 @@
         _richActiveEditor = editor
         _richActiveShapeId = shapeId
 
-        // Place cursor at end
+        const placeCaretAtEnd = () => {
+          const sel = window.getSelection()
+          const r = document.createRange()
+          r.selectNodeContents(editor)
+          r.collapse(false)
+          sel.removeAllRanges()
+          sel.addRange(r)
+          _richSavedRange = r.cloneRange()
+        }
+
+        const setCaretFromClientPoint = (cx, cy) => {
+          if (!Number.isFinite(cx) || !Number.isFinite(cy)) { placeCaretAtEnd(); return }
+
+          const edRect = editor.getBoundingClientRect()
+          const inEditor = cx >= edRect.left && cx <= edRect.right && cy >= edRect.top && cy <= edRect.bottom
+
+          const makeCollapsedRange = (node, offset) => {
+            const r = document.createRange()
+            r.setStart(node, offset)
+            r.collapse(true)
+            return r
+          }
+
+          let r = null
+          if (document.caretPositionFromPoint) {
+            const pos = document.caretPositionFromPoint(cx, cy)
+            if (pos && editor.contains(pos.offsetNode)) r = makeCollapsedRange(pos.offsetNode, pos.offset)
+          } else if (document.caretRangeFromPoint) {
+            const rr = document.caretRangeFromPoint(cx, cy)
+            if (rr && editor.contains(rr.startContainer)) {
+              r = rr.cloneRange()
+              r.collapse(true)
+            }
+          }
+
+          // If API returned outside editor (or unavailable), clamp to edge.
+          if (!r) {
+            if (!inEditor && cx <= edRect.left) {
+              r = document.createRange()
+              r.selectNodeContents(editor)
+              r.collapse(true)
+            } else {
+              r = document.createRange()
+              r.selectNodeContents(editor)
+              r.collapse(false)
+            }
+          }
+
+          const sel = window.getSelection()
+          sel.removeAllRanges()
+          sel.addRange(r)
+          _richSavedRange = r.cloneRange()
+        }
+
+        // Place cursor near pointer if available; otherwise at end.
         editor.focus()
-        const sel = window.getSelection()
-        const range = document.createRange()
-        range.selectNodeContents(editor)
-        range.collapse(false)
-        sel.removeAllRanges()
-        sel.addRange(range)
-        _richSavedRange = range.cloneRange()
+        setCaretFromClientPoint(clientX, clientY)
         updateRichTextPanelButtons()
 
         let didFinish = false
@@ -4831,6 +5326,8 @@
 
         editor.addEventListener('input', syncSize)
         editor.addEventListener('keydown', (ev) => {
+          if (ev.key === 'Enter' && handleRichTextEnter(ev)) return
+          if (ev.key === 'Backspace' && handleRichTextBackspace(ev)) return
           if (ev.key === 'Tab') { handleRichTextIndent(ev); return }
           if (ev.key === 'Escape') { ev.preventDefault(); ev.stopPropagation(); finish(true); return }
           ev.stopPropagation()
@@ -7461,7 +7958,18 @@
           const textShape = Array.from(app.selectedIds)
             .map(id => getShapeById(id))
             .find(s => s && s.type === 'text')
-          if (textShape) { ev.preventDefault(); startTextEdit(textShape.id); return }
+          if (textShape) {
+            ev.preventDefault()
+            const p = {
+              x: clamp(Number(app.lastPointer?.x ?? app.canvas.width / 2), 0, app.canvas.width),
+              y: clamp(Number(app.lastPointer?.y ?? app.canvas.height / 2), 0, app.canvas.height)
+            }
+            const svgRect = svg.getBoundingClientRect()
+            const cx = svgRect.left + (p.x / app.canvas.width) * svgRect.width
+            const cy = svgRect.top  + (p.y / app.canvas.height) * svgRect.height
+            startTextEdit(textShape.id, cx, cy)
+            return
+          }
         }
         if (k === 'n') {
           createNewDrawing()
@@ -8163,7 +8671,7 @@
           if (_richActiveEditor) RichTextEngine.execute('highlight', color)
           else applyFormatToSelectedShapes('highlight', color)
         })
-        wireRichBtn('btnBulletList', () => toggleRichBulletList())
+        wireRichBtn('btnBulletList', () => _richActiveEditor ? toggleRichBulletList() : toggleBulletListOnSelectedShapes())
 
         // Highlight color input: prevent stealing focus while editor is open
         const hlColorInput = $('#richHighlightColor')
