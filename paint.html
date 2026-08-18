@@ -3232,6 +3232,7 @@
 
       const galleryNameSaveTimers = new Map()
       const GALLERY_NAME_SAVE_MS = 700
+      let activeGalleryNameInput = null
 
       const persistDrawingNameById = async (id, rawName) => {
         if (!app.db) return
@@ -3366,6 +3367,7 @@
             isNameEditing = true
             startNameValue = name.value
             name.classList.add('editing')
+            activeGalleryNameInput = name
             name.focus()
             name.select()
           }
@@ -3373,6 +3375,7 @@
           const finishNameEdit = async () => {
             if (!isNameEditing) return
             isNameEditing = false
+            activeGalleryNameInput = null
 
             let finalName = String(name.value || '').trim()
             if (!finalName) finalName = String(startNameValue || rec.id).trim() || rec.id
@@ -3401,11 +3404,22 @@
             if (app.activeId === rec.id && app.drawing) {
               app.drawing.name = name.value
             }
-            queueGalleryNameSave(rec.id, name.value)
           })
           name.addEventListener('keydown', (ev) => {
             if (ev.key === 'Enter' || ev.code === 'NumpadEnter' || ev.keyCode === 13) {
               ev.preventDefault()
+              name.blur()
+              return
+            }
+            if (ev.key === 'Escape') {
+              ev.preventDefault()
+              name.value = startNameValue
+              if (app.activeId === rec.id && app.drawing) {
+                app.drawing.name = startNameValue
+              }
+              isNameEditing = false
+              activeGalleryNameInput = null
+              name.classList.remove('editing')
               name.blur()
               return
             }
@@ -5425,6 +5439,7 @@
       const pointerDown = (ev) => {
         if (!app.drawing) return
         if (ev.button !== 0) return
+        if (activeGalleryNameInput) activeGalleryNameInput.blur()
         app.isPointerDown = true
         app.didDragMove = false  // reset per-pointer-down drag flag
 
