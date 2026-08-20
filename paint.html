@@ -789,7 +789,7 @@
               <div id='selectedTypeDisplay' style='padding: 0 8px; height: 24px; display: flex; align-items: center; border-radius: 6px; border: 1px solid var(--border); background: rgba(255,255,255,0.04); color: var(--text); font-size: 12px; font-family: var(--mono);'>none</div>
             </div>
 
-            <!-- Rectangle Properties Sections -->
+            <!-- General section (only the active shape type's rows are shown) -->
             <div class='row hidden' id='rowRectGeneralHeader' style='margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--border);'>
               <label style='font-weight: 600; color: var(--text);'>General</label>
               <div></div>
@@ -801,76 +801,118 @@
                 <button class='btn' id='btnRectToSquare' type='button' title='Convert selected rectangle to square'>To square</button>
               </div>
             </div>
-            <div class='row hidden' id='rowRectBorderHeader' style='margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--border);'>
-              <label style='font-weight: 600; color: var(--text);'>Border</label>
-              <div></div>
+            <div class='row hidden' id='rowRectFlip'>
+              <label>Flip</label>
+              <div style='display:flex; gap:8px;'>
+                <button class='btn icon' id='btnRectFlipH' type='button' aria-label='Flip horizontally' aria-pressed='false' title='Flip horizontally'>↔</button>
+                <button class='btn icon' id='btnRectFlipV' type='button' aria-label='Flip vertically' aria-pressed='false' title='Flip vertically'>↕</button>
+              </div>
             </div>
-            <div class='row hidden' id='rowRectFillHeader' style='margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--border);'>
-              <label style='font-weight: 600; color: var(--text);'>Fill</label>
-              <div></div>
-            </div>
-
-            <!-- Circle Properties Sections -->
             <div class='row hidden' id='rowCircleGeneralHeader' style='margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--border);'>
               <label style='font-weight: 600; color: var(--text);'>General</label>
-              <div></div>
-            </div>
-            <div class='row hidden' id='rowCircleStrokeHeader' style='margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--border);'>
-              <label style='font-weight: 600; color: var(--text);'>Stroke</label>
-              <div></div>
-            </div>
-            <div class='row hidden' id='rowCircleFillHeader' style='margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--border);'>
-              <label style='font-weight: 600; color: var(--text);'>Fill</label>
               <div></div>
             </div>
             <div class='row hidden' id='rowCircleLockAspect'>
               <label>Lock aspect ratio</label>
               <input type='checkbox' id='circleLockAspect' checked />
             </div>
-
+            <div class='row hidden' id='rowCircleFlip'>
+              <label>Flip</label>
+              <div style='display:flex; gap:8px;'>
+                <button class='btn icon' id='btnCircleFlipH' type='button' aria-label='Flip horizontally' aria-pressed='false' title='Flip horizontally'>↔</button>
+                <button class='btn icon' id='btnCircleFlipV' type='button' aria-label='Flip vertically' aria-pressed='false' title='Flip vertically'>↕</button>
+              </div>
+            </div>
             <div class='row hidden' id='rowLineLikeGeneralHeader' style='margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--border);'>
               <label style='font-weight: 600; color: var(--text);'>General</label>
+              <div></div>
+            </div>
+            <div class='row hidden' id='rowLineLockAspect'>
+              <label>Lock aspect ratio</label>
+              <input type='checkbox' id='lineLockAspect' />
+            </div>
+            <div class='row hidden' id='rowArrowLockAspect'>
+              <label>Lock aspect ratio</label>
+              <input type='checkbox' id='arrowLockAspect' />
+            </div>
+            <div class='row hidden' id='rowLineLikeFlip'>
+              <label>Flip</label>
+              <div style='display:flex; gap:8px;'>
+                <button class='btn icon' id='btnLineLikeFlipH' type='button' aria-label='Flip horizontally' aria-pressed='false' title='Flip horizontally'>↔</button>
+                <button class='btn icon' id='btnLineLikeFlipV' type='button' aria-label='Flip vertically' aria-pressed='false' title='Flip vertically'>↕</button>
+              </div>
+            </div>
+            <div class='row hidden' id='rowPenGeneralHeader' style='margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--border);'>
+              <label style='font-weight: 600; color: var(--text);'>General</label>
+              <div></div>
+            </div>
+            <div class='row hidden' id='rowPenLockAspect'>
+              <label>Lock aspect ratio</label>
+              <input type='checkbox' id='penLockAspect' />
+            </div>
+            <div class='row hidden' id='rowPenFlip'>
+              <label>Flip</label>
+              <div style='display:flex; gap:8px;'>
+                <button class='btn icon' id='btnPenFlipH' type='button' aria-label='Flip horizontally' aria-pressed='false' title='Flip horizontally'>↔</button>
+                <button class='btn icon' id='btnPenFlipV' type='button' aria-label='Flip vertically' aria-pressed='false' title='Flip vertically'>↕</button>
+              </div>
+            </div>
+            <div class='row hidden' id='rowTextGeneralHeader' style='margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--border);'>
+              <label style='font-weight: 600; color: var(--text);'>General</label>
+              <div></div>
+            </div>
+            <div class='row hidden' id='rowTextFlip'>
+              <label>Flip</label>
+              <div style='display:flex; gap:8px;'>
+                <button class='btn icon' id='btnTextFlipH' type='button' aria-label='Flip horizontally' aria-pressed='false' title='Flip horizontally'>↔</button>
+                <button class='btn icon' id='btnTextFlipV' type='button' aria-label='Flip vertically' aria-pressed='false' title='Flip vertically'>↕</button>
+              </div>
+            </div>
+            <div class='row hidden' id='rowImageGeneralHeader' style='margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--border);'>
+              <label style='font-weight: 600; color: var(--text);'>General</label>
+              <div></div>
+            </div>
+            <div class='row hidden' id='rowImageLockAspect'>
+              <label>Lock aspect ratio</label>
+              <input type='checkbox' id='imageLockAspect' checked />
+            </div>
+            <div class='row hidden' id='rowImageFlip'>
+              <label>Flip</label>
+              <div style='display:flex; gap:8px;'>
+                <button class='btn icon' id='btnFlipH' type='button' aria-label='Flip horizontally' aria-pressed='false' title='Flip horizontally'>↔</button>
+                <button class='btn icon' id='btnFlipV' type='button' aria-label='Flip vertically' aria-pressed='false' title='Flip vertically'>↕</button>
+              </div>
+            </div>
+
+            <!-- Crop + rotation (shared) -->
+            <div class='row hidden' id='rowImageCrop'>
+              <label>Crop</label>
+              <button class='btn icon' id='btnCropMode' type='button' title='Toggle crop mode'>✂</button>
+            </div>
+            <div class='row' id='rowRotation'>
+              <label>Rotation (<span class='rotationLabelValue' id='rotationValue'>0°</span>)</label>
+              <div class='rotationControl'>
+                <input type='range' id='rotation' min='-180' max='180' step='1' value='0' />
+                <div class='rotationButtons'>
+                  <button class='btn rotationStep' id='rotationDec' type='button' title='Rotate -1°'>▼</button>
+                  <button class='btn rotationStep' id='rotationInc' type='button' title='Rotate +1°'>▲</button>
+                  <button class='btn rotationReset' id='rotationReset' type='button' title='Reset rotation to 0°'>0°</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Stroke / border section headers (per type) -->
+            <div class='row hidden' id='rowRectBorderHeader' style='margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--border);'>
+              <label style='font-weight: 600; color: var(--text);'>Border</label>
+              <div></div>
+            </div>
+            <div class='row hidden' id='rowCircleStrokeHeader' style='margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--border);'>
+              <label style='font-weight: 600; color: var(--text);'>Stroke</label>
               <div></div>
             </div>
             <div class='row hidden' id='rowLineLikeArrowHeader' style='margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--border);'>
               <label style='font-weight: 600; color: var(--text);'>Arrow head</label>
               <div></div>
-            </div>
-            <div class='row hidden' id='rowLineLikeLineHeader' style='margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--border);'>
-              <label style='font-weight: 600; color: var(--text);'>Line</label>
-              <div></div>
-            </div>
-
-            <div class='row hidden' id='rowPenGeneralHeader' style='margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--border);'>
-              <label style='font-weight: 600; color: var(--text);'>General</label>
-              <div></div>
-            </div>
-
-            <div class='row hidden' id='rowPenStrokeHeader' style='margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--border);'>
-              <label style='font-weight: 600; color: var(--text);'>Stroke</label>
-              <div></div>
-            </div>
-
-            <div class='row hidden' id='rowPenTransformHeader' style='margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--border);'>
-              <label style='font-weight: 600; color: var(--text);'>Transformations</label>
-              <div></div>
-            </div>
-
-            <div class='row' id='rowStroke'>
-              <label id='labelStrokeColor'>Stroke</label>
-              <input type='color' id='strokeColor' value='#111111' />
-            </div>
-            <div class='row' id='rowFill'>
-              <label id='labelFillColor'>Fill</label>
-              <input type='color' id='fillColor' value='#ffffff' />
-            </div>
-            <div class='row' id='rowStrokeWidth'>
-              <label id='labelStrokeWidth'>Stroke width</label>
-              <input type='range' id='strokeWidth' min='0' max='60' step='1' value='3' />
-            </div>
-            <div class='row' id='rowStrokeAlpha'>
-              <label id='labelStrokeAlpha'>Stroke alpha</label>
-              <input type='range' id='strokeAlpha' min='0' max='1' step='0.01' value='1' />
             </div>
             <div class='row hidden' id='rowArrowHeadDoubleSided'>
               <label>Double-sided</label>
@@ -905,6 +947,10 @@
               <label>Angle</label>
               <input type='range' id='arrowHeadAngle' min='0' max='80' step='1' value='40' />
             </div>
+            <div class='row hidden' id='rowLineLikeLineHeader' style='margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--border);'>
+              <label style='font-weight: 600; color: var(--text);'>Line</label>
+              <div></div>
+            </div>
             <div class='row hidden' id='rowLineStyle'>
               <label>Style</label>
               <select id='lineStyle'>
@@ -915,18 +961,36 @@
                 <option value='double'>Double</option>
               </select>
             </div>
-            <div class='row hidden' id='rowLineLockAspect'>
-              <label>Lock aspect ratio</label>
-              <input type='checkbox' id='lineLockAspect' />
+            <div class='row hidden' id='rowPenStrokeHeader' style='margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--border);'>
+              <label style='font-weight: 600; color: var(--text);'>Stroke</label>
+              <div></div>
             </div>
-            <div class='row hidden' id='rowArrowLockAspect'>
-              <label>Lock aspect ratio</label>
-              <input type='checkbox' id='arrowLockAspect' />
+
+            <!-- Shared stroke controls -->
+            <div class='row' id='rowStrokeWidth'>
+              <label id='labelStrokeWidth'>Stroke width</label>
+              <input type='range' id='strokeWidth' min='0' max='60' step='1' value='3' />
             </div>
-            <div class='row hidden' id='rowPenSmoothness'>
-              <label>Smoothness</label>
-              <input type='range' id='penSmoothness' min='0' max='100' step='1' value='0' />
+            <div class='row' id='rowStroke'>
+              <label id='labelStrokeColor'>Stroke</label>
+              <input type='color' id='strokeColor' value='#111111' />
             </div>
+            <div class='row' id='rowStrokeAlpha'>
+              <label id='labelStrokeAlpha'>Stroke alpha</label>
+              <input type='range' id='strokeAlpha' min='0' max='1' step='0.01' value='1' />
+            </div>
+
+            <!-- Fill section headers (per type) -->
+            <div class='row hidden' id='rowRectFillHeader' style='margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--border);'>
+              <label style='font-weight: 600; color: var(--text);'>Fill</label>
+              <div></div>
+            </div>
+            <div class='row hidden' id='rowCircleFillHeader' style='margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--border);'>
+              <label style='font-weight: 600; color: var(--text);'>Fill</label>
+              <div></div>
+            </div>
+
+            <!-- Pen arrow head section -->
             <div class='row hidden' id='rowPenArrowHeader' style='margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--border);'>
               <label style='font-weight: 600; color: var(--text);'>Arrow head</label>
               <div></div>
@@ -964,15 +1028,28 @@
               <label>Angle</label>
               <input type='range' id='penArrowAngle' min='0' max='80' step='1' value='40' />
             </div>
-            <div class='row hidden' id='rowPenLockAspect'>
-              <label>Lock aspect ratio</label>
-              <input type='checkbox' id='penLockAspect' />
+
+            <!-- Shared fill controls -->
+            <div class='row' id='rowFill'>
+              <label id='labelFillColor'>Fill</label>
+              <input type='color' id='fillColor' value='#ffffff' />
             </div>
             <div class='row' id='rowFillAlpha'>
               <label id='labelFillAlpha'>Fill alpha</label>
               <input type='range' id='fillAlpha' min='0' max='1' step='0.01' value='0' />
             </div>
-            <!-- Textarea Text Properties Section -->
+
+            <!-- Pen transform section -->
+            <div class='row hidden' id='rowPenTransformHeader' style='margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--border);'>
+              <label style='font-weight: 600; color: var(--text);'>Transformations</label>
+              <div></div>
+            </div>
+            <div class='row hidden' id='rowPenSmoothness'>
+              <label>Smoothness</label>
+              <input type='range' id='penSmoothness' min='0' max='100' step='1' value='0' />
+            </div>
+
+            <!-- Textarea sections -->
             <div class='row hidden' id='rowTextareaTextHeader' style='margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--border);'>
               <label style='font-weight: 600; color: var(--text);'>Text</label>
               <div></div>
@@ -1026,8 +1103,6 @@
               <label>Wrap text</label>
               <input type='checkbox' id='textareaWrapText' />
             </div>
-
-            <!-- Textarea Border Section -->
             <div class='row hidden' id='rowTextareaBorderHeader' style='margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--border);'>
               <label style='font-weight: 600; color: var(--text);'>Border</label>
               <div></div>
@@ -1048,8 +1123,6 @@
               <label>Text padding</label>
               <input type='range' id='textareaPadding' min='0' max='20' step='1' value='5' />
             </div>
-
-            <!-- Textarea Background Section -->
             <div class='row hidden' id='rowTextareaBackgroundHeader' style='margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--border);'>
               <label style='font-weight: 600; color: var(--text);'>Background</label>
               <div></div>
@@ -1063,80 +1136,7 @@
               <input type='range' id='textareaBackgroundAlpha' min='0' max='1' step='0.01' value='0.25' />
             </div>
 
-            <div class='row hidden' id='rowImageGeneralHeader' style='margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--border);'>
-              <label style='font-weight: 600; color: var(--text);'>General</label>
-              <div></div>
-            </div>
-            <div class='row hidden' id='rowImageLockAspect'>
-              <label>Lock aspect ratio</label>
-              <input type='checkbox' id='imageLockAspect' checked />
-            </div>
-            <div class='row hidden' id='rowImageFlip'>
-              <label>Flip</label>
-              <div style='display:flex; gap:8px;'>
-                <button class='btn icon' id='btnFlipH' type='button' aria-label='Flip horizontally' aria-pressed='false' title='Flip horizontally'>↔</button>
-                <button class='btn icon' id='btnFlipV' type='button' aria-label='Flip vertically' aria-pressed='false' title='Flip vertically'>↕</button>
-              </div>
-            </div>
-
-            <!-- Flip controls for other object types -->
-            <div class='row hidden' id='rowPenFlip'>
-              <label>Flip</label>
-              <div style='display:flex; gap:8px;'>
-                <button class='btn icon' id='btnPenFlipH' type='button' aria-label='Flip horizontally' aria-pressed='false' title='Flip horizontally'>↔</button>
-                <button class='btn icon' id='btnPenFlipV' type='button' aria-label='Flip vertically' aria-pressed='false' title='Flip vertically'>↕</button>
-              </div>
-            </div>
-            <div class='row hidden' id='rowRectFlip'>
-              <label>Flip</label>
-              <div style='display:flex; gap:8px;'>
-                <button class='btn icon' id='btnRectFlipH' type='button' aria-label='Flip horizontally' aria-pressed='false' title='Flip horizontally'>↔</button>
-                <button class='btn icon' id='btnRectFlipV' type='button' aria-label='Flip vertically' aria-pressed='false' title='Flip vertically'>↕</button>
-              </div>
-            </div>
-            <div class='row hidden' id='rowCircleFlip'>
-              <label>Flip</label>
-              <div style='display:flex; gap:8px;'>
-                <button class='btn icon' id='btnCircleFlipH' type='button' aria-label='Flip horizontally' aria-pressed='false' title='Flip horizontally'>↔</button>
-                <button class='btn icon' id='btnCircleFlipV' type='button' aria-label='Flip vertically' aria-pressed='false' title='Flip vertically'>↕</button>
-              </div>
-            </div>
-            <div class='row hidden' id='rowLineLikeFlip'>
-              <label>Flip</label>
-              <div style='display:flex; gap:8px;'>
-                <button class='btn icon' id='btnLineLikeFlipH' type='button' aria-label='Flip horizontally' aria-pressed='false' title='Flip horizontally'>↔</button>
-                <button class='btn icon' id='btnLineLikeFlipV' type='button' aria-label='Flip vertically' aria-pressed='false' title='Flip vertically'>↕</button>
-              </div>
-            </div>
-            <div class='row hidden' id='rowTextFlip'>
-              <label>Flip</label>
-              <div style='display:flex; gap:8px;'>
-                <button class='btn icon' id='btnTextFlipH' type='button' aria-label='Flip horizontally' aria-pressed='false' title='Flip horizontally'>↔</button>
-                <button class='btn icon' id='btnTextFlipV' type='button' aria-label='Flip vertically' aria-pressed='false' title='Flip vertically'>↕</button>
-              </div>
-            </div>
-
-            <div class='row hidden' id='rowTextGeneralHeader' style='margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--border);'>
-              <label style='font-weight: 600; color: var(--text);'>General</label>
-              <div></div>
-            </div>
-
-            <div class='row hidden' id='rowImageCrop'>
-              <label>Crop</label>
-              <button class='btn icon' id='btnCropMode' type='button' title='Toggle crop mode'>✂</button>
-            </div>
-            <div class='row' id='rowRotation'>
-              <label>Rotation (<span class='rotationLabelValue' id='rotationValue'>0°</span>)</label>
-              <div class='rotationControl'>
-                <input type='range' id='rotation' min='-180' max='180' step='1' value='0' />
-                <div class='rotationButtons'>
-                  <button class='btn rotationStep' id='rotationDec' type='button' title='Rotate -1°'>▼</button>
-                  <button class='btn rotationStep' id='rotationInc' type='button' title='Rotate +1°'>▲</button>
-                  <button class='btn rotationReset' id='rotationReset' type='button' title='Reset rotation to 0°'>0°</button>
-                </div>
-              </div>
-            </div>
-
+            <!-- Image sections -->
             <div class='row hidden' id='rowImageBorderHeader' style='margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--border);'>
               <label style='font-weight: 600; color: var(--text);'>Border</label>
               <div></div>
@@ -1153,8 +1153,6 @@
               <label>Border alpha</label>
               <input type='range' id='imageBorderAlpha' min='0' max='1' step='0.01' value='1' />
             </div>
-
-            <!-- Image Transparency Section -->
             <div class='row hidden' id='rowImageTransparencyHeader' style='margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--border);'>
               <label style='font-weight: 600; color: var(--text);'>Transparency</label>
               <div></div>
@@ -6410,192 +6408,6 @@
         row.classList.toggle('hidden', !!hidden)
       }
 
-      const setRowOrder = (rowId, order) => {
-        const row = $('#' + rowId)
-        if (!row) return
-        row.style.order = order == null ? '' : String(order)
-      }
-
-      const resetBaseRowOrder = () => {
-        const rowIds = [
-          'rowTool',
-          'rowRectGeneralHeader',
-          'rowRectLockAspect',
-          'rowRectFlip',
-          'rowRectBorderHeader',
-          'rowRectFillHeader',
-          'rowCircleGeneralHeader',
-          'rowCircleStrokeHeader',
-          'rowCircleFillHeader',
-          'rowCircleLockAspect',
-          'rowCircleFlip',
-          'rowLineLikeGeneralHeader',
-          'rowLineLikeArrowHeader',
-          'rowLineLikeLineHeader',
-          'rowLineLikeFlip',
-          'rowPenGeneralHeader',
-          'rowPenStrokeHeader',
-          'rowPenTransformHeader',
-          'rowPenArrowHeader',
-          'rowPenArrowDoubleSided',
-          'rowPenArrowSize',
-          'rowPenArrowStyle',
-          'rowPenArrowColor',
-          'rowPenArrowAlpha',
-          'rowPenArrowWidth',
-          'rowPenArrowAngle',
-          'rowPenFlip',
-          'rowTextGeneralHeader',
-          'rowTextFlip',
-          'rowRichTextFormat',
-          'rowRichTextHighlight',
-          'rowBulletList',
-          'rowShortcutsHeader',
-          'rowShortcuts',
-          'rowImageCrop',
-          'rowStroke',
-          'rowFill',
-          'rowStrokeWidth',
-          'rowStrokeAlpha',
-          'rowFillAlpha',
-          'rowLineLockAspect',
-          'rowArrowLockAspect',
-          'rowArrowHeadSize',
-          'rowArrowHeadStyle',
-          'rowArrowHeadColor',
-          'rowArrowHeadAlpha',
-          'rowArrowHeadDoubleSided',
-          'rowArrowHeadWidth',
-          'rowArrowHeadAngle',
-          'rowLineStyle',
-          'rowPenLockAspect',
-          'rowRotation'
-        ]
-        for (const id of rowIds) setRowOrder(id, null)
-      }
-
-      const applyRectRowOrder = () => {
-        setRowOrder('rowTool', -100)
-        setRowOrder('rowRectGeneralHeader', -90)
-        setRowOrder('rowRectLockAspect', -89)
-        setRowOrder('rowRectFlip', -88)
-        setRowOrder('rowImageCrop', -87)
-        setRowOrder('rowRotation', -86)
-        setRowOrder('rowRectBorderHeader', -70)
-        setRowOrder('rowStrokeWidth', -69)
-        setRowOrder('rowStroke', -68)
-        setRowOrder('rowStrokeAlpha', -67)
-        setRowOrder('rowRectFillHeader', -60)
-        setRowOrder('rowFill', -59)
-        setRowOrder('rowFillAlpha', -58)
-        setRowOrder('rowShortcutsHeader', 98)
-        setRowOrder('rowShortcuts', 99)
-      }
-
-      const applyCircleRowOrder = () => {
-        setRowOrder('rowTool', -100)
-        setRowOrder('rowCircleGeneralHeader', -90)
-        setRowOrder('rowCircleLockAspect', -89)
-        setRowOrder('rowCircleFlip', -88)
-        setRowOrder('rowImageCrop', -87)
-        setRowOrder('rowRotation', -86)
-        setRowOrder('rowCircleStrokeHeader', -70)
-        setRowOrder('rowStrokeWidth', -69)
-        setRowOrder('rowStroke', -68)
-        setRowOrder('rowStrokeAlpha', -67)
-        setRowOrder('rowCircleFillHeader', -60)
-        setRowOrder('rowFill', -59)
-        setRowOrder('rowFillAlpha', -58)
-        setRowOrder('rowShortcutsHeader', 98)
-        setRowOrder('rowShortcuts', 99)
-      }
-
-      const applyLineLikeRowOrder = () => {
-        setRowOrder('rowTool', -100)
-        setRowOrder('rowLineLikeGeneralHeader', -90)
-        setRowOrder('rowLineLockAspect', -89)
-        setRowOrder('rowArrowLockAspect', -89)
-        setRowOrder('rowLineLikeFlip', -88)
-        setRowOrder('rowImageCrop', -87)
-        setRowOrder('rowRotation', -86)
-        setRowOrder('rowLineLikeArrowHeader', -85)
-        setRowOrder('rowArrowHeadDoubleSided', -84)
-        setRowOrder('rowArrowHeadSize', -83)
-        setRowOrder('rowArrowHeadStyle', -82)
-        setRowOrder('rowArrowHeadColor', -81)
-        setRowOrder('rowArrowHeadAlpha', -80)
-        setRowOrder('rowArrowHeadWidth', -79)
-        setRowOrder('rowArrowHeadAngle', -78)
-        setRowOrder('rowLineLikeLineHeader', -77)
-        setRowOrder('rowLineStyle', -76)
-        setRowOrder('rowStrokeWidth', -75)
-        setRowOrder('rowStroke', -74)
-        setRowOrder('rowStrokeAlpha', -73)
-        setRowOrder('rowShortcutsHeader', 98)
-        setRowOrder('rowShortcuts', 99)
-      }
-
-      const applyPenRowOrder = () => {
-        setRowOrder('rowTool', -100)
-        setRowOrder('rowPenGeneralHeader', -90)
-        setRowOrder('rowPenLockAspect', -89)
-        setRowOrder('rowPenFlip', -88)
-        setRowOrder('rowImageCrop', -87)
-        setRowOrder('rowRotation', -86)
-        setRowOrder('rowPenStrokeHeader', -85)
-        setRowOrder('rowStrokeWidth', -84)
-        setRowOrder('rowStroke', -83)
-        setRowOrder('rowStrokeAlpha', -82)
-        setRowOrder('rowPenArrowHeader', -75)
-        setRowOrder('rowPenArrowDoubleSided', -74)
-        setRowOrder('rowPenArrowSize',   -73)
-        setRowOrder('rowPenArrowStyle',  -72)
-        setRowOrder('rowPenArrowColor',  -71)
-        setRowOrder('rowPenArrowAlpha',  -70)
-        setRowOrder('rowPenArrowWidth',  -69)
-        setRowOrder('rowPenArrowAngle',  -68)
-        setRowOrder('rowPenTransformHeader', 96)
-        setRowOrder('rowPenSmoothness', 97)
-        setRowOrder('rowShortcutsHeader', 98)
-        setRowOrder('rowShortcuts', 99)
-      }
-
-      const applyTextareaRowOrder = () => {
-        setRowOrder('rowTool', -100)
-        setRowOrder('rowTextGeneralHeader', -90)
-        setRowOrder('rowTextFlip', -89)
-        setRowOrder('rowImageCrop', -88)
-        setRowOrder('rowRotation', -87)
-        setRowOrder('rowTextareaTextHeader', -70)
-        setRowOrder('rowTextareaFontSize', -69)
-        setRowOrder('rowRichTextFormat', -68)
-        setRowOrder('rowRichTextHighlight', -67)
-        setRowOrder('rowBulletList', -66)
-        setRowOrder('rowTextareaTextColor', -65)
-        setRowOrder('rowTextareaTextAlpha', -64)
-        setRowOrder('rowTextareaWrapText', -63)
-        setRowOrder('rowTextareaBorderHeader', -60)
-        setRowOrder('rowTextareaBorderWidth', -59)
-        setRowOrder('rowTextareaBorderColor', -58)
-        setRowOrder('rowTextareaBorderAlpha', -57)
-        setRowOrder('rowTextareaPadding', -56)
-        setRowOrder('rowTextareaBackgroundHeader', -50)
-        setRowOrder('rowTextareaBackgroundColor', -49)
-        setRowOrder('rowTextareaBackgroundAlpha', -48)
-        setRowOrder('rowShortcutsHeader', 98)
-        setRowOrder('rowShortcuts', 99)
-      }
-
-      const applyGroupRowOrder = () => {
-        setRowOrder('rowTool', -100)
-        setRowOrder('rowImageGeneralHeader', -90)
-        setRowOrder('rowImageFlip', -89)
-        setRowOrder('rowImageCrop', -88)
-        setRowOrder('rowRotation', -87)
-        setRowOrder('rowShortcutsHeader', 98)
-        setRowOrder('rowShortcuts', 99)
-      }
-
       const SHORTCUTS_HTML_DEFAULT = `
         <div><span class='kbd'>↑/↓</span> object size ±5, <span class='kbd'>Alt+↑/↓</span> object size ±1</div>
         <div><span class='kbd'>Shift+Arrows</span> move ±10, <span class='kbd'>Shift+Alt+Arrows</span> ±1</div>
@@ -6623,8 +6435,6 @@
           panelBody.classList.toggle('hidden', !hasSelection)
         }
 
-        resetBaseRowOrder()
-
         const commonRows = ['rowStroke', 'rowFill', 'rowStrokeWidth', 'rowStrokeAlpha', 'rowFillAlpha', 'rowRotation']
         const textareaRows = ['rowTextareaTextHeader', 'rowTextareaFontSize', 'rowRichTextFormat', 'rowRichTextHighlight', 'rowBulletList', 'rowTextareaTextColor', 'rowTextareaTextAlpha', 'rowTextareaWrapText', 'rowTextareaBorderHeader', 'rowTextareaBorderWidth', 'rowTextareaBorderColor', 'rowTextareaBorderAlpha', 'rowTextareaPadding', 'rowTextareaBackgroundHeader', 'rowTextareaBackgroundColor', 'rowTextareaBackgroundAlpha']
         const imageRows = ['rowImageGeneralHeader', 'rowImageLockAspect', 'rowImageAlpha', 'rowImageFlip', 'rowImageBorderHeader', 'rowImageBorderWidth', 'rowImageBorderColor', 'rowImageBorderAlpha', 'rowImageTransparencyHeader', 'rowImageTransparencyEnabled', 'rowImageTransparencyColor', 'rowImageTransparencyTolerance']
@@ -6642,7 +6452,6 @@
           const allRows = $$('#panelBody .row, #panelBody .mini')
           for (const row of allRows) row.classList.add('hidden')
           for (const id of groupOnlyRows) setRowHidden(id, false)
-          applyGroupRowOrder()
           return
         }
 
@@ -6675,12 +6484,6 @@
         for (const id of lineLikeRows) setRowHidden(id, mode !== 'lineLike')
         for (const id of rectSectionRows) setRowHidden(id, mode !== 'rect')
         for (const id of circleSectionRows) setRowHidden(id, mode !== 'circle')
-
-        if (mode === 'rect') applyRectRowOrder()
-        if (mode === 'circle') applyCircleRowOrder()
-        if (mode === 'lineLike') applyLineLikeRowOrder()
-        if (mode === 'pen') applyPenRowOrder()
-        if (mode === 'textarea') applyTextareaRowOrder()
 
         const labelStrokeColor = $('#labelStrokeColor')
         const labelStrokeAlpha = $('#labelStrokeAlpha')
