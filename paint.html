@@ -1235,7 +1235,6 @@
         return d
       }
       const LINE_SNAP_TOLERANCE = 10 // pixels, line/arrow will become horizontally/vertically aligned if within tolerance
-      const LINK_ATTACH_RADIUS = 5 // pixels, line/arrow will get attached to nearby objects if within radius
       const now = () => Date.now()
       const uuid = () => {
         if (crypto && crypto.randomUUID) return crypto.randomUUID()
@@ -1435,7 +1434,6 @@
         lineResizeState: null,
         cropModeId: null,
         marqueeBox: null,
-        linkPreview: null,
         alignGuides: null, // { vLines: [x,...], hLines: [y,...] } active during move drag
 
         // view
@@ -1846,77 +1844,6 @@
         return { x, y, w, h }
       }
 
-      const isLinkableTargetShape = (shape, excludeShapeId = null) => {
-        if (!shape) return false
-        if (shape.id === excludeShapeId) return false
-        if (shape.type === 'group') return false
-        return true
-      }
-
-      const closestPointOnBox = (bb, x, y) => {
-        return {
-          x: clamp(x, bb.x, bb.x + bb.w),
-          y: clamp(y, bb.y, bb.y + bb.h)
-        }
-      }
-
-      const makeAnchorFromPointOnShape = (shape, x, y) => {
-        const bb = shapeBBox(shape)
-        const w = Math.max(1, bb.w)
-        const h = Math.max(1, bb.h)
-        return {
-          u: clamp((x - bb.x) / w, 0, 1),
-          v: clamp((y - bb.y) / h, 0, 1)
-        }
-      }
-
-      const resolveAnchorOnShape = (shape, anchor) => {
-        const bb = shapeBBox(shape)
-        const u = clamp(Number(anchor?.u ?? 0.5), 0, 1)
-        const v = clamp(Number(anchor?.v ?? 0.5), 0, 1)
-        return {
-          x: bb.x + bb.w * u,
-          y: bb.y + bb.h * v
-        }
-      }
-
-      const findNearbyLinkTarget = (x, y, excludeShapeId = null) => {
-        let best = null
-        for (const s of app.shapes) {
-          if (!isLinkableTargetShape(s, excludeShapeId)) continue
-          const bb = shapeBBox(s)
-          const p = closestPointOnBox(bb, x, y)
-          const dist = Math.hypot(p.x - x, p.y - y)
-          if (dist > LINK_ATTACH_RADIUS) continue
-          if (!best || dist < best.distance) {
-            best = {
-              targetId: s.id,
-              point: p,
-              anchor: makeAnchorFromPointOnShape(s, p.x, p.y),
-              distance: dist
-            }
-          }
-        }
-        return best
-      }
-
-      const ensureLineLinks = (line) => {
-        if (!line.links || typeof line.links !== 'object') line.links = {}
-        return line.links
-      }
-
-      const cleanupLineLinks = (line) => {
-        if (!line || !line.links) return
-        if (!line.links.start) delete line.links.start
-        if (!line.links.end) delete line.links.end
-        if (!line.links.start && !line.links.end) delete line.links
-      }
-
-      const clearLineLinks = (line) => {
-        if (!line || line.type !== 'line') return
-        delete line.links
-      }
-
       const applyLineEndpointFlip = (line, flipH, flipV) => {
         if (!line || line.type !== 'line') return false
         const doH = !!flipH
@@ -1934,9 +1861,6 @@
         line.y1 = doV ? y2 : y1
         line.x2 = doH ? x1 : x2
         line.y2 = doV ? y1 : y2
-
-        // Existing links are tied to pre-flip endpoints and are no longer reliable.
-        clearLineLinks(line)
         return true
       }
 
@@ -1951,61 +1875,6 @@
         line.style.arrowFlipH = false
         line.style.arrowFlipV = false
         return changed
-      }
-
-      const setLineEndpointLink = (line, endpoint, candidate) => {
-        if (!line || line.type !== 'line' || !candidate?.targetId || !candidate?.anchor) return
-        const links = ensureLineLinks(line)
-        links[endpoint] = { targetId: candidate.targetId, anchor: structuredClone(candidate.anchor) }
-        if (endpoint === 'start') {
-          line.x1 = candidate.point.x
-          line.y1 = candidate.point.y
-        } else {
-          line.x2 = candidate.point.x
-          line.y2 = candidate.point.y
-        }
-      }
-
-      const syncLineEndpointToLink = (line, endpoint) => {
-        if (!line || line.type !== 'line') return false
-        const link = line.links?.[endpoint]
-        if (!link?.targetId || !link?.anchor) return false
-        const target = getShapeById(link.targetId)
-        if (!target) {
-          line.links[endpoint] = null
-          cleanupLineLinks(line)
-          return false
-        }
-        const p = resolveAnchorOnShape(target, link.anchor)
-        if (endpoint === 'start') {
-          line.x1 = p.x
-          line.y1 = p.y
-        } else {
-          line.x2 = p.x
-          line.y2 = p.y
-        }
-        return true
-      }
-
-      const clearLinksForTargetIds = (targetIds) => {
-        if (!targetIds || !targetIds.size) return
-        for (const s of app.shapes) {
-          if (s.type !== 'line' || !s.links) continue
-          if (s.links.start && targetIds.has(s.links.start.targetId)) s.links.start = null
-          if (s.links.end && targetIds.has(s.links.end.targetId)) s.links.end = null
-          cleanupLineLinks(s)
-        }
-      }
-
-      const updateLinkedEndpointsForTargets = (targetIds) => {
-        if (!targetIds || !targetIds.size) return
-        for (const s of app.shapes) {
-          if (s.type !== 'line' || !s.links) continue
-          const startTarget = s.links.start?.targetId
-          const endTarget = s.links.end?.targetId
-          if (startTarget && targetIds.has(startTarget)) syncLineEndpointToLink(s, 'start')
-          if (endTarget && targetIds.has(endTarget)) syncLineEndpointToLink(s, 'end')
-        }
       }
 
       /* =========================
@@ -2701,34 +2570,6 @@
         // Remove old overlay
         $$('.selOverlay', svg).forEach(n => n.remove())
 
-        const drawLinkPreviewOverlay = (overlay) => {
-          const preview = app.linkPreview
-          if (!preview) return
-          const target = getShapeById(preview.targetId)
-          if (!target) return
-          const bb = shapeBBox(target)
-
-          const box = svgEl('rect', {
-            x: bb.x,
-            y: bb.y,
-            width: bb.w,
-            height: bb.h
-          })
-          box.setAttribute('fill', 'none')
-          box.setAttribute('stroke', 'rgba(76, 217, 100, 0.95)')
-          box.setAttribute('stroke-width', '1.5')
-          box.setAttribute('stroke-dasharray', '4 3')
-          box.setAttribute('vector-effect', 'non-scaling-stroke')
-          overlay.appendChild(box)
-
-          const dot = svgEl('circle', { cx: preview.point.x, cy: preview.point.y, r: 5 })
-          dot.setAttribute('fill', 'rgba(76, 217, 100, 0.95)')
-          dot.setAttribute('stroke', 'rgba(0,0,0,0.55)')
-          dot.setAttribute('stroke-width', '1')
-          dot.setAttribute('vector-effect', 'non-scaling-stroke')
-          overlay.appendChild(dot)
-        }
-
         // Only render selection box/handles if not hiding during drag
         if (!app.hideSelectionDuringDrag) {
           // Render marquee if active
@@ -2737,9 +2578,8 @@
             const mb = app.marqueeBox
             const box = svgEl('rect', { class: 'selBox', x: mb.x, y: mb.y, width: mb.w, height: mb.h })
             overlay.appendChild(box)
-            drawLinkPreviewOverlay(overlay)
             svg.appendChild(overlay)
-          } else if (app.selectedIds.size || app.linkPreview) {
+          } else if (app.selectedIds.size) {
             const overlay = svgEl('g', { class: 'selOverlay' })
             for (const id of app.selectedIds) {
               const s = getShapeById(id)
@@ -2808,14 +2648,8 @@
                 overlay.appendChild(link)
               }
             }
-            drawLinkPreviewOverlay(overlay)
             svg.appendChild(overlay)
           }
-        } else if (app.linkPreview) {
-          // Even when hiding selection, draw link preview overlay (for lines/arrows being resized)
-          const overlay = svgEl('g', { class: 'selOverlay' })
-          drawLinkPreviewOverlay(overlay)
-          svg.appendChild(overlay)
         }
 
         // Always draw alignment guide lines (even when hiding selection box/handles during drag)
@@ -3126,6 +2960,12 @@
         // Remove selection overlay / editor-only visuals from thumbnail
         svgNode.querySelectorAll('.selOverlay').forEach(n => n.remove())
         svgNode.querySelectorAll('.hit').forEach(n => n.remove())
+        // Strip non-scaling-stroke: it keeps strokes at a constant device-pixel
+        // width for crisp on-screen editing, but when the SVG is rasterized
+        // directly at the small thumbnail size it makes strokes render at their
+        // full nominal width (proportionally too thick). Removing it lets strokes
+        // scale down with the drawing, matching the full-res export.
+        svgNode.querySelectorAll('[vector-effect]').forEach(n => n.removeAttribute('vector-effect'))
         // Replace foreignObject elements so the canvas stays untainted
         replaceForeignObjectsForExport(svgNode)
 
@@ -3807,7 +3647,6 @@
         if (!shapes || !shapes.length || !app.drawing) return
         const idMap = new Map()
         for (const s of shapes) idMap.set(s.id, uuid())
-        const copiedIds = new Set(shapes.map(s => s.id))
         const copies = []
         for (const s of shapes) {
           const copy = structuredClone(s)
@@ -3815,15 +3654,7 @@
           if (copy.type === 'group') {
             copy.childrenIds = (copy.childrenIds || []).map(cid => idMap.get(cid) || null).filter(Boolean)
           }
-          if (copy.type === 'line' && copy.links) {
-            for (const ep of ['start', 'end']) {
-              const link = copy.links[ep]
-              if (!link?.targetId) continue
-              if (copiedIds.has(link.targetId)) copy.links[ep] = { ...link, targetId: idMap.get(link.targetId) }
-              else copy.links[ep] = null
-            }
-            cleanupLineLinks(copy)
-          }
+          if (copy.type === 'line' && copy.links) delete copy.links
           copies.push(copy)
         }
         // Center copies at cursor
@@ -3901,23 +3732,7 @@
               .filter(Boolean)
           }
 
-          if (copy.type === 'line') {
-            if (copy.links) {
-              for (const endpoint of ['start', 'end']) {
-                const link = copy.links[endpoint]
-                if (!link?.targetId) continue
-                const mapped = idMap.get(link.targetId)
-                if (mapped) {
-                  copy.links[endpoint] = { ...link, targetId: mapped }
-                } else {
-                  copy.links[endpoint] = null
-                }
-              }
-              cleanupLineLinks(copy)
-            } else {
-              clearLineLinks(copy)
-            }
-          }
+          if (copy.type === 'line' && copy.links) delete copy.links
 
           if (copy.type !== 'group') movableCopies.push(copy)
           copies.push(copy)
@@ -5575,13 +5390,6 @@
             const d2 = Math.hypot(selectedShape.x2 - corner.x, selectedShape.y2 - corner.y)
             const dragP1 = d1 <= d2
 
-            // Only clear the link on the endpoint being dragged; preserve the other end's link
-            const dragEpKey = dragP1 ? 'start' : 'end'
-            if (selectedShape.links?.[dragEpKey]) {
-              selectedShape.links[dragEpKey] = null
-              cleanupLineLinks(selectedShape)
-            }
-
             app.lineResizeState = {
               dragEndpoint: dragP1 ? 'p1' : 'p2',
               anchor: dragP1
@@ -5598,7 +5406,6 @@
                 return { x: vx / vLen, y: vy / vLen }
               })()
             }
-            app.linkPreview = null
           }
           ev.preventDefault()
           return
@@ -5689,13 +5496,6 @@
           s.style.arrowHeadStyle = normalizeArrowHeadStyle(app.style.arrowHeadStyle)
           s.style.lineLockAspect = app.style.lineLockAspect
           s.style.arrowLockAspect = app.style.arrowLockAspect
-          const startCandidate = findNearbyLinkTarget(p.x, p.y, s.id)
-          if (startCandidate) {
-            setLineEndpointLink(s, 'start', startCandidate)
-            app.linkPreview = { ...startCandidate, endpoint: 'start' }
-          } else {
-            app.linkPreview = null
-          }
           s.x2 = s.x1
           s.y2 = s.y1
           // remove rect fields to avoid confusion
@@ -5745,12 +5545,6 @@
       ========================= */
       const ALIGN_SNAP_THRESHOLD = 5   // SVG-space px – snap distance
 
-      const isDirectlyAttachedToIds = (shape, targetIds) => {
-        if (!shape || shape.type !== 'line' || !shape.links || !targetIds?.size) return false
-        return !!(shape.links.start?.targetId && targetIds.has(shape.links.start.targetId)) ||
-               !!(shape.links.end?.targetId && targetIds.has(shape.links.end.targetId))
-      }
-
       // Compute all vertical (x) and horizontal (y) snap positions from non-moving shapes.
       const computeAlignGuidesForMove = () => {
         const vLines = new Set() // x values
@@ -5768,7 +5562,6 @@
 
         for (const s of app.shapes) {
           if (movingIds.has(s.id)) continue
-          if (isDirectlyAttachedToIds(s, movingIds)) continue
           if (s.type === 'group') continue // handled via children
           const bb = shapeBBox(s)
           // left edge, center-x, right edge
@@ -5851,7 +5644,6 @@
               moveShapeBy(s, sdx, sdy)
             }
           }
-          updateLinkedEndpointsForTargets(movedTargetIds)
         }
 
         // Compute which guides are visible after snap
@@ -6015,21 +5807,8 @@
               s.x = r.x; s.y = r.y; s.w = r.w; s.h = r.h
             }
           } else if (s.type === 'line') {
-            if (s.links?.start) syncLineEndpointToLink(s, 'start')
-
-            const endCandidate = findNearbyLinkTarget(p.x, p.y, s.id)
-            if (endCandidate) {
-              setLineEndpointLink(s, 'end', endCandidate)
-              app.linkPreview = { ...endCandidate, endpoint: 'end' }
-            } else {
-              s.x2 = p.x
-              s.y2 = p.y
-              if (s.links?.end) {
-                s.links.end = null
-                cleanupLineLinks(s)
-              }
-              app.linkPreview = null
-            }
+            s.x2 = p.x
+            s.y2 = p.y
           }
           render()
           markDirty()
@@ -6064,7 +5843,6 @@
           // Mark that the pointer actually dragged the shape so pointerUp
           // won't mistake this for a click and enter text edit mode.
           if (dx !== 0 || dy !== 0) app.didDragMove = true
-          updateLinkedEndpointsForTargets(movedTargetIds)
           app.startPt = { ...p }
 
           // ---- Alignment guides (visual only during drag, snap on release) ----
@@ -6142,7 +5920,6 @@
             s.x = handle.includes('w') ? (anchorX - s.w) : anchorX
             s.y = handle.includes('n') ? (anchorY - s.h) : anchorY
             fitTextShapeToContent(s)
-            updateLinkedEndpointsForTargets(new Set([s.id]))
           } else if (s.type === 'rect' || s.type === 'ellipse' || s.type === 'text' || s.type === 'image') {
             if (s.type === 'image' && (s.style?.imageLockAspect ?? app.style.imageLockAspect) && bb0.w > 0 && bb0.h > 0) {
               const ratio = bb0.w / bb0.h
@@ -6183,10 +5960,8 @@
             } else {
               s.x = r.x; s.y = r.y; s.w = r.w; s.h = r.h
             }
-            updateLinkedEndpointsForTargets(new Set([s.id]))
           } else if (s.type === 'line') {
             const rs = app.lineResizeState
-            const dragEndpointKey = rs?.dragEndpoint === 'p1' ? 'start' : 'end'
             const lockAspect = lineLikeLockAspectEnabled(s)
             const projectedPoint = (() => {
               if (!lockAspect || !rs?.direction) return { x: p.x, y: p.y }
@@ -6197,32 +5972,14 @@
               return { x: ax + v.x * dot, y: ay + v.y * dot }
             })()
 
-            if (rs) {
-              const candidate = findNearbyLinkTarget(p.x, p.y, s.id)
-              if (candidate) {
-                setLineEndpointLink(s, dragEndpointKey, candidate)
-                app.linkPreview = { ...candidate, endpoint: dragEndpointKey }
-              } else {
-                if (s.links?.[dragEndpointKey]) {
-                  s.links[dragEndpointKey] = null
-                  cleanupLineLinks(s)
-                }
-                app.linkPreview = null
-              }
-            }
-
             if (rs && rs.dragEndpoint === 'p1') {
-              if (!s.links?.start) {
-                s.x1 = projectedPoint.x
-                s.y1 = projectedPoint.y
-              }
+              s.x1 = projectedPoint.x
+              s.y1 = projectedPoint.y
               s.x2 = rs.anchor.x
               s.y2 = rs.anchor.y
             } else if (rs && rs.dragEndpoint === 'p2') {
-              if (!s.links?.end) {
-                s.x2 = projectedPoint.x
-                s.y2 = projectedPoint.y
-              }
+              s.x2 = projectedPoint.x
+              s.y2 = projectedPoint.y
               s.x1 = rs.anchor.x
               s.y1 = rs.anchor.y
             } else {
@@ -6265,10 +6022,7 @@
           const nextGroupRot = normalizeRotationDeg(app.startAngle + deg)
           const delta = shortestRotationDeltaDeg(s.rot || 0, nextGroupRot)
           if (s.type === 'group') {
-            const movedTargetIds = rotateGroupChildrenAroundPoint(s, cx, cy, delta, new Set())
-            updateLinkedEndpointsForTargets(movedTargetIds)
-          } else {
-            updateLinkedEndpointsForTargets(new Set([s.id]))
+            rotateGroupChildrenAroundPoint(s, cx, cy, delta, new Set())
           }
           s.rot = nextGroupRot
           render()
@@ -6316,18 +6070,17 @@
           if (s && s.type === 'line') {
             const width = Math.abs(s.x2 - s.x1)
             const height = Math.abs(s.y2 - s.y1)
-            const endLinked = !!s.links?.end
 
             if (width <= LINE_SNAP_TOLERANCE && height <= LINE_SNAP_TOLERANCE) {
               // Both dimensions too small - discard the shape
               app.shapes = app.shapes.filter(sh => sh.id !== s.id)
               app.selectedIds.delete(s.id)
               render()
-            } else if (width <= LINE_SNAP_TOLERANCE && !endLinked) {
+            } else if (width <= LINE_SNAP_TOLERANCE) {
               // Width is close to zero - snap to vertical line (make x2 = x1)
               s.x2 = s.x1
               render()
-            } else if (height <= LINE_SNAP_TOLERANCE && !endLinked) {
+            } else if (height <= LINE_SNAP_TOLERANCE) {
               // Height is close to zero - snap to horizontal line (make y2 = y1)
               s.y2 = s.y1
               render()
@@ -6359,11 +6112,10 @@
             if (s && s.type === 'line') {
               const width = Math.abs(s.x2 - s.x1)
               const height = Math.abs(s.y2 - s.y1)
-              const hasLinkedEndpoint = !!(s.links?.start || s.links?.end)
 
               // Snap near-axis-aligned resized lines/arrows to exact axis alignment.
-              if (width <= LINE_SNAP_TOLERANCE && !hasLinkedEndpoint) s.x2 = s.x1
-              if (height <= LINE_SNAP_TOLERANCE && !hasLinkedEndpoint) s.y2 = s.y1
+              if (width <= LINE_SNAP_TOLERANCE) s.x2 = s.x1
+              if (height <= LINE_SNAP_TOLERANCE) s.y2 = s.y1
               render()
             }
           }
@@ -6388,7 +6140,6 @@
           render()
         }
         app.lineResizeState = null
-        app.linkPreview = null
         app.dragMode = null
         app.activeHandle = null
         app.activeShapeId = null
@@ -6863,8 +6614,7 @@
             const cx = bb.x + bb.w / 2
             const cy = bb.y + bb.h / 2
             const delta = shortestRotationDeltaDeg(s.rot || 0, targetRotation)
-            const movedTargetIds = rotateGroupChildrenAroundPoint(s, cx, cy, delta, new Set())
-            updateLinkedEndpointsForTargets(movedTargetIds)
+            rotateGroupChildrenAroundPoint(s, cx, cy, delta, new Set())
             s.style.groupFlipH = imageFlipH
             s.style.groupFlipV = imageFlipV
           }
@@ -6926,7 +6676,6 @@
             btnV.classList.remove('primary')
           }
         }
-        updateLinkedEndpointsForTargets(new Set(ids))
         render()
         markDirty()
       }
@@ -7323,18 +7072,7 @@
           if (s.type === 'group' && Array.isArray(s.childrenIds)) {
             s.childrenIds = s.childrenIds.map(cid => idMap.get(cid) || cid)
           }
-          if (s.type === 'line' && s.links) {
-            for (const ep of ['start', 'end']) {
-              const link = s.links[ep]
-              if (!link?.targetId) continue
-              const mapped = idMap.get(link.targetId)
-              if (mapped) s.links[ep] = { ...link, targetId: mapped }
-              else s.links[ep] = null  // shouldn't happen (full drawing is always exported); just a defensive fallback
-            }
-            if (!s.links.start) delete s.links.start
-            if (!s.links.end)   delete s.links.end
-            if (!s.links.start && !s.links.end) delete s.links
-          }
+          if (s.type === 'line' && s.links) delete s.links
         }
         return remapped
       }
@@ -7562,8 +7300,6 @@
           }
         }
 
-        clearLinksForTargetIds(toDelete)
-
         // Remove shapes
         app.shapes = app.shapes.filter(s => !toDelete.has(s.id))
 
@@ -7624,7 +7360,6 @@
             movedTargetIds.add(s.id)
           }
         }
-        updateLinkedEndpointsForTargets(movedTargetIds)
 
         // Update guide visuals after the move, then filter to the relevant axis:
         // horizontal moves → vertical guides only; vertical moves → horizontal guides only.
@@ -7698,7 +7433,6 @@
             s.h = Math.max(1, s.h + delta)
           }
         } else if (s.type === 'line') {
-          clearLineLinks(s)
           const lineDelta = Math.abs(delta) > 1 ? delta * 2 : delta
           const dx = s.x2 - s.x1
           const dy = s.y2 - s.y1
@@ -7782,7 +7516,6 @@
           changedIds.push(s.id)
         }
         if (!changedIds.length) return
-        updateLinkedEndpointsForTargets(new Set(changedIds))
         pushHistory()
         render()
         markDirty()
