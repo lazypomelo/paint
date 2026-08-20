@@ -4019,7 +4019,20 @@
       // Convert legacy plain-text s.text to rich HTML if needed
       const normalizeRichText = (text) => {
         if (!text) return '<div>&#8203;</div>'
-        if (String(text).trimStart().startsWith('<')) return text
+        if (String(text).trimStart().startsWith('<')) {
+          // Add placeholder to visually empty block rows so they keep their line height.
+          // Must be DOM-based: regex can't detect rows emptied by span-level stripping.
+          const tmp = document.createElement('div')
+          tmp.innerHTML = text
+          tmp.querySelectorAll('div, p, li').forEach(block => {
+            // Use raw trim (not stripping ​) so a block already holding a ​ placeholder is not treated as empty
+            const text = (block.textContent || '').trim()
+            if (text.length === 0 && !block.querySelector('br, img')) {
+              block.appendChild(document.createTextNode('\u200B'))
+            }
+          })
+          return tmp.innerHTML
+        }
         return String(text).split('\n').map(line =>
           `<div>${line ? escapeHtml(line) : '&#8203;'}</div>`
         ).join('')
@@ -4317,6 +4330,8 @@
         let node
         while ((node = walker.nextNode())) {
           if (!node.nodeValue.length) continue
+          // Skip ​-only placeholder nodes — they must not affect toggle detection
+          if (node.nodeValue.replace(/\u200B/g, '').length === 0) continue
           const computed = window.getComputedStyle(node.parentNode)
           let styleVal = computed[conf.prop]
           if (format === 'underline' || format === 'strike') {
@@ -4567,7 +4582,7 @@
         return t.trim().length > 0
       }
 
-      const resolveCaretRowContext = ({ requireCollapsed = true } = {}) => {
+      const resolveCaretRowContext = ({ requireCollapsed = true, disableAffinity = false } = {}) => {
         if (!_richActiveEditor) return null
         const sel = window.getSelection()
         if (!sel.rangeCount) return null
@@ -4639,7 +4654,7 @@
         let atFirstVisibleChar = normalizeVisible(beforeRange.toString()).length === 0
 
         // Caret affinity: DOM-end of row should be treated as start of next logical row.
-        if (!atFirstVisibleChar) {
+        if (!disableAffinity && !atFirstVisibleChar) {
           const afterRange = document.createRange()
           afterRange.setStartAfter(probe)
           afterRange.setEnd(row, row.childNodes.length)
@@ -4749,7 +4764,7 @@
         const sel = window.getSelection()
         if (!sel.rangeCount || !_richActiveEditor) return false
 
-        const caret = resolveCaretRowContext({ requireCollapsed: true })
+        const caret = resolveCaretRowContext({ requireCollapsed: true, disableAffinity: true })
         if (!caret || !caret.row) return false
 
         // Fallback for wrap-mode list rows: compute row-start directly on the current LI
@@ -5014,15 +5029,77 @@
       }
 
       // Paste plain-text as block rows in the rich text editor
+      const sanitizeRichPasteHtml = (html) => {
+        const ALLOWED_STYLES = ['font-weight', 'font-style', 'text-decoration-line', 'text-decoration', 'color', 'background-color', 'vertical-align', 'font-size']
+        const ALLOWED_INLINE = new Set(['span', 'b', 'strong', 'i', 'em', 'u', 's', 'strike', 'sub', 'sup', 'br'])
+        const ALLOWED_BLOCK = new Set(['div', 'p', 'ul', 'ol', 'li'])
+        const STRIP_TAGS = new Set(['script', 'style', 'head', 'meta', 'link', 'object', 'embed', 'iframe'])
+
+        const copyStyles = (src, dst) => {
+          ALLOWED_STYLES.forEach(prop => {
+            const camel = prop.replace(/-([a-z])/g, (_, c) => c.toUpperCase())
+            const val = src.style?.[camel] || (src.style?.getPropertyValue ? src.style.getPropertyValue(prop) : '')
+            if (val) dst.style.setProperty(prop, val)
+          })
+        }
+
+        const sanitize = (node) => {
+          if (node.nodeType === 3) return node.cloneNode()
+          if (node.nodeType !== 1) return null
+          const tag = node.tagName.toLowerCase()
+          if (STRIP_TAGS.has(tag)) return null
+          const isBlock = ALLOWED_BLOCK.has(tag)
+          const isInline = ALLOWED_INLINE.has(tag)
+          const children = () => {
+            const frag = document.createDocumentFragment()
+            node.childNodes.forEach(c => { const n = sanitize(c); if (n) frag.appendChild(n) })
+            return frag
+          }
+          if (!isBlock && !isInline) return children()
+          // Map semantic tags to span with equivalent inline style
+          const outTag = (isInline && ['b', 'strong', 'i', 'em', 's', 'strike'].includes(tag)) ? 'span' : tag
+          const el = document.createElement(outTag)
+          if (tag === 'strong' || tag === 'b') el.style.fontWeight = 'bold'
+          if (tag === 'em'     || tag === 'i') el.style.fontStyle = 'italic'
+          if (tag === 'u')                      el.style.textDecorationLine = 'underline'
+          if (tag === 's'      || tag === 'strike') el.style.textDecorationLine = 'line-through'
+          copyStyles(node, el)
+          el.appendChild(children())
+          return el
+        }
+
+        const doc = new DOMParser().parseFromString(html, 'text/html')
+        const tmp = document.createElement('div')
+        doc.body.childNodes.forEach(c => { const n = sanitize(c); if (n) tmp.appendChild(n) })
+        return tmp.innerHTML
+      }
+
       const handleRichTextPaste = (e) => {
         e.preventDefault()
-        const text = (e.clipboardData || window.clipboardData).getData('text/plain')
-        if (!text) return
-        const lines = text.split(/\r?\n/)
+        const clipboard = e.clipboardData || window.clipboardData
         const sel = window.getSelection()
         if (!sel.rangeCount || !_richActiveEditor) return
         const range = sel.getRangeAt(0)
         range.deleteContents()
+
+        // Prefer HTML paste to preserve bold/italic/color/etc. formatting
+        const htmlData = clipboard.getData('text/html')
+        if (htmlData) {
+          const sanitized = sanitizeRichPasteHtml(htmlData)
+          if (sanitized) {
+            sel.removeAllRanges(); sel.addRange(range)
+            document.execCommand('insertHTML', false, sanitized)
+            if (sel.rangeCount) _richSavedRange = sel.getRangeAt(0).cloneRange()
+            syncEditorRowIndentMetadata()
+            updateRichTextPanelButtons()
+            if (_richActiveEditor) _richActiveEditor.dispatchEvent(new Event('input', { bubbles: true }))
+            return
+          }
+        }
+
+        const text = clipboard.getData('text/plain')
+        if (!text) return
+        const lines = text.split(/\r?\n/)
 
         if (lines.length === 1) {
           const textNode = document.createTextNode(lines[0])
@@ -5340,6 +5417,13 @@
 
         editor.addEventListener('input', syncSize)
         editor.addEventListener('keydown', (ev) => {
+          if (ev.key === 'Enter' && ev.shiftKey) {
+            // Shift+Enter inserts a line break; handle explicitly so NumpadEnter works too
+            ev.preventDefault()
+            document.execCommand('insertLineBreak')
+            ev.stopPropagation()
+            return
+          }
           if (ev.key === 'Enter' && handleRichTextEnter(ev)) return
           if (ev.key === 'Backspace' && handleRichTextBackspace(ev)) return
           if (ev.key === 'Tab') { handleRichTextIndent(ev); return }
