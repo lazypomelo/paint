@@ -211,22 +211,29 @@
       grid-template-rows: 150px 1fr; /* thumb + meta */
       border: 1px solid var(--border);
       border-radius: 12px;
-      background: rgba(255,255,255,0.03);
+      /* Raised "tile" surface — visually distinct from the flat album header bars */
+      background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02));
       box-shadow: var(--shadow);
       overflow: hidden;
       cursor: default;
+      transition: transform 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
     }
-    .card:hover{ border-color: rgba(78,161,255,0.35); }
+    .card:hover{
+      border-color: rgba(78,161,255,0.35);
+      box-shadow: 0 6px 16px rgba(0,0,0,0.35);
+    }
     .card.active{
-      border-color: rgba(255,90,106,0.45);
-      box-shadow: 0 0 0 5px rgba(255,90,106,0.25), var(--shadow);
+      border-color: rgba(78,161,255,0.55);
+      box-shadow: 0 0 0 5px rgba(78,161,255,0.25), var(--shadow);
     }
     .card.active .cardName{
       color: var(--text);
     }
     .thumb{
-      width: 100%;
-      height: 150px;
+      flex: 1 1 auto;
+      min-width: 0;
+      width: auto;
+      height: 100%;
       padding-top: 10px;
       background: repeating-linear-gradient(45deg, rgba(255,255,255,0.03), rgba(255,255,255,0.03) 10px, rgba(255,255,255,0.01) 10px, rgba(255,255,255,0.01) 20px);
       display: flex;
@@ -255,6 +262,48 @@
       z-index: 5;
       box-shadow: 0 1px 4px rgba(0,0,0,0.3);
     }
+    /* Card row 1: a fixed reorder-button column beside the thumbnail */
+    .thumbRow{
+      display: flex;
+      align-items: stretch;
+      height: 100%;
+      overflow: hidden;
+    }
+    /* Vertical column of the four reorder buttons (top / up / down / bottom) */
+    .cardReorder{
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      gap: 5px;
+      padding: 6px 5px;
+      flex: 0 0 auto;
+      background: rgba(0,0,0,0.18);
+      border-right: 1px solid var(--border);
+    }
+    .cardReorderBtn{
+      width: 26px;
+      height: 26px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: rgba(18,20,26,0.72);
+      color: var(--text);
+      cursor: pointer;
+    }
+    .cardReorderBtn:hover{ background: rgba(78,161,255,0.4); border-color: rgba(78,161,255,0.55); }
+    /* Disabled: drawing is already at that edge */
+    .cardReorderBtn.disabled{
+      cursor: default;
+      opacity: 0.35;
+      color: var(--muted);
+      background: rgba(18,20,26,0.3);
+      border-style: dashed;
+    }
+    .cardReorderBtn.disabled:hover{ background: rgba(18,20,26,0.3); border-color: var(--border); }
     .thumb img{
       /* max-width: 100%;
       max-height: 100%;
@@ -311,7 +360,8 @@
       background: transparent;
       color: inherit;
       font: inherit;
-      font-weight: 600;
+      font-size: 12px;
+      font-weight: 700;
       padding: 0;
       outline: none;
       min-width: 0;
@@ -323,11 +373,168 @@
       padding: 0 4px;
     }
     .cardTime{ color: var(--muted); font-size: 12px; text-align: left; }
+    .cardTimeRow{
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      min-width: 0;
+    }
     .cardActions{
       grid-column: 1 / -1;
       display: flex;
+      flex-wrap: nowrap;    /* Clone · Move · Delete stay on one row */
+      gap: 5px;
+    }
+    /* Equal-width controls sharing the row */
+    .cardActions .btn,
+    .cardMoveSelect{
+      flex: 1 1 0;
+      min-width: 0;
+      height: 24px;
+      padding: 0 4px;
+      font-size: 11px;
+      justify-content: center;
+      text-align: center;
+    }
+    /* Delete matches the other buttons' neutral border on this row */
+    .cardActions .btn.danger{
+      border-color: var(--border);
+      background: rgba(255,255,255,0.04);
+    }
+    .cardActions .btn.danger:hover{ background: rgba(255,255,255,0.07); }
+    .cardMoveSelect{
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,0.04);
+      color: var(--text);
+      font-family: inherit;
+      cursor: pointer;
+    }
+
+    /* ====== Albums ====== */
+    .gallery{ padding: 0; display: block; gap: 0; }   /* albums stack flush so sticky headers work */
+    .album{
+      border-bottom: 1px solid var(--border);
+    }
+    .albumHeader{
+      position: sticky;
+      top: 0;
+      z-index: 3;
+      display: grid;
+      grid-template-rows: auto auto;
+      gap: 6px;
+      padding: 8px 10px;
+      background: linear-gradient(180deg, var(--panel), var(--panel2));
+      border-bottom: 1px solid var(--border);
+      cursor: pointer;
+      user-select: none;
+    }
+    .album.active > .albumHeader{
+      background: linear-gradient(180deg, rgba(78,161,255,0.18), rgba(78,161,255,0.06));
+      box-shadow: inset 3px 0 0 var(--accent);
+    }
+    .albumTitleRow{
+      display: flex;
+      align-items: center;
       gap: 8px;
-      margin-left: 10px;
+      min-width: 0;
+    }
+    .albumChevron{
+      flex: 0 0 auto;
+      width: 14px;
+      color: var(--muted);
+      transition: transform 0.12s ease;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .album.active > .albumHeader .albumChevron{
+      transform: rotate(90deg);
+      color: var(--accent);
+    }
+    .albumFolderIcon{ flex: 0 0 auto; color: var(--muted); display: inline-flex; }
+    .album.active > .albumHeader .albumFolderIcon{ color: var(--accent); }
+    .albumTitleInput{
+      flex: 1 1 auto;
+      border: 1px solid transparent;
+      border-radius: 6px;
+      background: transparent;
+      color: var(--text);
+      font: inherit;
+      font-size: 14px;
+      font-weight: 800;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+      padding: 0 4px;
+      outline: none;
+      min-width: 0;
+      cursor: pointer;
+    }
+    .albumTitleInput.editing{
+      border-color: rgba(78,161,255,0.55);
+      background: rgba(78,161,255,0.10);
+      cursor: text;
+    }
+    .albumCount{
+      flex: 0 0 auto;
+      color: var(--muted);
+      font-size: 11px;
+      font-family: var(--mono);
+      background: rgba(255,255,255,0.05);
+      border-radius: 999px;
+      padding: 1px 8px;
+    }
+    .albumActions{
+      display: none;   /* only shown when the album is active (see below) */
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px;
+      /* Indent so the Clone button's left edge lines up with the album title
+         (chevron 14 + gap 8 + folder 16 + gap 8 = 46px into the title row). */
+      padding-left: 46px;
+    }
+    .album.active > .albumHeader .albumActions{ display: flex; }
+    /* Vertical separator before the "New drawing" (+) action. */
+    .albumActionsSep{
+      width: 1px;
+      align-self: stretch;
+      min-height: 18px;
+      margin: 0 2px;
+      background: rgba(78,161,255,0.45);
+    }
+    /* Album-level buttons follow the blue accent (matching the active ribbon) */
+    .albumActions .btn,
+    .albumActions .btn.danger{
+      font-size: 11px;
+      border-color: rgba(78,161,255,0.45);
+      background: rgba(78,161,255,0.10);
+      color: var(--text);
+    }
+    .albumActions .btn:hover,
+    .albumActions .btn.danger:hover{
+      border-color: rgba(78,161,255,0.7);
+      background: rgba(78,161,255,0.2);
+    }
+    .albumDrawings{
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 10px;
+      /* Recessed, indented "well" so drawings clearly read as contents nested
+         inside the album (distinct from the flat album header bars). */
+      padding: 12px 10px 14px 18px;
+      background: rgba(0,0,0,0.22);
+      box-shadow: inset 0 2px 5px rgba(0,0,0,0.35);
+      max-height: 55vh;         /* long albums scroll internally so other album headers stay reachable */
+      overflow-y: auto;
+    }
+    .albumEmpty{
+      color: var(--muted);
+      font-size: 12px;
+      text-align: center;
+      padding: 18px 10px;
+      border: 1px dashed var(--border);
+      border-radius: 10px;
     }
     .canvasWrap{
       position: relative;
@@ -402,6 +609,7 @@
     }
     .hud .k{ font-family: var(--mono); font-size: 12px; color: var(--muted); }
     .hud .v{ font-size: 12px; }
+    .floatingPanel.hidden{ display: none; }
     .floatingPanel{
       position: fixed;
       right: 12px;
@@ -441,6 +649,13 @@
     }
     .propsHoverLabel.show{
       opacity: 1;
+    }
+    /* In the top ribbon the hover label sizes to its text (next to the action
+       buttons) rather than reserving a fixed right-aligned column. */
+    .nameWrap .propsHoverLabel{
+      margin-left: 0;
+      min-width: 0;
+      max-width: 160px;
     }
     .propAction{
       position: relative;
@@ -677,7 +892,6 @@
     <div class='topbar'>
       <div class='group'>
         <button class='btn icon' id='btnGallery' title='Toggle gallery'>☰</button>
-        <button class='btn icon' id='btnNew' title='New drawing (N)'>＋</button>
       </div>
 
       <div class='group'>
@@ -698,7 +912,34 @@
       </div>
 
       <div class='nameWrap'>
-        <button class='btn' id='btnHints' type='button' title='Show hints'>Overview</button>
+        <div class='propsHoverLabel' id='propsHoverLabel' aria-live='polite'></div>
+        <span class='propAction' data-tip='Canvas background'>
+          <button class='btn icon' id='btnCanvasBg' title='Canvas background' type='button'
+            style='position:absolute; inset:0;'>
+            <svg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24' role='img' aria-hidden='true'>
+              <!-- back (darker) rectangle -->
+              <rect x='9' y='9' width='12' height='12' rx='2' fill='#4b5563'/>
+              <!-- front (white) rectangle -->
+              <rect x='3' y='3' width='12' height='12' rx='2' fill='#ffffff'/>
+              <!-- optional outline so white shows on white backgrounds -->
+              <rect x='3' y='3' width='12' height='12' rx='2' fill='none' stroke='#111827' stroke-width='1'/>
+            </svg>
+          </button>
+          <input
+            type='color'
+            id='canvasBgPicker'
+            value='#ffffff'
+            aria-label='Canvas background color'
+          />
+        </span>
+        <span class='propAction' data-tip='Paper size'>
+          <button class='btn icon' id='btnPaperSize' title='Paper size' type='button'>⤢</button>
+        </span>
+        <span class='propAction' data-tip='Toggle grid'>
+          <button class='btn icon' id='btnGrid' title='Toggle grid' type='button'>▦</button>
+        </span>
+        <div class='sep'></div>
+        <button class='btn' id='btnHints' type='button' title='Show hints'>About</button>
       </div>
     </div>
 
@@ -707,7 +948,8 @@
         <div class='sidebarHeader'>
           <div class='title'>Gallery</div>
           <div style='display:flex; gap:4px; margin-left:auto;'>
-            <button class='btn' id='btnExportAll' title='Export all drawings as .json'>Export all</button>
+            <button class='btn' id='btnNewAlbum' title='New album'>＋</button>
+            <button class='btn' id='btnExportAll' title='Export a drawing, album, or the whole gallery as .json'>Export</button>
             <button class='btn' id='btnImport' title='Import drawings from .json file(s)'>Import</button>
           </div>
         </div>
@@ -746,42 +988,9 @@
           </div>
         </div>
 
-        <div class='floatingPanel' id='propsPanel'>
+        <div class='floatingPanel hidden' id='propsPanel'>
           <div class='panelHeader'>
             <div class='title'>Properties</div>
-            <div class='propsHoverLabel' id='propsHoverLabel' aria-live='polite'></div>
-            <div style='display:flex; gap:6px; align-items:center;'>
-              <span class='propAction' data-tip='Canvas background'>
-                <button class='btn icon' id='btnCanvasBg' title='Canvas background' type='button'
-                  style='position:absolute; inset:0;'>
-                  <svg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24' role='img' aria-hidden='true'>
-                    <!-- back (darker) rectangle -->
-                    <rect x='9' y='9' width='12' height='12' rx='2' fill='#4b5563'/>
-
-                    <!-- front (white) rectangle -->
-                    <rect x='3' y='3' width='12' height='12' rx='2' fill='#ffffff'/>
-
-                    <!-- optional outline so white shows on white backgrounds -->
-                    <rect x='3' y='3' width='12' height='12' rx='2' fill='none' stroke='#111827' stroke-width='1'/>
-                  </svg>
-                </button>
-
-                <input
-                  type='color'
-                  id='canvasBgPicker'
-                  value='#ffffff'
-                  aria-label='Canvas background color'
-                />
-              </span>
-
-              <span class='propAction' data-tip='Paper size'>
-                <button class='btn icon' id='btnPaperSize' title='Paper size' type='button'>⤢</button>
-              </span>
-              <span class='propAction' data-tip='Toggle grid'>
-                <button class='btn icon' id='btnGrid' title='Toggle grid' type='button'>▦</button>
-              </span>
-            </div>
-
           </div>
           <div class='panelBody' id='panelBody'>
             <div class='row' id='rowTool'>
@@ -1351,8 +1560,21 @@
          IndexedDB
       ========================= */
       const DB_NAME = 'paint_html_db'
-      const DB_VERSION = 1
+      const DB_VERSION = 3
       const STORE = 'drawings'
+      const ALBUM_STORE = 'albums'
+      const META_STORE = 'drawingMeta'
+
+      // Lightweight projection stored alongside each drawing so the gallery can
+      // list drawings without deserializing their (large) shapes/history arrays.
+      const metaFromRec = (rec) => ({
+        id: rec.id,
+        name: rec.name || '',
+        albumId: rec.albumId || null,
+        updatedAt: rec.updatedAt || 0,
+        thumbnail: rec.thumbnail || '',
+        order: typeof rec.order === 'number' ? rec.order : 0
+      })
 
       const idbOpen = () => new Promise((resolve, reject) => {
         const req = indexedDB.open(DB_NAME, DB_VERSION)
@@ -1362,18 +1584,30 @@
             const st = db.createObjectStore(STORE, { keyPath: 'id' })
             st.createIndex('updatedAt', 'updatedAt', { unique: false })
           }
+          if (!db.objectStoreNames.contains(ALBUM_STORE)) {
+            const ast = db.createObjectStore(ALBUM_STORE, { keyPath: 'id' })
+            ast.createIndex('createdAt', 'createdAt', { unique: false })
+          }
+          if (!db.objectStoreNames.contains(META_STORE)) {
+            const mst = db.createObjectStore(META_STORE, { keyPath: 'id' })
+            mst.createIndex('updatedAt', 'updatedAt', { unique: false })
+          }
         }
         req.onsuccess = () => resolve(req.result)
         req.onerror = () => reject(req.error)
       })
 
-      const idbTx = (db, mode = 'readonly') => db.transaction(STORE, mode).objectStore(STORE)
+      const idbTx = (db, mode = 'readonly', store = STORE) => db.transaction(store, mode).objectStore(store)
 
+      // Writes to the drawings store also upsert the meta projection in the SAME
+      // transaction, so the two stores can never drift.
       const idbPut = async (db, rec) => new Promise((resolve, reject) => {
-        const st = idbTx(db, 'readwrite')
-        const req = st.put(rec)
-        req.onsuccess = () => resolve(true)
-        req.onerror = () => reject(req.error)
+        const tx = db.transaction([STORE, META_STORE], 'readwrite')
+        tx.objectStore(STORE).put(rec)
+        tx.objectStore(META_STORE).put(metaFromRec(rec))
+        tx.oncomplete = () => resolve(true)
+        tx.onerror = () => reject(tx.error)
+        tx.onabort = () => reject(tx.error)
       })
 
       const idbGet = async (db, id) => new Promise((resolve, reject) => {
@@ -1384,10 +1618,12 @@
       })
 
       const idbDelete = async (db, id) => new Promise((resolve, reject) => {
-        const st = idbTx(db, 'readwrite')
-        const req = st.delete(id)
-        req.onsuccess = () => resolve(true)
-        req.onerror = () => reject(req.error)
+        const tx = db.transaction([STORE, META_STORE], 'readwrite')
+        tx.objectStore(STORE).delete(id)
+        tx.objectStore(META_STORE).delete(id)
+        tx.oncomplete = () => resolve(true)
+        tx.onerror = () => reject(tx.error)
+        tx.onabort = () => reject(tx.error)
       })
 
       const idbList = async (db) => new Promise((resolve, reject) => {
@@ -1404,6 +1640,51 @@
         req.onerror = () => reject(req.error)
       })
 
+      // Metadata-only listing (id/name/albumId/updatedAt/thumbnail), most-recent first.
+      // Used by the gallery so listing never loads full shapes/history.
+      const idbMetaList = async (db) => new Promise((resolve, reject) => {
+        const st = idbTx(db, 'readonly', META_STORE)
+        const idx = st.index('updatedAt')
+        const req = idx.openCursor(null, 'prev')
+        const out = []
+        req.onsuccess = () => {
+          const cur = req.result
+          if (!cur) return resolve(out)
+          out.push(cur.value)
+          cur.continue()
+        }
+        req.onerror = () => reject(req.error)
+      })
+
+      /* Album store wrappers */
+      const idbAlbumPut = async (db, rec) => new Promise((resolve, reject) => {
+        const st = idbTx(db, 'readwrite', ALBUM_STORE)
+        const req = st.put(rec)
+        req.onsuccess = () => resolve(true)
+        req.onerror = () => reject(req.error)
+      })
+
+      const idbAlbumGet = async (db, id) => new Promise((resolve, reject) => {
+        const st = idbTx(db, 'readonly', ALBUM_STORE)
+        const req = st.get(id)
+        req.onsuccess = () => resolve(req.result || null)
+        req.onerror = () => reject(req.error)
+      })
+
+      const idbAlbumDelete = async (db, id) => new Promise((resolve, reject) => {
+        const st = idbTx(db, 'readwrite', ALBUM_STORE)
+        const req = st.delete(id)
+        req.onsuccess = () => resolve(true)
+        req.onerror = () => reject(req.error)
+      })
+
+      const idbAlbumList = async (db) => new Promise((resolve, reject) => {
+        const st = idbTx(db, 'readonly', ALBUM_STORE)
+        const req = st.getAll()
+        req.onsuccess = () => resolve(req.result || [])
+        req.onerror = () => reject(req.error)
+      })
+
       /* =========================
          App state
       ========================= */
@@ -1411,6 +1692,7 @@
         db: null,
         galleryOpen: false,
 
+        activeAlbumId: null,
         activeId: null,
         drawing: null, // current record (in-memory)
         shapes: [],
@@ -1509,9 +1791,10 @@
 
       const defaultDrawingName = (n) => `drawing_${n}`
 
-      const newDrawingRecord = (name) => ({
+      const newDrawingRecord = (name, albumId = null) => ({
         id: uuid(),
         name,
+        albumId,
         shapes: [],
         width: 1200,
         height: 800,
@@ -2680,9 +2963,17 @@
         }
       }
 
+      // The properties panel is only shown while something is selected in the
+      // current drawing; otherwise it stays hidden and frees the canvas width.
+      const updatePropsPanelVisibility = () => {
+        const panelEl = $('#propsPanel')
+        if (panelEl) panelEl.classList.toggle('hidden', app.selectedIds.size === 0)
+      }
+
       const render = () => {
         ensureDefs()
         svg.style.background = app.canvas.bg
+        updatePropsPanelVisibility()          // toggle before reserving right-edge space
         setPaperSize(app.canvas.width, app.canvas.height)
 
         // Clear all except defs
@@ -3048,7 +3339,9 @@
 
           app.dirty = false
           setSaveState('saved')
-          await refreshGallery()
+          // Autosave of a single drawing: update just its card (thumbnail/time) in
+          // place instead of tearing down and rebuilding the whole gallery.
+          updateActiveCardInPlace()
         } catch (e) {
           console.error(e)
           toast('Save failed (see console)')
@@ -3101,7 +3394,11 @@
         const t = setTimeout(async () => {
           galleryNameSaveTimers.delete(id)
           await persistDrawingNameById(id, rawName)
-          await refreshGallery()
+          // No refreshGallery(): the card input already shows the name, and the
+          // updatedAt bump only affects sort order, which settles on the next
+          // full refresh (avoids cards jumping/flashing while typing).
+          const cached = _galleryDrawingsCache.find(d => d.id === id)
+          if (cached) cached.name = String(rawName || '').trim() || cached.name
         }, GALLERY_NAME_SAVE_MS)
         galleryNameSaveTimers.set(id, t)
       }
@@ -3113,19 +3410,261 @@
           galleryNameSaveTimers.delete(id)
         }
         await persistDrawingNameById(id, rawName)
+        // No refreshGallery() — see queueGalleryNameSave. Just keep cache fresh.
+        const cached = _galleryDrawingsCache.find(d => d.id === id)
+        if (cached) cached.name = String(rawName || '').trim() || cached.name
+      }
+
+      /* =========================
+         Albums
+      ========================= */
+      const defaultAlbumName = (n) => `Album ${n}`
+
+      const newAlbumRecord = (name) => ({
+        id: uuid(),
+        name,
+        createdAt: now()
+      })
+
+      // Ensure at least one album exists and every drawing belongs to a valid album.
+      // Runs once on boot; safe to re-run (idempotent).
+      const ensureAlbums = async () => {
+        if (!app.db) return
+        let albums = await idbAlbumList(app.db)
+        if (!albums.length) {
+          const def = newAlbumRecord('My Album')
+          await idbAlbumPut(app.db, def)
+          albums = [def]
+        }
+        // Fallback album = oldest by createdAt
+        const fallback = [...albums].sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0))[0]
+        const validIds = new Set(albums.map(a => a.id))
+
+        const drawings = await idbList(app.db)
+        for (const rec of drawings) {
+          if (!rec.albumId || !validIds.has(rec.albumId)) {
+            rec.albumId = fallback.id
+            await idbPut(app.db, rec)
+          }
+        }
+      }
+
+      // One-time migration: give every drawing an `order` so manual reordering
+      // has a stable basis. Initial order per album mirrors the current visual
+      // order (recency desc → order 0,1,2,…). Idempotent; no-op once all have one.
+      const ensureDrawingOrder = async () => {
+        if (!app.db) return
+        const drawings = await idbList(app.db)
+        if (!drawings.length) return
+        if (drawings.every(d => typeof d.order === 'number')) return
+        const byAlbum = new Map()
+        for (const d of drawings) {
+          const k = d.albumId || '__none__'
+          if (!byAlbum.has(k)) byAlbum.set(k, [])
+          byAlbum.get(k).push(d)
+        }
+        for (const members of byAlbum.values()) {
+          members.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))
+          for (let i = 0; i < members.length; i++) {
+            if (members[i].order !== i) {
+              members[i].order = i
+              await idbPut(app.db, members[i])
+            }
+          }
+        }
+      }
+
+      // Album -> most-recent drawing updatedAt (0 if empty). Used for album sort order.
+      const albumRecency = (albumId, drawings) => {
+        let max = 0
+        for (const d of drawings) {
+          if (d.albumId === albumId && (d.updatedAt || 0) > max) max = d.updatedAt || 0
+        }
+        return max
+      }
+
+      // Pure sort: albums most-recently-edited first; empty albums fall back to createdAt.
+      // `drawings` may be metadata records (only albumId/updatedAt are read).
+      const sortAlbumsByRecency = (albums, drawings) => albums
+        .map(a => ({ album: a, recency: albumRecency(a.id, drawings) || (a.createdAt || 0) }))
+        .sort((x, y) => y.recency - x.recency)
+        .map(x => x.album)
+
+      const getSortedAlbums = async () => {
+        const [albums, drawings] = await Promise.all([idbAlbumList(app.db), idbMetaList(app.db)])
+        return sortAlbumsByRecency(albums, drawings)
+      }
+
+      // Drawings within an album are ordered MANUALLY (via the up/down arrows),
+      // ascending `order` = top. Records missing `order` (pre-migration) fall to
+      // the bottom, then by recency. Album sorting stays recency-based (above).
+      const drawingOrderOf = (d) => (typeof d.order === 'number' ? d.order : Number.POSITIVE_INFINITY)
+      const byDisplayOrder = (a, b) => {
+        const ao = drawingOrderOf(a), bo = drawingOrderOf(b)
+        if (ao !== bo) return ao - bo
+        return (b.updatedAt || 0) - (a.updatedAt || 0)
+      }
+
+      // Min/max `order` among an album's drawings, so new/moved drawings can be
+      // placed at the top (min-1) or bottom (max+1). `empty` when the album has none.
+      const albumOrderBounds = async (albumId) => {
+        const metas = await idbMetaList(app.db)
+        let min = Infinity, max = -Infinity
+        for (const d of metas) {
+          if (d.albumId !== albumId) continue
+          const o = typeof d.order === 'number' ? d.order : 0
+          if (o < min) min = o
+          if (o > max) max = o
+        }
+        if (min === Infinity) return { empty: true, min: 0, max: 0 }
+        return { empty: false, min, max }
+      }
+      const orderForTop = (bounds) => (bounds.empty ? 0 : bounds.min - 1)
+      const orderForBottom = (bounds) => (bounds.empty ? 0 : bounds.max + 1)
+
+      const resolveActiveAlbumId = async () => {
+        const albums = await idbAlbumList(app.db)
+        if (!albums.length) return null
+        if (app.activeAlbumId && albums.some(a => a.id === app.activeAlbumId)) {
+          return app.activeAlbumId
+        }
+        // Prefer the album owning the most recently edited drawing.
+        const drawings = await idbMetaList(app.db)
+        if (drawings.length && drawings[0].albumId && albums.some(a => a.id === drawings[0].albumId)) {
+          return drawings[0].albumId
+        }
+        const sorted = sortAlbumsByRecency(albums, drawings)
+        return sorted[0]?.id || albums[0].id
+      }
+
+      const createAlbum = async () => {
+        if (!app.db) return
+        const albums = await idbAlbumList(app.db)
+        const rec = newAlbumRecord(defaultAlbumName(albums.length + 1))
+        await idbAlbumPut(app.db, rec)
+        app.activeAlbumId = rec.id
         await refreshGallery()
+        toast('New album')
+      }
+
+      const persistAlbumName = async (id, rawName) => {
+        if (!app.db) return
+        const nextName = String(rawName || '').trim()
+        if (!nextName) return
+        try {
+          const rec = await idbAlbumGet(app.db, id)
+          if (!rec || (rec.name || '') === nextName) return
+          rec.name = nextName
+          await idbAlbumPut(app.db, rec)
+        } catch (e) {
+          console.error(e)
+          toast('Album name save failed')
+        }
+      }
+
+      const cloneAlbum = async (albumId) => {
+        if (!app.db) return
+        await saveToDb()
+        const src = await idbAlbumGet(app.db, albumId)
+        if (!src) return
+        const copy = newAlbumRecord((src.name || 'Album') + ' (copy)')
+        await idbAlbumPut(app.db, copy)
+
+        const drawings = await idbList(app.db)
+        const members = drawings.filter(d => d.albumId === albumId)
+        // Clone in reverse so idbList (updatedAt desc) preserves original visual order.
+        for (let i = members.length - 1; i >= 0; i--) {
+          const dup = structuredClone(members[i])
+          dup.id = uuid()
+          dup.albumId = copy.id
+          dup.shapes = remapShapeIds(dup.shapes)
+          dup.history = []
+          dup.historyIndex = -1
+          dup.updatedAt = now()
+          delete dup.imported
+          await idbPut(app.db, dup)
+        }
+        app.activeAlbumId = copy.id
+        await refreshGallery()
+        toast('Album cloned')
+      }
+
+      const deleteAlbum = async (albumId) => {
+        if (!app.db) return
+        const album = await idbAlbumGet(app.db, albumId)
+        if (!album) return
+        const drawings = await idbMetaList(app.db)
+        const members = drawings.filter(d => d.albumId === albumId)
+
+        const albums = await idbAlbumList(app.db)
+        if (albums.length <= 1) {
+          alert('Cannot delete the last album. Create another album first.')
+          return
+        }
+
+        const msg = members.length
+          ? `Delete "${album.name || 'Album'}" and its ${members.length} drawing${members.length !== 1 ? 's' : ''}? This cannot be undone.`
+          : `Delete empty album "${album.name || 'Album'}"?`
+        if (!confirm(msg)) return
+
+        const deletingActiveDrawing = members.some(d => d.id === app.activeId)
+        const deletingActiveAlbum = app.activeAlbumId === albumId
+        for (const d of members) await idbDelete(app.db, d.id)
+        await idbAlbumDelete(app.db, albumId)
+
+        // Only re-pick the open album if we just deleted it.
+        if (deletingActiveAlbum) {
+          app.activeAlbumId = null
+          app.activeAlbumId = await resolveActiveAlbumId()
+        }
+
+        if (deletingActiveDrawing || !app.drawing) {
+          const remaining = await idbMetaList(app.db)
+          const inAlbum = remaining.filter(d => d.albumId === app.activeAlbumId)
+          if (inAlbum.length) {
+            await loadDrawing(inAlbum[0].id, { silent: true })
+          } else if (remaining.length) {
+            await loadDrawing(remaining[0].id, { silent: true })
+          } else {
+            await createNewDrawing()
+          }
+        }
+        await refreshGallery()
+        toast('Album deleted')
+      }
+
+      // Reassign a drawing to another album and reveal the destination album.
+      const moveDrawingToAlbum = async (id, albumId) => {
+        if (!app.db || !albumId) return
+        const rec = await idbGet(app.db, id)
+        if (!rec || rec.albumId === albumId) return
+        // Place at the top of the destination album (bounds read before reassigning).
+        const destOrder = orderForTop(await albumOrderBounds(albumId))
+        rec.albumId = albumId
+        rec.order = destOrder
+        await idbPut(app.db, rec)
+        // Keep the in-memory active record in sync if it's the one being moved.
+        if (app.activeId === id && app.drawing) { app.drawing.albumId = albumId; app.drawing.order = destOrder }
+        app.activeAlbumId = albumId  // open the destination so the move is visible
+        await refreshGallery()
+        toast('Moved to album')
+      }
+
+      // Create a fresh auto-named album and move the drawing straight into it.
+      const moveDrawingToNewAlbum = async (id) => {
+        if (!app.db) return
+        const albums = await idbAlbumList(app.db)
+        const album = newAlbumRecord(defaultAlbumName(albums.length + 1))
+        await idbAlbumPut(app.db, album)
+        await moveDrawingToAlbum(id, album.id)
       }
 
       /* =========================
          Gallery
       ========================= */
-      const refreshGallery = async () => {
-        if (!app.db) return
-        const list = await idbList(app.db)
-        const el = $('#gallery')
-        el.innerHTML = ''
-
-        for (const rec of list) {
+      // Build a single drawing card element (used inside each album's drawing list).
+      // `albums` is the full album list, used to populate the "Move to…" dropdown.
+      const createDrawingCard = (rec, albums = [], pos = {}) => {
           const card = document.createElement('div')
           card.className = 'card'
           card.dataset.id = rec.id
@@ -3149,6 +3688,33 @@
             thumb.appendChild(ribbon)
           }
 
+          // Manual reorder controls: a vertical column of four buttons — move to
+          // top, up one, down one, move to bottom. The first drawing disables the
+          // two upward buttons; the last disables the two downward ones.
+          const reorder = document.createElement('div')
+          reorder.className = 'cardReorder'
+          const mkReorderBtn = (icon, title, disabled, onClick) => {
+            const b = document.createElement('button')
+            b.className = 'cardReorderBtn' + (disabled ? ' disabled' : '')
+            b.title = title
+            b.innerHTML = icon
+            b.addEventListener('click', async (ev) => {
+              ev.stopPropagation()
+              if (!disabled) await onClick()
+            })
+            return b
+          }
+          reorder.appendChild(mkReorderBtn(REORDER_TOP_ALL_ICON, 'Move to top', pos.isFirst, () => moveDrawingToEdge(rec.id, 'top')))
+          reorder.appendChild(mkReorderBtn(REORDER_UP_ICON, 'Move up', pos.isFirst, () => moveDrawingOrder(rec.id, -1)))
+          reorder.appendChild(mkReorderBtn(REORDER_DOWN_ICON, 'Move down', pos.isLast, () => moveDrawingOrder(rec.id, +1)))
+          reorder.appendChild(mkReorderBtn(REORDER_BOTTOM_ALL_ICON, 'Move to bottom', pos.isLast, () => moveDrawingToEdge(rec.id, 'bottom')))
+
+          // Row 1 of the card: reorder column on the left, thumbnail to its right.
+          const thumbRow = document.createElement('div')
+          thumbRow.className = 'thumbRow'
+          thumbRow.appendChild(reorder)
+          thumbRow.appendChild(thumb)
+
           const meta = document.createElement('div')
           meta.className = 'cardMeta'
           const nameRow = document.createElement('div')
@@ -3162,9 +3728,14 @@
           name.className = 'cardName cardNameInput'
           name.value = rec.name || rec.id
           name.setAttribute('aria-label', 'Drawing name')
+          // Time + "Move to…" share one always-visible row (the actions row below
+          // is a clipped 1fr grid cell, so a control appended there can wrap out of view).
+          const timeRow = document.createElement('div')
+          timeRow.className = 'cardTimeRow'
           const time = document.createElement('div')
           time.className = 'cardTime'
           time.textContent = fmtTime(rec.updatedAt || 0)
+          timeRow.appendChild(time)
 
           const actions = document.createElement('div')
           actions.className = 'cardActions'
@@ -3175,27 +3746,34 @@
           delBtn.className = 'btn danger'
           delBtn.textContent = 'Delete'
 
-          const expBtn = document.createElement('button')
-          expBtn.className = 'btn'
-          expBtn.textContent = 'Export'
-          expBtn.addEventListener('click', (ev) => {
-            ev.stopPropagation()
-            showExportPopup(expBtn, rec.id)
-          })
-
+          // Actions row order: Clone, Move, Delete.
           actions.appendChild(dupBtn)
-          actions.appendChild(expBtn)
+
+          // "Move" — opens a themed popup (matching the Export picker) listing
+          // the albums to move into, plus a "New album…" option. Always shown,
+          // since "New album…" is useful even with a single existing album.
+          if (albums.length >= 1) {
+            const moveBtn = document.createElement('button')
+            moveBtn.className = 'btn'
+            moveBtn.textContent = 'Move'
+            moveBtn.title = 'Move to album'
+            moveBtn.addEventListener('click', (ev) => {
+              ev.stopPropagation()
+              showMovePopup(moveBtn, rec, albums)
+            })
+            actions.appendChild(moveBtn)
+          }
+          // Delete goes last so the row reads Clone · Move · Delete.
           actions.appendChild(delBtn)
 
           nameRow.appendChild(nameIcon)
           nameRow.appendChild(name)
           meta.appendChild(nameRow)
-          meta.appendChild(time)
+          meta.appendChild(timeRow)
           meta.appendChild(actions)
 
-          card.appendChild(thumb)
+          card.appendChild(thumbRow)
           card.appendChild(meta)
-          el.appendChild(card)
 
           let isNameEditing = false
           let startNameValue = name.value
@@ -3229,9 +3807,16 @@
             }
           }
 
+          // Only the ACTIVE drawing's title is editable on click; clicking an
+          // inactive drawing's title just activates (loads) that drawing. Suppress
+          // focus when inactive so the field doesn't look editable before loading.
+          name.addEventListener('mousedown', (ev) => {
+            if (app.activeId !== rec.id) ev.preventDefault()
+          })
           name.addEventListener('click', (ev) => {
             ev.stopPropagation()
-            beginNameEdit()
+            if (app.activeId === rec.id) beginNameEdit()
+            else loadDrawing(rec.id)
           })
           name.addEventListener('focus', () => {
             if (!isNameEditing) return
@@ -3276,6 +3861,305 @@
             ev.stopPropagation()
             await deleteDrawing(rec.id)
           })
+
+          return card
+      }
+
+      // Build an editable album title input wired to persist on blur/Enter.
+      const buildAlbumTitleInput = (album) => {
+        const input = document.createElement('input')
+        input.type = 'text'
+        input.className = 'albumTitleInput'
+        input.value = album.name || 'Album'
+        input.setAttribute('aria-label', 'Album name')
+
+        let editing = false
+        let startVal = input.value
+
+        const begin = () => {
+          if (editing) return
+          editing = true
+          startVal = input.value
+          input.classList.add('editing')
+          activeGalleryNameInput = input
+          input.focus()
+          input.select()
+        }
+        const finish = async () => {
+          if (!editing) return
+          editing = false
+          activeGalleryNameInput = null
+          let finalName = String(input.value || '').trim()
+          if (!finalName) finalName = String(startVal || 'Album').trim() || 'Album'
+          input.value = finalName
+          input.classList.remove('editing')
+          if (finalName !== startVal) {
+            await persistAlbumName(album.id, finalName)
+            // Keep the cache in sync so a later toggle rebuilds with the new
+            // name; no full refresh needed — the input already shows it, and a
+            // rename can't change album ordering (which is by drawing recency).
+            album.name = finalName
+            const cached = _galleryAlbumsCache.find(a => a.id === album.id)
+            if (cached) cached.name = finalName
+          }
+        }
+        // Clicking the title of an OPEN album enters edit mode; clicking a CLOSED
+        // album's title opens it (the click bubbles to the header). Suppress focus
+        // when closed so the field doesn't look editable before the album opens.
+        const isSectionOpen = () => !!input.closest('.album')?.classList.contains('active')
+        input.addEventListener('mousedown', (ev) => { if (!isSectionOpen()) ev.preventDefault() })
+        input.addEventListener('click', (ev) => {
+          if (isSectionOpen()) { ev.stopPropagation(); begin() }
+          // closed: let it bubble to the album header, which opens the album.
+        })
+        input.addEventListener('keydown', (ev) => {
+          if (ev.key === 'Enter' || ev.code === 'NumpadEnter' || ev.keyCode === 13) {
+            ev.preventDefault(); input.blur(); return
+          }
+          if (ev.key === 'Escape') {
+            ev.preventDefault()
+            input.value = startVal
+            editing = false
+            activeGalleryNameInput = null
+            input.classList.remove('editing')
+            input.blur()
+          }
+        })
+        input.addEventListener('blur', finish)
+        return input
+      }
+
+      // Reorder arrows for drawing cards. The "…AT_END" variants are the
+      // alternative design shown when a drawing can't move further (first/last).
+      const REORDER_UP_ICON = "<svg width='14' height='14' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg' aria-hidden='true'><path d='M6 15l6-6 6 6' stroke='currentColor' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/></svg>"
+      const REORDER_DOWN_ICON = "<svg width='14' height='14' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg' aria-hidden='true'><path d='M6 9l6 6 6-6' stroke='currentColor' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/></svg>"
+      // "All the way" variants: a bar (the top/bottom edge) plus a chevron toward it.
+      const REORDER_TOP_ALL_ICON = "<svg width='14' height='14' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg' aria-hidden='true'><path d='M5 5h14' stroke='currentColor' stroke-width='2.4' stroke-linecap='round'/><path d='M6 17l6-6 6 6' stroke='currentColor' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/></svg>"
+      const REORDER_BOTTOM_ALL_ICON = "<svg width='14' height='14' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg' aria-hidden='true'><path d='M6 7l6 6 6-6' stroke='currentColor' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/><path d='M5 19h14' stroke='currentColor' stroke-width='2.4' stroke-linecap='round'/></svg>"
+      const FOLDER_ICON = "<svg width='16' height='16' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg' aria-hidden='true'><path d='M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z' stroke='currentColor' stroke-width='2' stroke-linejoin='round'/></svg>"
+      const CHEVRON_ICON = "<svg width='12' height='12' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg' aria-hidden='true'><path d='M9 6l6 6-6 6' stroke='currentColor' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'/></svg>"
+
+      // Last-fetched gallery data, cached so pure-DOM operations (album toggle,
+      // rename) don't need to hit IndexedDB or rebuild the whole panel. Every
+      // data-mutating path calls refreshGallery(), which repopulates these.
+      let _galleryAlbumsCache = []
+      let _galleryDrawingsCache = []
+
+      // Build the ".albumDrawings" list element for one album (cards or empty note).
+      const buildAlbumDrawings = (album, drawings, albums) => {
+        const listEl = document.createElement('div')
+        listEl.className = 'albumDrawings'
+        const members = drawings.filter(d => d.albumId === album.id).sort(byDisplayOrder)
+        if (members.length) {
+          members.forEach((rec, i) => listEl.appendChild(
+            createDrawingCard(rec, albums, { isFirst: i === 0, isLast: i === members.length - 1 })
+          ))
+        } else {
+          const empty = document.createElement('div')
+          empty.className = 'albumEmpty'
+          empty.textContent = 'No drawings yet — use ＋ in the toolbar to add one.'
+          listEl.appendChild(empty)
+        }
+        return listEl
+      }
+
+      // Autosave of a single drawing: update just its card (thumbnail/time) in
+      // place instead of tearing down and rebuilding the whole gallery. No-op if
+      // the card isn't currently rendered (its album is collapsed). Deliberately
+      // does NOT reorder — the updatedAt bump settles on the next full refresh.
+      const updateActiveCardInPlace = () => {
+        const id = app.activeId
+        if (!id) return
+        const updatedAt = app.drawing?.updatedAt || 0
+        const thumbnail = app.drawing?.thumbnail || ''
+        // Keep the cache current so a later toggle rebuilds with fresh data.
+        const cached = _galleryDrawingsCache.find(d => d.id === id)
+        if (cached) {
+          cached.updatedAt = updatedAt
+          cached.thumbnail = thumbnail
+          cached.name = app.drawing?.name || cached.name
+        }
+        const card = document.querySelector(`#gallery .card[data-id="${id}"]`)
+        if (!card) return
+        const img = card.querySelector('.thumb img')
+        if (img) img.src = thumbnail ? `${thumbnail}#${updatedAt}` : ''
+        const timeEl = card.querySelector('.cardTime')
+        if (timeEl) timeEl.textContent = fmtTime(updatedAt)
+      }
+
+      // Rebuild just one album's card list from the cache (used after a reorder).
+      const rerenderOpenAlbumDrawings = (albumId) => {
+        const section = document.querySelector(`#gallery .album[data-album-id="${albumId}"]`)
+        if (!section || !section.classList.contains('active')) return
+        const album = _galleryAlbumsCache.find(a => a.id === albumId)
+        if (!album) return
+        section.querySelector('.albumDrawings')?.remove()
+        section.appendChild(buildAlbumDrawings(album, _galleryDrawingsCache, _galleryAlbumsCache))
+      }
+
+      // Move a drawing up (-1) or down (+1) within its album by swapping its
+      // `order` with the adjacent drawing. Does NOT touch updatedAt, so album
+      // recency (and thus album sort order) is unaffected.
+      const moveDrawingOrder = async (id, dir) => {
+        if (!app.db) return
+        const rec = await idbGet(app.db, id)
+        if (!rec) return
+        const metas = await idbMetaList(app.db)
+        const members = metas.filter(d => d.albumId === rec.albumId).sort(byDisplayOrder)
+        const idx = members.findIndex(d => d.id === id)
+        if (idx < 0) return
+        const swapIdx = idx + dir
+        if (swapIdx < 0 || swapIdx >= members.length) return
+        const other = await idbGet(app.db, members[swapIdx].id)
+        if (!other) return
+        // Ensure both have a concrete order before swapping (pre-migration safety).
+        const recOrder = typeof rec.order === 'number' ? rec.order : idx
+        const otherOrder = typeof other.order === 'number' ? other.order : swapIdx
+        rec.order = otherOrder
+        other.order = recOrder
+        await idbPut(app.db, rec)
+        await idbPut(app.db, other)
+        // Keep the in-memory active record and caches in sync.
+        if (app.activeId === rec.id && app.drawing) app.drawing.order = rec.order
+        if (app.activeId === other.id && app.drawing) app.drawing.order = other.order
+        const cr = _galleryDrawingsCache.find(d => d.id === rec.id); if (cr) cr.order = rec.order
+        const co = _galleryDrawingsCache.find(d => d.id === other.id); if (co) co.order = other.order
+        rerenderOpenAlbumDrawings(rec.albumId)
+      }
+
+      // Send a drawing all the way to the top or bottom of its album's manual order.
+      const moveDrawingToEdge = async (id, edge) => {
+        if (!app.db) return
+        const rec = await idbGet(app.db, id)
+        if (!rec) return
+        const bounds = await albumOrderBounds(rec.albumId)
+        const newOrder = edge === 'top' ? orderForTop(bounds) : orderForBottom(bounds)
+        if (rec.order === newOrder) return
+        rec.order = newOrder
+        await idbPut(app.db, rec)
+        if (app.activeId === rec.id && app.drawing) app.drawing.order = newOrder
+        const cr = _galleryDrawingsCache.find(d => d.id === rec.id); if (cr) cr.order = newOrder
+        rerenderOpenAlbumDrawings(rec.albumId)
+      }
+
+      const refreshGallery = async () => {
+        if (!app.db) return
+        const el = $('#gallery')
+        el.innerHTML = ''
+
+        // One metadata read (no shapes/history) + albums, in parallel.
+        const [rawAlbums, drawings] = await Promise.all([
+          idbAlbumList(app.db),
+          idbMetaList(app.db)  // updatedAt desc, lightweight records
+        ])
+        const albums = sortAlbumsByRecency(rawAlbums, drawings)
+        _galleryAlbumsCache = albums
+        _galleryDrawingsCache = drawings
+
+        for (const album of albums) {
+          const isOpen = album.id === app.activeAlbumId
+          const members = drawings.filter(d => d.albumId === album.id)
+
+          const section = document.createElement('div')
+          section.className = 'album' + (isOpen ? ' active' : '')
+          section.dataset.albumId = album.id
+
+          const header = document.createElement('div')
+          header.className = 'albumHeader'
+
+          const titleRow = document.createElement('div')
+          titleRow.className = 'albumTitleRow'
+
+          const chevron = document.createElement('span')
+          chevron.className = 'albumChevron'
+          chevron.innerHTML = CHEVRON_ICON
+
+          const folder = document.createElement('span')
+          folder.className = 'albumFolderIcon'
+          folder.innerHTML = FOLDER_ICON
+
+          const titleInput = buildAlbumTitleInput(album)
+
+          const count = document.createElement('span')
+          count.className = 'albumCount'
+          count.textContent = String(members.length)
+
+          titleRow.appendChild(chevron)
+          titleRow.appendChild(folder)
+          titleRow.appendChild(titleInput)
+          titleRow.appendChild(count)
+
+          const actions = document.createElement('div')
+          actions.className = 'albumActions'
+
+          const cloneBtn = document.createElement('button')
+          cloneBtn.className = 'btn'
+          cloneBtn.textContent = 'Clone'
+          const delBtn = document.createElement('button')
+          delBtn.className = 'btn danger'
+          delBtn.textContent = 'Delete'
+          // "New drawing" lives after a separator so it reads as a distinct action.
+          const sep = document.createElement('span')
+          sep.className = 'albumActionsSep'
+          const newBtn = document.createElement('button')
+          newBtn.className = 'btn'
+          newBtn.textContent = '＋'
+          newBtn.title = 'New drawing in this album'
+
+          actions.appendChild(cloneBtn)
+          actions.appendChild(delBtn)
+          actions.appendChild(sep)
+          actions.appendChild(newBtn)
+
+          header.appendChild(titleRow)
+          header.appendChild(actions)
+          section.appendChild(header)
+
+          // Header click toggles open/collapse via pure DOM — no DB read, no
+          // teardown of the album list (so no flash). Reads LIVE state from the
+          // class list rather than the captured `isOpen`, which goes stale.
+          header.addEventListener('click', async (ev) => {
+            // Title clicks on an OPEN album stopPropagation (edit mode) and never
+            // reach here; a CLOSED album's title bubbles through to open it.
+            if (ev.target.closest('button')) return
+            const opening = !section.classList.contains('active')
+            // Collapse whichever album is currently open (this one or another).
+            const openSection = el.querySelector('.album.active')
+            if (openSection) {
+              openSection.classList.remove('active')
+              openSection.querySelector('.albumDrawings')?.remove()
+            }
+            if (opening) {
+              app.activeAlbumId = album.id
+              // Activate the most recently edited drawing in the album just opened.
+              const members = _galleryDrawingsCache.filter(d => d.albumId === album.id)
+              let mostRecent = null
+              for (const m of members) {
+                if (!mostRecent || (m.updatedAt || 0) > (mostRecent.updatedAt || 0)) mostRecent = m
+              }
+              if (mostRecent && mostRecent.id !== app.activeId) {
+                // loadDrawing sets the active drawing, keeps this album expanded,
+                // and does a full gallery refresh — so no manual DOM open needed.
+                await loadDrawing(mostRecent.id)
+                return
+              }
+              // Empty album, or its most-recent drawing is already active: just expand.
+              section.classList.add('active')
+              section.appendChild(buildAlbumDrawings(album, _galleryDrawingsCache, _galleryAlbumsCache))
+            } else {
+              app.activeAlbumId = null
+            }
+          })
+
+          cloneBtn.addEventListener('click', async (ev) => { ev.stopPropagation(); await cloneAlbum(album.id) })
+          delBtn.addEventListener('click', async (ev) => { ev.stopPropagation(); await deleteAlbum(album.id) })
+          newBtn.addEventListener('click', async (ev) => { ev.stopPropagation(); app.activeAlbumId = album.id; await createNewDrawing() })
+
+          if (isOpen) {
+            section.appendChild(buildAlbumDrawings(album, drawings, albums))
+          }
+
+          el.appendChild(section)
         }
       }
 
@@ -3290,6 +4174,8 @@
 
         app.activeId = rec.id
         app.drawing = rec
+        // Opening a drawing makes its album the active (expanded) album.
+        if (rec.albumId) app.activeAlbumId = rec.albumId
         app.shapes = structuredClone(rec.shapes || [])
         for (const shape of app.shapes) {
           if (shape?.type === 'line') commitStoredLineVisualFlip(shape)
@@ -3318,11 +4204,27 @@
 
       const createNewDrawing = async () => {
         if (!app.db) return
+        const prevActiveId = app.activeId  // drawing we want the new one to follow
         await saveToDb()
 
-        const list = await idbList(app.db)
+        const list = await idbMetaList(app.db)
         const n = list.length + 1
-        const rec = newDrawingRecord(defaultDrawingName(n))
+        // New drawings land in the currently-open album (resolve one if none is set).
+        const albumId = await resolveActiveAlbumId()
+        app.activeAlbumId = albumId
+        const rec = newDrawingRecord(defaultDrawingName(n), albumId)
+        // Place the new drawing directly AFTER the currently active drawing in
+        // this album (fractional order between it and the next one below), or at
+        // the top when the album is empty / the active drawing lives elsewhere.
+        const members = list.filter(d => d.albumId === albumId).sort(byDisplayOrder)
+        const srcIdx = members.findIndex(d => d.id === prevActiveId)
+        if (srcIdx < 0) {
+          rec.order = orderForTop(await albumOrderBounds(albumId))
+        } else {
+          const srcOrder = drawingOrderOf(members[srcIdx])
+          const below = members[srcIdx + 1]
+          rec.order = below ? (srcOrder + drawingOrderOf(below)) / 2 : srcOrder + 1
+        }
         // seed history
         app.activeId = rec.id
         app.drawing = rec
@@ -3353,6 +4255,14 @@
         // history reset to avoid huge copies
         copy.history = []
         copy.historyIndex = -1
+        // Place the clone directly AFTER the source within the same album, using
+        // a fractional order between the source and the next drawing below it.
+        const metas = await idbMetaList(app.db)
+        const members = metas.filter(d => d.albumId === rec.albumId).sort(byDisplayOrder)
+        const srcIdx = members.findIndex(d => d.id === rec.id)
+        const srcOrder = typeof rec.order === 'number' ? rec.order : srcIdx
+        const below = srcIdx >= 0 ? members[srcIdx + 1] : null
+        copy.order = below ? (srcOrder + drawingOrderOf(below)) / 2 : srcOrder + 1
         await idbPut(app.db, copy)
         await loadDrawing(copy.id, { silent: true })
         toast('Duplicated')
@@ -3364,19 +4274,21 @@
         if (!confirm(`Delete "${drawingName}"? This cannot be undone.`)) return
 
         const deletedWasActive = app.activeId === id
+        const deletedAlbumId = rec?.albumId || null
         await idbDelete(app.db, id)
 
-        const list = await idbList(app.db)
+        const list = await idbMetaList(app.db)
         if (!list.length) {
           await createNewDrawing()
           toast('Deleted')
           return
         }
 
-        // After any delete, keep the editor focused on the most recently updated drawing.
-        const mostRecentId = list[0].id
-        if (deletedWasActive || app.activeId !== mostRecentId || !app.drawing) {
-          await loadDrawing(mostRecentId, { silent: true })
+        // Prefer staying in the deleted drawing's album; else fall back to the globally most-recent.
+        const sameAlbum = list.filter(d => d.albumId === deletedAlbumId)
+        const target = sameAlbum[0] || list[0]
+        if (deletedWasActive || app.activeId !== target.id || !app.drawing) {
+          await loadDrawing(target.id, { silent: true })
         } else {
           await refreshGallery()
         }
@@ -6309,6 +7221,8 @@
           app.cropModeId = null
         }
 
+        updatePropsPanelVisibility()
+
         const ctx = getSelectionPropsContext()
         if (!ctx.hasSelection || !ctx.compatible) {
           updatePropsPanelMode('default', false)
@@ -6982,19 +7896,35 @@
         downloadBlob((payload.name || 'drawing') + '.json', blob)
       }
 
-      const exportAllDrawings = async () => {
+      // Export all drawings, or (when albumId is given) only that album's drawings.
+      const exportAllDrawings = async (albumId = null) => {
         if (!app.db) return
         // Save current state first so the export reflects the latest content
         await saveToDb()
-        const list = await idbList(app.db)
+        let list = await idbList(app.db)
+        let fileTag = 'export'
+        if (albumId) {
+          list = list.filter(rec => rec.albumId === albumId)
+          const album = await idbAlbumGet(app.db, albumId)
+          const safe = String(album?.name || 'album').replace(/[^a-z0-9-_]+/gi, '-').replace(/^-+|-+$/g, '').toLowerCase()
+          fileTag = safe || 'album'
+        }
         if (!list.length) { toast('No drawings to export'); return }
+        // Album id -> name, so an import can reconstruct the album structure.
+        const albumList = await idbAlbumList(app.db)
+        const albumNameById = new Map(albumList.map(a => [a.id, a.name || 'Album']))
+        // Preserve each album's manual drawing order in the export.
+        list.sort(byDisplayOrder)
         const payload = {
           _paintExport: true,
-          version: 1,
+          version: 2,
           exportedAt: new Date().toISOString(),
           drawings: list.map(rec => ({
             _paintDrawing: true,
             name:        rec.name        || 'drawing',
+            albumId:     rec.albumId     || null,
+            albumName:   albumNameById.get(rec.albumId) || null,
+            order:       typeof rec.order === 'number' ? rec.order : 0,
             shapes:      rec.shapes      || [],
             width:       rec.width       || 1200,
             height:      rec.height      || 800,
@@ -7006,54 +7936,122 @@
         const json = JSON.stringify(payload, null, 2)
         const blob = new Blob([json], { type: 'application/json' })
         const date = new Date().toISOString().slice(0, 10)
-        downloadBlob(`paint-export-${date}.json`, blob)
+        downloadBlob(`paint-${fileTag}-${date}.json`, blob)
         toast(`Exported ${list.length} drawing${list.length !== 1 ? 's' : ''}`)
       }
 
       let _exportAllPopup = null
+      let _exportAllOutside = null
       const closeExportAllPopup = () => {
-        if (_exportAllPopup) _exportAllPopup.style.display = 'none'
+        if (_exportAllOutside) { document.removeEventListener('click', _exportAllOutside, true); _exportAllOutside = null }
+        if (_exportAllPopup) { _exportAllPopup.remove(); _exportAllPopup = null }
       }
+      // Gallery-level export picker: choose the current drawing, the current
+      // album, or the entire gallery. Rebuilt each time so the drawing/album
+      // labels reflect what's currently active.
       const showExportAllPopup = (btn) => {
-        if (!_exportAllPopup) {
-          const el = document.createElement('div')
-          el.style.cssText = [
-            'position:fixed', 'z-index:10000',
-            'background:var(--panel)', 'border:1px solid var(--border)',
-            'border-radius:8px', 'padding:8px',
-            'box-shadow:0 6px 20px rgba(0,0,0,.5)',
-            'display:none', 'flex-direction:column', 'gap:8px', 'min-width:190px'
-          ].join(';')
-          const note = document.createElement('div')
-          note.style.cssText = 'font-size:11px;color:var(--muted);padding:2px 4px;line-height:1.4;'
-          note.textContent = 'Export all drawings into local downloads folder'
-          const confirmBtn = document.createElement('button')
-          confirmBtn.className = 'btn primary'
-          confirmBtn.style.alignSelf = 'flex-start'
-          confirmBtn.textContent = 'Confirm'
-          confirmBtn.addEventListener('click', () => {
-            closeExportAllPopup()
-            exportAllDrawings()
-          })
-          el.appendChild(note)
-          el.appendChild(confirmBtn)
-          document.body.appendChild(el)
-          document.addEventListener('click', (e) => {
-            if (_exportAllPopup && _exportAllPopup.style.display !== 'none' && !_exportAllPopup.contains(e.target)) {
-              closeExportAllPopup()
-            }
-          }, true)
-          _exportAllPopup = el
+        closeExportAllPopup()
+        const el = document.createElement('div')
+        el.style.cssText = [
+          'position:fixed', 'z-index:10000',
+          'background:var(--panel)', 'border:1px solid var(--border)',
+          'border-radius:8px', 'padding:8px',
+          'box-shadow:0 6px 20px rgba(0,0,0,.5)',
+          'display:flex', 'flex-direction:column', 'gap:6px', 'min-width:210px', 'max-width:280px'
+        ].join(';')
+
+        const mk = (label, handler) => {
+          const b = document.createElement('button')
+          b.className = 'btn'
+          b.style.cssText = 'width:100%;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'
+          b.textContent = label
+          b.addEventListener('click', () => { closeExportAllPopup(); handler() })
+          return b
         }
-        _exportAllPopup.style.display = 'flex'
+
+        const drawingName = app.drawing?.name || 'Current drawing'
+        el.appendChild(mk(`${drawingName} (drawing, .png)`, () => exportPng()))
+        el.appendChild(mk(`${drawingName} (drawing, .json)`, () => exportJson(app.activeId)))
+
+        const album = _galleryAlbumsCache.find(a => a.id === app.activeAlbumId)
+        if (app.activeAlbumId) {
+          const albumName = album?.name || 'Current album'
+          el.appendChild(mk(`${albumName} (Album)`, () => exportAllDrawings(app.activeAlbumId)))
+        }
+
+        el.appendChild(mk('Entire Gallery', () => exportAllDrawings(null)))
+
+        document.body.appendChild(el)
+        _exportAllPopup = el
+
         const rect = btn.getBoundingClientRect()
+        const h = el.offsetHeight || 130
         let top  = rect.bottom + 4
         let left = rect.left
-        if (top  + 90  > window.innerHeight) top  = rect.top - 90 - 4
+        if (top  + h   > window.innerHeight) top  = Math.max(4, rect.top - h - 4)
+        if (left + 220 > window.innerWidth)  left = window.innerWidth - 220 - 8
+        if (left < 4) left = 4
+        el.style.top  = top  + 'px'
+        el.style.left = left + 'px'
+
+        _exportAllOutside = (e) => { if (_exportAllPopup && !_exportAllPopup.contains(e.target)) closeExportAllPopup() }
+        document.addEventListener('click', _exportAllOutside, true)
+      }
+
+      // "Move to album" picker — themed popup mirroring the Export picker, so it
+      // matches the app rather than showing a native <select> dropdown.
+      let _movePopup = null
+      let _moveOutside = null
+      const closeMovePopup = () => {
+        if (_moveOutside) { document.removeEventListener('click', _moveOutside, true); _moveOutside = null }
+        if (_movePopup) { _movePopup.remove(); _movePopup = null }
+      }
+      const showMovePopup = (btn, rec, albums) => {
+        closeMovePopup()
+        const el = document.createElement('div')
+        el.style.cssText = [
+          'position:fixed', 'z-index:10000',
+          'background:var(--panel)', 'border:1px solid var(--border)',
+          'border-radius:8px', 'padding:8px',
+          'box-shadow:0 6px 20px rgba(0,0,0,.5)',
+          'display:flex', 'flex-direction:column', 'gap:6px', 'min-width:190px', 'max-width:260px'
+        ].join(';')
+
+        const mk = (label, handler, disabled) => {
+          const b = document.createElement('button')
+          b.className = 'btn'
+          b.style.cssText = 'width:100%;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'
+          b.textContent = label
+          if (disabled) { b.disabled = true; b.style.opacity = '0.55' }
+          else b.addEventListener('click', () => { closeMovePopup(); handler() })
+          return b
+        }
+
+        for (const a of albums) {
+          const isCurrent = a.id === rec.albumId
+          el.appendChild(mk(
+            (isCurrent ? '✓ ' : '') + (a.name || 'Album'),
+            () => moveDrawingToAlbum(rec.id, a.id),
+            isCurrent
+          ))
+        }
+        el.appendChild(mk('＋ New album…', () => moveDrawingToNewAlbum(rec.id), false))
+
+        document.body.appendChild(el)
+        _movePopup = el
+
+        const rect = btn.getBoundingClientRect()
+        const h = el.offsetHeight || 130
+        let top  = rect.bottom + 4
+        let left = rect.left
+        if (top  + h   > window.innerHeight) top  = Math.max(4, rect.top - h - 4)
         if (left + 200 > window.innerWidth)  left = window.innerWidth - 200 - 8
         if (left < 4) left = 4
-        _exportAllPopup.style.top  = top  + 'px'
-        _exportAllPopup.style.left = left + 'px'
+        el.style.top  = top  + 'px'
+        el.style.left = left + 'px'
+
+        _moveOutside = (e) => { if (_movePopup && !_movePopup.contains(e.target)) closeMovePopup() }
+        document.addEventListener('click', _moveOutside, true)
       }
 
       // Remap every shape ID and all internal cross-references to fresh UUIDs.
@@ -7139,11 +8137,12 @@
         return { valid: errors.length === 0, errors }
       }
 
-      const importSingleDrawing = async (drawingData) => {
+      const importSingleDrawing = async (drawingData, albumId = null) => {
         if (!app.db || !drawingData?._paintDrawing) return false
         const rec = {
           id:          uuid(),  // always a fresh drawing ID — avoids overwriting on re-import
           name:        drawingData.name        || 'imported drawing',
+          albumId:     albumId,
           shapes:      remapShapeIds(drawingData.shapes),
           width:       drawingData.width       || 1200,
           height:      drawingData.height      || 800,
@@ -7155,8 +8154,137 @@
           history:     [],
           historyIndex: -1
         }
+        // Append at the bottom of the album so multiple imported files keep their order.
+        rec.order = orderForBottom(await albumOrderBounds(albumId))
         await idbPut(app.db, rec)
         return true
+      }
+
+      // Centered popup asking which existing album a single imported drawing
+      // should land in — mirrors the card "Move" dropdown (existing albums plus
+      // a "＋ New album…" option). Resolves the chosen album id, or null if the
+      // user cancels/dismisses.
+      const pickAlbumForImport = async (drawingName) => {
+        const albums = await idbAlbumList(app.db)
+        const sorted = sortAlbumsByRecency(albums, await idbMetaList(app.db))
+        return new Promise((resolve) => {
+          let done = false
+          const finish = (val) => { if (done) return; done = true; overlay.remove(); resolve(val) }
+
+          const overlay = document.createElement('div')
+          overlay.style.cssText = [
+            'position:fixed', 'inset:0', 'z-index:10001',
+            'background:rgba(0,0,0,.45)',
+            'display:flex', 'align-items:center', 'justify-content:center'
+          ].join(';')
+
+          const box = document.createElement('div')
+          box.style.cssText = [
+            'background:var(--panel)', 'border:1px solid var(--border)',
+            'border-radius:10px', 'padding:16px',
+            'box-shadow:0 8px 28px rgba(0,0,0,.5)',
+            'display:flex', 'flex-direction:column', 'gap:12px',
+            'min-width:280px', 'max-width:360px'
+          ].join(';')
+
+          const note = document.createElement('div')
+          note.style.cssText = 'font-size:13px;color:var(--text);line-height:1.4;'
+          note.textContent = `Import “${drawingName || 'drawing'}” into which album?`
+
+          const sel = document.createElement('select')
+          sel.className = 'cardMoveSelect'
+          sel.style.cssText = 'width:100%;padding:6px;'
+          for (const a of sorted) {
+            const opt = document.createElement('option')
+            opt.value = a.id
+            opt.textContent = a.name || 'Album'
+            sel.appendChild(opt)
+          }
+          const newOpt = document.createElement('option')
+          newOpt.value = '__new__'
+          newOpt.textContent = '＋ New album…'
+          sel.appendChild(newOpt)
+          if (app.activeAlbumId && sorted.some(a => a.id === app.activeAlbumId)) {
+            sel.value = app.activeAlbumId
+          }
+
+          const btnRow = document.createElement('div')
+          btnRow.style.cssText = 'display:flex;gap:8px;justify-content:flex-end;'
+          const cancelBtn = document.createElement('button')
+          cancelBtn.className = 'btn'
+          cancelBtn.textContent = 'Cancel'
+          const okBtn = document.createElement('button')
+          okBtn.className = 'btn primary'
+          okBtn.textContent = 'Import'
+
+          cancelBtn.addEventListener('click', () => finish(null))
+          okBtn.addEventListener('click', async () => {
+            const val = sel.value
+            if (val === '__new__') {
+              const list = await idbAlbumList(app.db)
+              const album = newAlbumRecord(defaultAlbumName(list.length + 1))
+              await idbAlbumPut(app.db, album)
+              finish(album.id)
+            } else {
+              finish(val || null)
+            }
+          })
+          overlay.addEventListener('click', (e) => { if (e.target === overlay) finish(null) })
+
+          btnRow.appendChild(cancelBtn)
+          btnRow.appendChild(okBtn)
+          box.appendChild(note)
+          box.appendChild(sel)
+          box.appendChild(btnRow)
+          overlay.appendChild(box)
+          document.body.appendChild(overlay)
+          sel.focus()
+        })
+      }
+
+      // Import a multi-drawing export (album or whole gallery): reconstruct the
+      // source albums as NEW albums alongside the existing ones. Drawings are
+      // grouped by their original album (id, falling back to name), each group
+      // gets a freshly-created album, and manual order is preserved.
+      // Returns { imported, firstAlbumId }.
+      const importMultiExport = async (data, fileName, failures) => {
+        const drawings = Array.isArray(data.drawings) ? data.drawings : []
+        // Group by original album so each becomes one new album.
+        const groups = new Map()  // key -> { name, items:[] }
+        for (const d of drawings) {
+          const key = d.albumId ? `id:${d.albumId}` : (d.albumName ? `name:${d.albumName}` : '__legacy__')
+          if (!groups.has(key)) {
+            const fallback = String(fileName || '').replace(/\.json$/i, '').trim() || 'Imported'
+            groups.set(key, { name: d.albumName || fallback, items: [] })
+          }
+          groups.get(key).items.push(d)
+        }
+
+        let imported = 0
+        let firstAlbumId = null
+        for (const group of groups.values()) {
+          const album = newAlbumRecord(group.name || 'Imported')
+          await idbAlbumPut(app.db, album)
+          if (!firstAlbumId) firstAlbumId = album.id
+          // Preserve manual order within the album.
+          group.items.sort((a, b) => (a.order || 0) - (b.order || 0))
+          for (let i = 0; i < group.items.length; i++) {
+            const d = group.items[i]
+            const label = drawings.length > 1
+              ? `${fileName}  (drawing ${i + 1} of ${group.items.length})`
+              : fileName
+            const { valid, errors } = validateDrawingData(d)
+            if (!valid) { failures.push({ label, errors }); continue }
+            try {
+              const ok = await importSingleDrawing(d, album.id)
+              if (ok) imported++
+              else failures.push({ label, errors: ['Import failed unexpectedly'] })
+            } catch (e) {
+              failures.push({ label, errors: [`Unexpected error: ${e.message || e}`] })
+            }
+          }
+        }
+        return { imported, firstAlbumId }
       }
 
       const importDrawingsFromFiles = () => {
@@ -7169,6 +8297,7 @@
           const files = Array.from(input.files || [])
           if (!files.length) return
           let imported = 0
+          let revealAlbumId = null
           const failures = []  // { label: string, errors: string[] }
 
           for (const file of files) {
@@ -7180,37 +8309,31 @@
               continue
             }
 
-            let drawings = []
             if (data._paintExport && Array.isArray(data.drawings)) {
-              drawings = data.drawings
+              // Album / gallery export → introduce new album(s) alongside existing ones.
+              const res = await importMultiExport(data, file.name, failures)
+              imported += res.imported
+              if (res.firstAlbumId) revealAlbumId = res.firstAlbumId
             } else if (data._paintDrawing) {
-              drawings = [data]
+              // Single drawing → ask which existing album to import it into.
+              const { valid, errors } = validateDrawingData(data)
+              if (!valid) { failures.push({ label: file.name, errors }); continue }
+              const albumId = await pickAlbumForImport(data.name)
+              if (!albumId) continue  // user cancelled this drawing's import
+              try {
+                const ok = await importSingleDrawing(data, albumId)
+                if (ok) { imported++; revealAlbumId = albumId }
+                else failures.push({ label: file.name, errors: ['Import failed unexpectedly'] })
+              } catch (e) {
+                failures.push({ label: file.name, errors: [`Unexpected error: ${e.message || e}`] })
+              }
             } else {
               failures.push({ label: file.name, errors: ['Not a recognised paint.html export file (missing _paintDrawing / _paintExport marker)'] })
-              continue
-            }
-
-            for (let i = 0; i < drawings.length; i++) {
-              const d = drawings[i]
-              const label = drawings.length > 1
-                ? `${file.name}  (drawing ${i + 1} of ${drawings.length})`
-                : file.name
-
-              const { valid, errors } = validateDrawingData(d)
-              if (!valid) {
-                failures.push({ label, errors })
-                continue
-              }
-              try {
-                const ok = await importSingleDrawing(d)
-                if (ok) imported++
-                else failures.push({ label, errors: ['Import failed unexpectedly'] })
-              } catch (e) {
-                failures.push({ label, errors: [`Unexpected error: ${e.message || e}`] })
-              }
             }
           }
 
+          // Open a freshly-populated album so the import is visible.
+          if (revealAlbumId) app.activeAlbumId = revealAlbumId
           await refreshGallery()
           if (imported > 0) toast(`Imported ${imported} drawing${imported !== 1 ? 's' : ''}`)
 
@@ -7224,66 +8347,6 @@
           }
         })
         input.click()
-      }
-
-      /* =========================
-         Export popup (gallery cards)
-      ========================= */
-      let _exportPopup = null
-      let _exportPopupRecId = null
-
-      const closeExportPopup = () => {
-        if (_exportPopup) _exportPopup.style.display = 'none'
-        _exportPopupRecId = null
-      }
-
-      const showExportPopup = (btn, recId) => {
-        if (!_exportPopup) {
-          const el = document.createElement('div')
-          el.style.cssText = [
-            'position:fixed', 'z-index:10000',
-            'background:var(--panel)', 'border:1px solid var(--border)',
-            'border-radius:8px', 'padding:6px',
-            'box-shadow:0 6px 20px rgba(0,0,0,.5)',
-            'display:none', 'flex-direction:column', 'gap:4px', 'min-width:90px'
-          ].join(';')
-          const pngBtn = document.createElement('button')
-          pngBtn.className = 'btn'
-          pngBtn.textContent = '.png'
-          pngBtn.addEventListener('click', async () => {
-            const id = _exportPopupRecId
-            closeExportPopup()
-            if (id && id !== app.activeId) await loadDrawing(id, { silent: true })
-            exportPng()
-          })
-          const jsonBtn = document.createElement('button')
-          jsonBtn.className = 'btn'
-          jsonBtn.textContent = '.json'
-          jsonBtn.addEventListener('click', async () => {
-            const id = _exportPopupRecId
-            closeExportPopup()
-            await exportJson(id)
-          })
-          el.appendChild(pngBtn)
-          el.appendChild(jsonBtn)
-          document.body.appendChild(el)
-          document.addEventListener('click', (e) => {
-            if (_exportPopup && _exportPopup.style.display !== 'none' && !_exportPopup.contains(e.target)) {
-              closeExportPopup()
-            }
-          }, true)
-          _exportPopup = el
-        }
-        _exportPopupRecId = recId
-        _exportPopup.style.display = 'flex'
-        const rect = btn.getBoundingClientRect()
-        let top  = rect.bottom + 4
-        let left = rect.left
-        if (top  + 80 > window.innerHeight) top  = rect.top - 80 - 4
-        if (left + 100 > window.innerWidth)  left = window.innerWidth - 100 - 8
-        if (left < 4) left = 4
-        _exportPopup.style.top  = top  + 'px'
-        _exportPopup.style.left = left + 'px'
       }
 
       // Deletion of objects
@@ -8028,7 +9091,6 @@
         }
 
         $('#btnGallery').addEventListener('click', toggleGallery)
-        $('#btnNew').addEventListener('click', createNewDrawing)
 
         $('#toolPen').addEventListener('click', () => setTool('pen'))
         $('#toolRect').addEventListener('click', () => setTool('rect'))
@@ -8042,8 +9104,9 @@
         $('#btnGroup').addEventListener('click', groupSelection)
         $('#btnUngroup').addEventListener('click', ungroupSelection)
 
+        $('#btnNewAlbum').addEventListener('click', createAlbum)
         $('#btnExportAll').addEventListener('click', (ev) => showExportAllPopup(ev.currentTarget))
-        $('#btnImport').addEventListener('click', importDrawingsFromFiles)
+        $('#btnImport').addEventListener('click', () => importDrawingsFromFiles())
 
         $('#btnPaperSize').addEventListener('click', promptPaperSize)
         $('#btnGrid').addEventListener('click', () => {
@@ -8354,10 +9417,27 @@
           return
         }
 
+        // Migrate: guarantee an album exists and every drawing belongs to one.
+        await ensureAlbums()
+
+        // Migrate: give every drawing a stable `order` for manual reordering.
+        await ensureDrawingOrder()
+
+        // Migrate: backfill the lightweight meta store from existing drawings the
+        // first time we run at v3 (one-time full read). Later writes keep it synced.
+        const metaCount = (await idbMetaList(app.db)).length
+        const fullList = await idbList(app.db)
+        if (fullList.length && metaCount < fullList.length) {
+          for (const rec of fullList) await idbPut(app.db, rec)
+        }
+
+        // Open the album owning the most recently edited drawing.
+        app.activeAlbumId = await resolveActiveAlbumId()
+
         await refreshGallery()
 
         // Load most recent or create new
-        const list = await idbList(app.db)
+        const list = await idbMetaList(app.db)
         if (list.length) {
           await loadDrawing(list[0].id)
         } else {
