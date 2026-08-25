@@ -820,6 +820,40 @@
     .textEdit ul { margin: 0; padding-left: 20px; }
     .textEdit li { margin-bottom: 2px; }
     .textEdit div, .textEdit ul { transition: margin-left 0.1s ease; }
+    /* Checklist rows: no bullet, checkbox drawn via the .rte-check marker element.
+       These rules are intentionally NOT scoped to .textEdit so they also apply to the
+       live-rendered <foreignObject> content (same document) and off-screen measure divs. */
+    ul[data-list-type="check"] { list-style: none; padding-left: 0; }
+    /* Hanging indent: the first line's negative text-indent pulls the checkbox
+       flush to the left edge, while padding-left keeps every following line
+       (soft-wrapped OR Shift+Enter <br> continuation) aligned with the text
+       start, not under the checkbox. 1.22em = checkbox 0.82em + margin 0.4em. */
+    ul[data-list-type="check"] > li { list-style: none; padding-left: 1.22em; text-indent: -1.22em; }
+    .rte-check {
+      display: inline-block;
+      width: 0.82em; height: 0.82em;
+      margin-right: 0.4em;
+      border: 0.09em solid currentColor;
+      border-radius: 0.16em;
+      box-sizing: border-box;
+      vertical-align: -0.12em;
+      position: relative;
+      cursor: pointer;
+      pointer-events: auto;   /* clickable even though the foreignObject is pointer-events:none */
+      user-select: none;
+      -webkit-user-select: none;
+      flex: none;
+    }
+    li[data-checked="1"] > .rte-check::after {
+      content: "";
+      position: absolute;
+      left: 0.24em; top: -0.02em;
+      width: 0.26em; height: 0.5em;
+      border: solid currentColor;
+      border-width: 0 0.15em 0.15em 0;
+      transform: rotate(40deg);
+      box-sizing: border-box;
+    }
     /* Active state for rich text format buttons */
     .richFmtBtn.active { background: var(--sel-light, #e6f0ff); border-color: var(--sel, #4ea1ff); color: var(--sel, #4ea1ff); }
     /* Custom color picker popup */
@@ -1292,13 +1326,16 @@
             <div class='row hidden' id='rowRichTextHighlight'>
               <label>Highlight</label>
               <div style='display:flex; gap:6px; align-items:center;'>
+                <button class='btn icon richFmtBtn' id='btnRichHighlight' data-richtext-btn title='Highlight'><svg width='15' height='15' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='m9 11-6 6v3h9l3-3'/><path d='m22 12-4.6 4.6a2 2 0 0 1-2.8 0l-5.2-5.2a2 2 0 0 1 0-2.8L14 4'/></svg></button>
                 <input type='color' id='richHighlightColor' value='#ffff00' />
-                <button class='btn icon richFmtBtn' id='btnRichHighlight' data-richtext-btn title='Highlight'>▮</button>
               </div>
             </div>
             <div class='row hidden' id='rowBulletList'>
               <label>List</label>
-              <button class='btn richFmtBtn' id='btnBulletList' data-richtext-btn title='Toggle bullet list'>• Bullets</button>
+              <div style='display:grid;grid-template-columns:1fr 1fr;gap:10px;'>
+                <button class='btn richFmtBtn' id='btnBulletList' data-richtext-btn title='Toggle bullet list'>• Bullets</button>
+                <button class='btn richFmtBtn' id='btnChecklist' data-richtext-btn title='Toggle checklist'>☐ Checklist</button>
+              </div>
             </div>
             <div class='row hidden' id='rowTextareaTextColor'>
               <label>Color</label>
@@ -3201,7 +3238,42 @@
 
             if (tag === 'UL') {
               const ml = parseFloat(block.style?.marginLeft || '0') || 0
+              const isCheck = block.getAttribute('data-list-type') === 'check'
               for (const li of block.querySelectorAll('li')) {
+                if (isCheck) {
+                  // Draw a CSS-box-style checkbox (rect + optional tick), then the text.
+                  const boxSize = baseFontSize * 0.8
+                  const boxX = x + padding + ml + 1
+                  const boxY = lineY - boxSize + baseFontSize * 0.12
+                  const gap = baseFontSize * 0.4
+                  const t = makeLine(li, boxX + boxSize + gap)
+                  const rect = document.createElementNS(NS, 'rect')
+                  rect.setAttribute('x', String(boxX))
+                  rect.setAttribute('y', String(boxY))
+                  rect.setAttribute('width', String(boxSize))
+                  rect.setAttribute('height', String(boxSize))
+                  rect.setAttribute('rx', String(boxSize * 0.18))
+                  rect.setAttribute('fill', 'none')
+                  rect.setAttribute('stroke', baseColor)
+                  rect.setAttribute('stroke-width', String(Math.max(1, baseFontSize * 0.09)))
+                  g.appendChild(rect)
+                  if (li.getAttribute('data-checked') === '1') {
+                    const tick = document.createElementNS(NS, 'polyline')
+                    const p1 = `${boxX + boxSize * 0.22},${boxY + boxSize * 0.52}`
+                    const p2 = `${boxX + boxSize * 0.42},${boxY + boxSize * 0.72}`
+                    const p3 = `${boxX + boxSize * 0.78},${boxY + boxSize * 0.26}`
+                    tick.setAttribute('points', `${p1} ${p2} ${p3}`)
+                    tick.setAttribute('fill', 'none')
+                    tick.setAttribute('stroke', baseColor)
+                    tick.setAttribute('stroke-width', String(Math.max(1, baseFontSize * 0.13)))
+                    tick.setAttribute('stroke-linecap', 'round')
+                    tick.setAttribute('stroke-linejoin', 'round')
+                    g.appendChild(tick)
+                  }
+                  if (t) g.appendChild(t)
+                  lineY += lineHeight
+                  continue
+                }
                 const lineX = x + padding + ml + 20
                 const t = makeLine(li, lineX)
                 if (t) {
@@ -4161,6 +4233,14 @@
 
           el.appendChild(section)
         }
+
+        // Keep the active (blue-highlighted) drawing visible: after the full
+        // rebuild the scroll position can leave it off-screen, so bring it into
+        // the gallery's viewport. block:'nearest' scrolls the minimum amount.
+        if (app.activeId) {
+          const activeCard = el.querySelector(`.card[data-id="${app.activeId}"].active`)
+          if (activeCard) activeCard.scrollIntoView({ block: 'nearest' })
+        }
       }
 
       const loadDrawing = async (id, opts = {}) => {
@@ -4699,7 +4779,14 @@
         container.querySelectorAll('ul').forEach(ul => {
           ul.style.marginTop = '0'
           ul.style.marginBottom = '0'
-          if (!ul.style.paddingLeft) ul.style.paddingLeft = '20px'
+          if (ul.getAttribute('data-list-type') === 'check') {
+            // Checklists have no bullet marker; the checkbox is an inline element, so
+            // the extra list padding used for bullets is not needed here.
+            ul.style.listStyleType = 'none'
+            ul.style.paddingLeft = '0px'
+          } else if (!ul.style.paddingLeft) {
+            ul.style.paddingLeft = '20px'
+          }
         })
         container.querySelectorAll('li').forEach(li => {
           if (!li.style.marginBottom) li.style.marginBottom = '2px'
@@ -4741,6 +4828,60 @@
         return div.innerHTML
       }
 
+      // ---- Checklist helpers -------------------------------------------------
+      // A checklist row is a <ul data-list-type="check"> holding a single <li> whose
+      // checked state lives in data-checked ("0"/"1"). The leading checkbox is a
+      // contenteditable=false <span class="rte-check"> element (CSS-drawn box) inserted
+      // as the first child of the <li>. Everything else (indent, Enter/Tab/Backspace,
+      // inline span formatting) is inherited unchanged from the bullet-list engine.
+      const isCheckUl = (ul) => !!(ul && ul.tagName === 'UL' && ul.getAttribute('data-list-type') === 'check')
+
+      // Ensure a single <li> that belongs to a check-list carries exactly one leading
+      // .rte-check marker and a normalized data-checked attribute. If the <li> is not in
+      // a check-list, strip any stray marker instead. Marker content is derived state,
+      // so this is safe to call repeatedly (self-healing after contenteditable mutations).
+      const ensureChecklistMarker = (li) => {
+        if (!li || li.tagName !== 'LI') return
+        if (!isCheckUl(li.parentElement)) {
+          li.removeAttribute('data-checked')
+          li.querySelectorAll(':scope > .rte-check').forEach(m => m.remove())
+          return
+        }
+        if (li.getAttribute('data-checked') !== '1') li.setAttribute('data-checked', '0')
+        const marks = Array.from(li.querySelectorAll(':scope > .rte-check'))
+        for (let i = 1; i < marks.length; i++) marks[i].remove()
+        let m = marks[0]
+        if (!m) m = document.createElement('span')
+        if (li.firstChild !== m) li.insertBefore(m, li.firstChild)
+        m.className = 'rte-check'
+        m.setAttribute('contenteditable', 'false')
+        m.setAttribute('aria-hidden', 'true')
+        if (m.firstChild) m.textContent = ''
+      }
+
+      // Normalize every checklist marker inside a container and remove markers that
+      // are not the first child of a check-list <li> (e.g. left behind by a conversion).
+      const syncChecklistMarkers = (container) => {
+        if (!container) return
+        container.querySelectorAll('.rte-check').forEach(m => {
+          const li = m.parentElement
+          if (!(li && li.tagName === 'LI' && isCheckUl(li.parentElement))) m.remove()
+        })
+        container.querySelectorAll('ul[data-list-type="check"] > li').forEach(ensureChecklistMarker)
+      }
+
+      // Toggle the checked state of the Nth check-list <li> (document order) inside
+      // stored rich-text HTML, returning the updated HTML.
+      const toggleChecklistCheckedInHtml = (html, index) => {
+        const div = document.createElement('div')
+        div.innerHTML = normalizeRichText(html || '')
+        const lis = Array.from(div.querySelectorAll('ul[data-list-type="check"] > li'))
+        const li = lis[index]
+        if (!li) return html
+        li.setAttribute('data-checked', li.getAttribute('data-checked') === '1' ? '0' : '1')
+        return div.innerHTML
+      }
+
       // Convert legacy plain-text s.text to rich HTML if needed
       const normalizeRichText = (text) => {
         if (!text) return '<div>&#8203;</div>'
@@ -4749,6 +4890,7 @@
           // Must be DOM-based: regex can't detect rows emptied by span-level stripping.
           const tmp = document.createElement('div')
           tmp.innerHTML = text
+          syncChecklistMarkers(tmp)
           tmp.querySelectorAll('div, p, li').forEach(block => {
             // Use raw trim (not stripping ​) so a block already holding a ​ placeholder is not treated as empty
             const text = (block.textContent || '').trim()
@@ -4898,7 +5040,7 @@
             data.node.parentNode.replaceChild(span, data.node)
           })
 
-          const inlineQuery = 'B,I,U,STRONG,EM,STRIKE,DEL,SUP,SUB,SPAN:not(.rte-flat):not(#rte-sel-start):not(#rte-sel-end)'
+          const inlineQuery = 'B,I,U,STRONG,EM,STRIKE,DEL,SUP,SUB,SPAN:not(.rte-flat):not(.rte-check):not(#rte-sel-start):not(#rte-sel-end)'
           Array.from(_richActiveEditor.querySelectorAll(inlineQuery)).forEach(tag => {
             while (tag.firstChild) tag.parentNode.insertBefore(tag.firstChild, tag)
             tag.remove()
@@ -4935,7 +5077,7 @@
       // Update the active/inactive state of format buttons in the properties panel
       const updateRichTextPanelButtons = () => {
         if (!_richSavedRange || !_richActiveEditor) {
-          ;['btnRichBold','btnRichItalic','btnRichUnderline','btnRichStrike','btnRichSuper','btnRichSub','btnRichHighlight','btnBulletList'].forEach(id => {
+          ;['btnRichBold','btnRichItalic','btnRichUnderline','btnRichStrike','btnRichSuper','btnRichSub','btnRichHighlight','btnBulletList','btnChecklist'].forEach(id => {
             const btn = $('#' + id); if (btn) btn.classList.remove('active')
           })
           return
@@ -4956,7 +5098,8 @@
         $('#btnRichSuper')?.classList.toggle('active',     isActive('super'))
         $('#btnRichSub')?.classList.toggle('active',       isActive('sub'))
         $('#btnRichHighlight')?.classList.toggle('active', isActive('highlight'))
-        $('#btnBulletList')?.classList.toggle('active',    isRichListActive())
+        $('#btnBulletList')?.classList.toggle('active',    isRichListActive('bullet'))
+        $('#btnChecklist')?.classList.toggle('active',     isRichListActive('check'))
 
         // Sync font size display to the cursor/selection's computed font size.
         // For a non-collapsed range, read from the FIRST text node in the selection
@@ -5012,13 +5155,17 @@
         }
       }
 
-      // Check if cursor/selection is inside a <ul> block
-      const isRichListActive = () => {
+      // Check if cursor/selection is inside a <ul> block of the given kind.
+      // type: 'bullet' | 'check' | undefined (any list).
+      const isRichListActive = (type) => {
         if (!_richSavedRange || !_richActiveEditor) return false
         let node = _richSavedRange.startContainer
         let el = node.nodeType === 3 ? node.parentNode : node
         while (el && el !== _richActiveEditor) {
-          if (el.tagName === 'UL') return true
+          if (el.tagName === 'UL') {
+            if (!type) return true
+            return type === 'check' ? isCheckUl(el) : !isCheckUl(el)
+          }
           el = el.parentNode
         }
         return false
@@ -5099,12 +5246,13 @@
           span.textContent = data.node.nodeValue
           data.node.parentNode.replaceChild(span, data.node)
         })
-        const inlineQ = 'B,I,U,STRONG,EM,STRIKE,DEL,SUP,SUB,SPAN:not(.rte-flat)'
+        const inlineQ = 'B,I,U,STRONG,EM,STRIKE,DEL,SUP,SUB,SPAN:not(.rte-flat):not(.rte-check)'
         Array.from(div.querySelectorAll(inlineQ)).forEach(tag => {
           while (tag.firstChild) tag.parentNode.insertBefore(tag.firstChild, tag)
           tag.remove()
         })
         div.querySelectorAll('.rte-flat').forEach(s => s.removeAttribute('class'))
+        syncChecklistMarkers(div)
 
         const result = div.innerHTML
         document.body.removeChild(div)
@@ -5126,10 +5274,11 @@
         updateRichTextPanelButtons()
       }
 
-      // Toggle bullets for all rows in selected text shapes (when editor is closed).
-      // Rule: if every current row is bulleted -> remove bullets from all rows;
-      // otherwise add bullets to all rows. Indentation is preserved per row.
-      const toggleBulletListForShapeHtml = (html) => {
+      // Toggle a list of the given type ('bullet' | 'check') for all rows in a text
+      // shape's stored HTML (used when the editor is closed).
+      // Rule: if every current row is already that exact type -> remove the list from
+      // all rows; otherwise convert every row to that type. Indentation is preserved.
+      const toggleListForShapeHtml = (html, type) => {
         const div = document.createElement('div')
         div.innerHTML = normalizeRichText(html || '')
         _applyListStyles(div)
@@ -5156,14 +5305,14 @@
         const rows = Array.from(div.children).filter(el => ['DIV', 'P', 'UL'].includes(el.tagName))
         if (!rows.length) return div.innerHTML
 
-        // Ignore empty non-list placeholder rows so toggling bullets does not create
-        // visual bullet-only lines from zero-width editor placeholders.
+        // Ignore empty non-list placeholder rows so toggling does not create
+        // visual marker-only lines from zero-width editor placeholders.
         const actionableRows = rows.filter(row => row.tagName === 'UL' || hasVisibleText(row))
         if (!actionableRows.length) return div.innerHTML
 
-        const isAllLists = actionableRows.every(row => row.tagName === 'UL')
+        const isAllTarget = actionableRows.every(row => blockMatchesListType(row, type))
 
-        if (isAllLists) {
+        if (isAllTarget) {
           actionableRows.forEach(row => {
             if (row.tagName !== 'UL') return
             const indent = row.style.marginLeft || '0px'
@@ -5180,6 +5329,7 @@
               const out = document.createElement('div')
               out.style.marginLeft = indent
               while (li.firstChild) out.appendChild(li.firstChild)
+              out.querySelectorAll('.rte-check').forEach(m => m.remove())
               return out
             })
             outRows.forEach(out => row.parentNode.insertBefore(out, row))
@@ -5187,28 +5337,28 @@
           })
         } else {
           actionableRows.forEach(row => {
-            if (row.tagName === 'UL') return
-            const indent = row.style.marginLeft || '0px'
-            const li = document.createElement('li')
-            while (row.firstChild) li.appendChild(row.firstChild)
-            const ul = document.createElement('ul')
-            ul.style.marginLeft = indent
-            updateRichListStyle(ul)
-            ul.appendChild(li)
-            row.parentNode.replaceChild(ul, row)
+            if (row.tagName === 'UL') {
+              // Switch an existing list of the other type in place.
+              if (!blockMatchesListType(row, type)) switchUlType(row, type)
+              return
+            }
+            makeListBlock(row, type)
           })
         }
 
         return div.innerHTML
       }
 
-      const toggleBulletListOnSelectedShapes = () => {
+      const toggleBulletListForShapeHtml = (html) => toggleListForShapeHtml(html, 'bullet')
+      const toggleChecklistForShapeHtml  = (html) => toggleListForShapeHtml(html, 'check')
+
+      const toggleListOnSelectedShapes = (type) => {
         const ctx = getSelectionPropsContext()
         if (!ctx.hasSelection || !ctx.compatible) return
         let changed = false
         for (const s of ctx.selectedShapes) {
           if (s.type !== 'text') continue
-          const next = toggleBulletListForShapeHtml(s.text)
+          const next = toggleListForShapeHtml(s.text, type)
           if (next !== s.text) {
             s.text = next
             fitTextShapeToContent(s)
@@ -5219,8 +5369,13 @@
         updateRichTextPanelButtons()
       }
 
+      const toggleBulletListOnSelectedShapes = () => toggleListOnSelectedShapes('bullet')
+      const toggleChecklistOnSelectedShapes  = () => toggleListOnSelectedShapes('check')
+
       // Rotate bullet style based on indent level
       const updateRichListStyle = (ul) => {
+        // Checklists keep the same checkbox marker at every nesting level.
+        if (isCheckUl(ul)) { ul.style.listStyleType = 'none'; return }
         const margin = parseInt(ul.style.marginLeft || '0')
         const level = Math.floor(margin / 40)
         if (level % 3 === 0)      ul.style.listStyleType = 'disc'
@@ -5240,14 +5395,17 @@
         const allLis  = Array.from(parentUl.children)
         const liIdx   = allLis.indexOf(li)
         const cssText = parentUl.style.cssText
+        const listType = parentUl.getAttribute('data-list-type')  // preserve checklist kind
         const domParent = parentUl.parentNode
 
         // Create one independent <ul> per <li>, in document order
         const newUls = allLis.map(item => {
           const ul = document.createElement('ul')
           ul.style.cssText = cssText
+          if (listType) ul.setAttribute('data-list-type', listType)
           updateRichListStyle(ul)
           ul.appendChild(item)
+          ensureChecklistMarker(item)
           return ul
         })
         newUls.forEach(ul => domParent.insertBefore(ul, parentUl))
@@ -5435,8 +5593,59 @@
         return { selectedBlocks, startMarker, endMarker }
       }
 
-      // Toggle bullet list on selected blocks
-      const toggleRichBulletList = () => {
+      // ---- Block <-> list conversions (shared by both list buttons) ----------
+      // These operate on a single top-level block (DIV / P / UL) in place, preserving
+      // its row indentation and inline content. `type` is 'bullet' or 'check'.
+      const blockMatchesListType = (block, type) =>
+        block.tagName === 'UL' && (type === 'check' ? isCheckUl(block) : !isCheckUl(block))
+
+      // Turn a plain DIV/P block into a single-item <ul> of the given list type.
+      // Returns the new <ul> (already substituted into the DOM in place of `block`).
+      const makeListBlock = (block, type) => {
+        const li = document.createElement('li')
+        while (block.firstChild) li.appendChild(block.firstChild)
+        const ul = document.createElement('ul')
+        ul.style.marginLeft = block.style.marginLeft || '0px'
+        if (type === 'check') { ul.setAttribute('data-list-type', 'check'); li.setAttribute('data-checked', '0') }
+        ul.appendChild(li)
+        updateRichListStyle(ul)
+        ensureChecklistMarker(li)
+        block.parentNode.replaceChild(ul, block)
+        return ul
+      }
+
+      // Switch an existing <ul> between bullet and check without losing content/indent.
+      const switchUlType = (ul, type) => {
+        if (type === 'check') ul.setAttribute('data-list-type', 'check')
+        else ul.removeAttribute('data-list-type')
+        updateRichListStyle(ul)
+        // Handle every direct <li> (usually one, but browsers can merge siblings).
+        Array.from(ul.querySelectorAll(':scope > li')).forEach(li => {
+          if (type === 'check') {
+            if (li.getAttribute('data-checked') !== '1') li.setAttribute('data-checked', '0')
+          } else {
+            li.removeAttribute('data-checked')
+          }
+          ensureChecklistMarker(li)  // adds box for check, strips it otherwise
+        })
+      }
+
+      // Collapse a single-item <ul> back to a plain DIV, keeping indentation.
+      const listBlockToDiv = (ul) => {
+        const li = ul.querySelector('li') || ul
+        const div = document.createElement('div')
+        while (li.firstChild) div.appendChild(li.firstChild)
+        div.style.marginLeft = ul.style.marginLeft || '0px'
+        div.querySelectorAll('.rte-check').forEach(m => m.remove())
+        ul.parentNode.replaceChild(div, ul)
+        return div
+      }
+
+      // Toggle a list of the given type ('bullet' | 'check') on the selected blocks.
+      // If every selected block is already that exact type, the list is removed;
+      // otherwise every block is converted to that type (switching the other list
+      // type in place rather than nesting).
+      const toggleRichList = (type) => {
         const sel = window.getSelection()
         if (!sel.rangeCount || !_richActiveEditor) return
         const range = RichTextEngine.restoreSelection()
@@ -5445,25 +5654,14 @@
         const { selectedBlocks, startMarker, endMarker } = getRichSelectedBlocks(range, 'rte-list-start', 'rte-list-end')
         if (!selectedBlocks.length) { startMarker.remove(); endMarker.remove(); return }
 
-        const isAllLists = selectedBlocks.every(b => b.tagName === 'UL')
+        const isAllTarget = selectedBlocks.every(b => blockMatchesListType(b, type))
         selectedBlocks.forEach(block => {
-          if (isAllLists) {
-            if (block.tagName !== 'UL') return
-            const li = block.querySelector('li') || block
-            const div = document.createElement('div')
-            while (li.firstChild) div.appendChild(li.firstChild)
-            // Keep existing row indentation when toggling list off.
-            div.style.marginLeft = block.style.marginLeft || '0px'
-            block.parentNode.replaceChild(div, block)
+          if (isAllTarget) {
+            if (block.tagName === 'UL') listBlockToDiv(block)
+          } else if (block.tagName === 'UL') {
+            switchUlType(block, type)
           } else {
-            if (block.tagName === 'UL') return
-            const li = document.createElement('li')
-            while (block.firstChild) li.appendChild(block.firstChild)
-            const ul = document.createElement('ul')
-            ul.style.marginLeft = block.style.marginLeft || '0px'
-            updateRichListStyle(ul)
-            ul.appendChild(li)
-            block.parentNode.replaceChild(ul, block)
+            makeListBlock(block, type)
           }
         })
 
@@ -5480,6 +5678,10 @@
         // Resize editor overlay to fit the changed list structure
         if (_richActiveEditor) _richActiveEditor.dispatchEvent(new Event('input', { bubbles: true }))
       }
+
+      // Toggle bullet / checklist on selected blocks (editor open)
+      const toggleRichBulletList = () => toggleRichList('bullet')
+      const toggleRichChecklist  = () => toggleRichList('check')
 
       // Backspace at row start behaves like Shift+Tab (outdent) for rich-text rows.
       // Bullet-specific rule: on first-level bullets, Backspace removes the bullet on
@@ -5536,6 +5738,7 @@
           } else {
             const div = document.createElement('div')
             while (li.firstChild) div.appendChild(li.firstChild)
+            div.querySelectorAll('.rte-check').forEach(m => m.remove())
             setRowIndentLevel(div, 0)
             ul.parentNode.replaceChild(div, ul)
             caretHost = div
@@ -5616,12 +5819,19 @@
 
           const newUl = document.createElement('ul')
           newUl.style.cssText = ul.style.cssText
+          // Carry the checklist type across the split; new rows start unchecked.
+          // (data-list-type is an attribute, so it isn't copied by cssText above.)
+          if (isCheckUl(ul)) newUl.setAttribute('data-list-type', 'check')
           setRowIndentLevel(newUl, getRowIndentLevel(ul))
           updateRichListStyle(newUl)
           const newLi = document.createElement('li')
+          if (isCheckUl(newUl)) newLi.setAttribute('data-checked', '0')
           newLi.appendChild(rightFrag)
           ensurePlaceholder(newLi)
           newUl.appendChild(newLi)
+          // Keep exactly one checkbox marker on each of the two resulting rows.
+          ensureChecklistMarker(li)
+          ensureChecklistMarker(newLi)
 
           const ulParent = ul.parentNode || _richActiveEditor
           ulParent.insertBefore(newUl, ul.parentNode ? ul.nextSibling : null)
@@ -6141,6 +6351,21 @@
         }
 
         editor.addEventListener('input', syncSize)
+
+        // Clicking a checkbox while editing toggles it without moving the caret.
+        // mousedown+preventDefault keeps the editing selection intact.
+        editor.addEventListener('mousedown', (ev) => {
+          const mark = ev.target && ev.target.closest ? ev.target.closest('.rte-check') : null
+          if (!mark || !editor.contains(mark)) return
+          const li = mark.closest('li')
+          if (!li) return
+          ev.preventDefault()
+          ev.stopPropagation()
+          li.setAttribute('data-checked', li.getAttribute('data-checked') === '1' ? '0' : '1')
+          // Trigger the normal resize/commit-on-edit path.
+          editor.dispatchEvent(new Event('input', { bubbles: true }))
+        })
+
         editor.addEventListener('keydown', (ev) => {
           if (ev.key === 'Enter' && ev.shiftKey) {
             // Shift+Enter inserts a line break; handle explicitly so NumpadEnter works too
@@ -6153,6 +6378,21 @@
           if (ev.key === 'Backspace' && handleRichTextBackspace(ev)) return
           if (ev.key === 'Tab') { handleRichTextIndent(ev); return }
           if (ev.key === 'Escape') { ev.preventDefault(); ev.stopPropagation(); finish(true); return }
+          // Formatting shortcuts (Cmd/Ctrl based)
+          if (modKey(ev) && ev.shiftKey && !ev.altKey && ev.key.toLowerCase() === 'l') {
+            ev.preventDefault(); ev.stopPropagation(); toggleRichChecklist();                 updateRichTextPanelButtons(); return
+          }
+          if (modKey(ev) && ev.shiftKey && !ev.altKey && ev.key.toLowerCase() === 'h') {
+            ev.preventDefault(); ev.stopPropagation()
+            RichTextEngine.execute('highlight', $('#richHighlightColor')?.value || '#ffff00'); updateRichTextPanelButtons(); return
+          }
+          if (modKey(ev) && !ev.altKey && !ev.shiftKey) {
+            const kk = ev.key.toLowerCase()
+            if (kk === 'b') { ev.preventDefault(); ev.stopPropagation(); RichTextEngine.execute('bold');      updateRichTextPanelButtons(); return }
+            if (kk === 'i') { ev.preventDefault(); ev.stopPropagation(); RichTextEngine.execute('italic');    updateRichTextPanelButtons(); return }
+            if (kk === 'u') { ev.preventDefault(); ev.stopPropagation(); RichTextEngine.execute('underline'); updateRichTextPanelButtons(); return }
+            if (kk === 'l') { ev.preventDefault(); ev.stopPropagation(); toggleRichBulletList();              updateRichTextPanelButtons(); return }
+          }
           ev.stopPropagation()
         })
         editor.addEventListener('paste', handleRichTextPaste)
@@ -6248,6 +6488,31 @@
       const pointerDown = (ev) => {
         if (!app.drawing) return
         if (ev.button !== 0) return
+
+        // Checklist checkbox: clicking the box on a rendered text shape toggles it
+        // without selecting/moving the shape or entering edit mode. The .rte-check
+        // marker has pointer-events:auto while the rest of the foreignObject does not.
+        const checkMark = ev.target && ev.target.closest ? ev.target.closest('.rte-check') : null
+        if (checkMark) {
+          const shapeEl = checkMark.closest('[data-id]')
+          const id = shapeEl && shapeEl.getAttribute('data-id')
+          const s = id ? getShapeById(id) : null
+          const fo = checkMark.closest('foreignObject')
+          const container = fo ? fo.querySelector('div') : null
+          const li = checkMark.closest('li')
+          if (s && s.type === 'text' && container && li) {
+            const lis = Array.from(container.querySelectorAll('ul[data-list-type="check"] > li'))
+            const idx = lis.indexOf(li)
+            if (idx >= 0) {
+              ev.preventDefault()
+              ev.stopPropagation()
+              s.text = toggleChecklistCheckedInHtml(s.text, idx)
+              pushHistory(); render(); markDirty()
+              return
+            }
+          }
+        }
+
         if (activeGalleryNameInput) activeGalleryNameInput.blur()
         app.isPointerDown = true
         app.didDragMove = false  // reset per-pointer-down drag flag
@@ -7610,7 +7875,7 @@
           ev.key === 'Tab' ||
           (ev.shiftKey && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(ev.key)) ||
           (!ev.shiftKey && (ev.key === 'ArrowUp' || ev.key === 'ArrowDown')) ||
-          ['z', 'v', 'p', 'r', 'c', 'a', 'l', 'e', 't', 'g', 'u', 'd', 'n', 'b', 'f'].includes(k)
+          ['z', 'v', 'p', 'r', 'c', 'a', 'l', 'e', 't', 'g', 'u', 'd', 'b', 'f'].includes(k)
         )
       }
 
@@ -8631,6 +8896,17 @@
           return
         }
 
+        // Bold / Italic / Underline on selected text shapes (outside edit mode).
+        // Mirrors the toolbar buttons; applyFormatToSelectedShapes no-ops on non-text.
+        if (modKey(ev) && !ev.altKey && !ev.shiftKey && (k === 'b' || k === 'i' || k === 'u')) {
+          const hasTextInSelection = getSelectionPropsContext().selectedShapes.some(s => s.type === 'text')
+          if (hasTextInSelection) {
+            ev.preventDefault()
+            applyFormatToSelectedShapes(k === 'b' ? 'bold' : k === 'i' ? 'italic' : 'underline')
+            return
+          }
+        }
+
         // Tool shortcuts
         if (k === 'v') { setTool('select'); return }
         if (k === 'p') { selectSingle(null); setTool('pen'); return }
@@ -8668,10 +8944,6 @@
             startTextEdit(textShape.id, cx, cy)
             return
           }
-        }
-        if (k === 'n') {
-          createNewDrawing()
-          return
         }
 
         // Tab cycles stacked objects at last click (Shift+Tab reverses).
@@ -9370,6 +9642,7 @@
           else applyFormatToSelectedShapes('highlight', color)
         })
         wireRichBtn('btnBulletList', () => _richActiveEditor ? toggleRichBulletList() : toggleBulletListOnSelectedShapes())
+        wireRichBtn('btnChecklist',  () => _richActiveEditor ? toggleRichChecklist()  : toggleChecklistOnSelectedShapes())
 
         // Highlight color input: prevent stealing focus while editor is open
         const hlColorInput = $('#richHighlightColor')
@@ -9447,6 +9720,20 @@
         // Initial layout
         toggleGallery() // open by default
       }
+
+      // Annotate rich-text button tooltips with their keyboard shortcuts (platform-aware).
+      ;(() => {
+        const mod = isMac() ? '⌘' : 'Ctrl+'
+        const shortcuts = {
+          btnRichBold:      `Bold (${mod}B)`,
+          btnRichItalic:    `Italic (${mod}I)`,
+          btnRichUnderline: `Underline (${mod}U)`,
+          btnBulletList:    `Toggle bullet list (${mod}L)`,
+          btnChecklist:     `Toggle checklist (${isMac() ? '⌘⇧' : 'Ctrl+Shift+'}L)`,
+          btnRichHighlight: `Highlight (${isMac() ? '⌘⇧' : 'Ctrl+Shift+'}H)`,
+        }
+        for (const [id, title] of Object.entries(shortcuts)) $('#' + id)?.setAttribute('title', title)
+      })()
 
       boot()
     })()
