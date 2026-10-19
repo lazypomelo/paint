@@ -822,7 +822,10 @@
       box-sizing: border-box;
     }
     /* List styles inside the rich text editor */
-    .textEdit ul { margin: 0; padding-left: 20px; }
+    /* em-based so the bullet marker's reserved space grows with the row's own
+       font-size (fixed px padding would make large bullets overflow/clip at
+       bigger text sizes while the glyph itself still scales with the font). */
+    .textEdit ul { margin: 0; padding-left: 1.2em; }
     .textEdit li { margin-bottom: 2px; }
     .textEdit div, .textEdit ul { transition: margin-left 0.1s ease; }
     /* Checklist rows: no bullet, checkbox drawn via the .rte-check marker element.
@@ -1072,6 +1075,29 @@
       text-align: center;
     }
     .formulaSnippetBtn:hover{
+      border-color: var(--accent);
+    }
+    .formulaHistoryItems{
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      padding: 2px 2px 6px;
+    }
+    .formulaHistoryItem{
+      flex: 0 0 auto;
+      max-width: 180px;
+      padding: 6px 10px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--panel2);
+      color: var(--text);
+      cursor: pointer;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      font-size: 14px;
+    }
+    .formulaHistoryItem:hover{
       border-color: var(--accent);
     }
 
@@ -3618,7 +3644,7 @@
                   const indentFs = maxFsOf(runs)
                   const lineX = isCheck
                     ? x + padding + ml + 1 + indentFs * 0.8 + indentFs * 0.4
-                    : x + padding + ml + 20
+                    : x + padding + ml + indentFs * 1.2
                   const sublines = wrapEnabled ? wrapRuns(runs, Math.max(1, rightEdge - lineX)) : [runs]
                   for (const sub of sublines) {
                     const maxFs = maxFsOf(sub)
@@ -3654,10 +3680,12 @@
                           g.appendChild(tick)
                         }
                       } else if (t) {
-                        // Prepend bullet
+                        // Prepend bullet, sized and positioned relative to this
+                        // line's own font size so it scales in step with the text.
                         const bts = document.createElementNS(NS, 'tspan')
-                        bts.setAttribute('x', String(x + padding + ml + 5))
+                        bts.setAttribute('x', String(x + padding + ml + maxFs * 0.3))
                         bts.setAttribute('y', String(baseline))
+                        bts.setAttribute('font-size', String(maxFs))
                         bts.textContent = '\u2022'
                         t.insertBefore(bts, t.firstChild)
                       }
@@ -5264,7 +5292,7 @@
             ul.style.listStyleType = 'none'
             ul.style.paddingLeft = '0px'
           } else if (!ul.style.paddingLeft) {
-            ul.style.paddingLeft = '20px'
+            ul.style.paddingLeft = '1.2em'
           }
         })
         container.querySelectorAll('li').forEach(li => {
@@ -5406,6 +5434,37 @@
       const katexRenderCache = new Map()
       let pendingFormulaBatch = Promise.resolve()
       const _warmedFormulaAlbumIds = new Set()
+
+      // Recently-used formulas (app-wide, not per-drawing — stored in
+      // localStorage rather than a drawing record, since it's a user
+      // convenience list, not drawing content). Most-recent-first, deduped,
+      // capped at FORMULA_HISTORY_MAX.
+      const FORMULA_HISTORY_KEY = 'paint_html_formula_history'
+      const FORMULA_HISTORY_MAX = 20
+      const loadFormulaHistory = () => {
+        try {
+          const arr = JSON.parse(localStorage.getItem(FORMULA_HISTORY_KEY) || '[]')
+          return Array.isArray(arr) ? arr.filter(x => typeof x === 'string') : []
+        } catch (e) {
+          return []
+        }
+      }
+      const recordFormulaInHistory = (latex) => {
+        if (!latex) return
+        const history = loadFormulaHistory().filter(l => l !== latex)
+        history.unshift(latex)
+        try {
+          localStorage.setItem(FORMULA_HISTORY_KEY, JSON.stringify(history.slice(0, FORMULA_HISTORY_MAX)))
+        } catch (e) { /* storage full/unavailable — history is a convenience, not critical */ }
+      }
+
+      // "Clipboard" for Cmd/Ctrl+C on a highlighted formula — intentionally
+      // NOT the real system clipboard (writing LaTeX there would make a
+      // normal system paste insert raw text instead of a rendered formula,
+      // and conflict with this editor's own rich HTML paste handling).
+      // Cleared by any other copy, so a normal text copy afterward resumes
+      // normal paste behavior.
+      let _copiedFormula = null
 
       // Resolves once KaTeX is available (CDN <script defer> in <head>), or after
       // a timeout if the CDN never responds — formulas just keep showing their
@@ -6979,6 +7038,68 @@
         return changed
       }
 
+      // Builds a new formula widget and inserts it at `editor`'s current
+      // caret (_richSavedRange, falling back to the end of its content),
+      // normalizing a range that resolves to the editor itself (see inline
+      // comment below) so the widget always lands inside a proper row <div>
+      // rather than as a stray direct child of the editor. Shared by the
+      // formula dialog's "insert at cursor" flow and the Cmd/Ctrl+V
+      // formula-paste shortcut. Returns the inserted widget element, or null
+      // if `editor` is no longer attached.
+      const insertFormulaWidgetAtCursor = (editor, latex, { mathInline = app.style.mathInline, mathAlign = app.style.mathAlign } = {}) => {
+        if (!editor || !document.body.contains(editor)) return null
+        const widget = document.createElement('span')
+        widget.className = 'katex-widget'
+        widget.setAttribute('contenteditable', 'false')
+        widget.setAttribute('data-widget-id', uuid())
+        widget.setAttribute('data-latex', latex)
+        widget.setAttribute('data-math-inline', mathInline ? '1' : '0')
+        widget.setAttribute('data-math-align', String(mathAlign))
+        widget.textContent = latex
+
+        let range = null
+        if (_richSavedRange && editor.contains(_richSavedRange.startContainer)) {
+          range = _richSavedRange.cloneRange()
+        } else {
+          // No usable saved caret (e.g. focus never entered the editor's
+          // text) — fall back to appending at the end of its content.
+          range = document.createRange()
+          range.selectNodeContents(editor)
+          range.collapse(false)
+        }
+        // Either source above can resolve to a range whose container is the
+        // editor itself (e.g. a brand-new shape's caret, placed via this
+        // app's own placeCaretAtEnd — selectNodeContents+collapse at the
+        // editor level, not inside its one row <div>). insertNode on such a
+        // range drops the widget as a stray direct child of the editor
+        // instead of inside the proper row, which later confuses row-
+        // isolation logic. Descend into the adjacent row's content instead.
+        if (range.startContainer === editor) {
+          const idx = range.startOffset
+          const refRow = idx > 0 ? editor.childNodes[idx - 1] : editor.firstChild
+          if (refRow && refRow.nodeType === Node.ELEMENT_NODE && !refRow.classList.contains('katex-widget')) {
+            const fixed = document.createRange()
+            if (idx > 0) fixed.setStart(refRow, refRow.childNodes.length)
+            else fixed.setStart(refRow, 0)
+            fixed.collapse(true)
+            range = fixed
+          }
+        }
+        range.deleteContents()
+        range.insertNode(widget)
+        range.setStartAfter(widget)
+        range.collapse(true)
+        const sel = window.getSelection()
+        sel.removeAllRanges()
+        sel.addRange(range)
+        _richSavedRange = range.cloneRange()
+
+        hydrateKatexWidgets(editor)
+        if (widget.getAttribute('data-math-inline') === '0') isolateWidgetToOwnRow(widget)
+        editor.dispatchEvent(new Event('input', { bubbles: true }))
+        return widget
+      }
+
       // Resolves the row (<div> or <li> directly under the editor) containing
       // the current selection's anchor — same block-finding convention used
       // elsewhere for indent/list logic (stop climbing at an <li> even though
@@ -7345,11 +7466,36 @@
         })
 
         editor.addEventListener('keydown', (ev) => {
+          const highlightedWidget = getActiveFormulaWidget()
+          const modPressed = isMac() ? ev.metaKey : ev.ctrlKey
+
+          // Cmd/Ctrl+C on a highlighted formula copies it to an internal
+          // "formula clipboard" instead of the system clipboard (see
+          // _copiedFormula) — checked before the generic highlight-clearing
+          // fallback below, which would otherwise drop the highlight first.
+          if (modPressed && !ev.shiftKey && !ev.altKey && ev.key.toLowerCase() === 'c') {
+            if (highlightedWidget) {
+              ev.preventDefault(); ev.stopPropagation()
+              _copiedFormula = {
+                latex: highlightedWidget.getAttribute('data-latex'),
+                mathInline: highlightedWidget.getAttribute('data-math-inline') !== '0',
+                mathAlign: Number(highlightedWidget.getAttribute('data-math-align') ?? 50)
+              }
+              return
+            }
+            // Any other copy supersedes a previously copied formula.
+            _copiedFormula = null
+          } else if (modPressed && !ev.shiftKey && !ev.altKey && ev.key.toLowerCase() === 'v' && _copiedFormula) {
+            ev.preventDefault(); ev.stopPropagation()
+            katexRenderCache.set(_copiedFormula.latex, safeRenderToString(_copiedFormula.latex))
+            insertFormulaWidgetAtCursor(editor, _copiedFormula.latex, _copiedFormula)
+            return
+          }
+
           // A highlighted formula stands in for the caret — Left/Right/Home/
           // End (and Mac Cmd+Left/Right) act relative to IT, not the stale
           // real selection. Any other key drops the highlight so the real
           // (now presumably about-to-move) caret becomes visible again.
-          const highlightedWidget = getActiveFormulaWidget()
           if (highlightedWidget) {
             if (!ev.shiftKey) {
               let action = null
@@ -11260,6 +11406,18 @@
         cols.appendChild(leftCol)
         cols.appendChild(rightCol)
 
+        // Up to FORMULA_HISTORY_MAX recently-used formulas, already rendered,
+        // click to load into the source textarea for further editing/confirm.
+        const historyRow = document.createElement('div')
+        historyRow.style.cssText = 'display:none;flex-direction:column;gap:6px;'
+        const historyLabel = document.createElement('div')
+        historyLabel.textContent = 'Recent formulas'
+        historyLabel.style.cssText = colLabelCss
+        const historyItemsWrap = document.createElement('div')
+        historyItemsWrap.className = 'formulaHistoryItems'
+        historyRow.appendChild(historyLabel)
+        historyRow.appendChild(historyItemsWrap)
+
         const btnRow = document.createElement('div')
         btnRow.style.cssText = 'display:flex;gap:8px;justify-content:flex-end;'
         const cancelBtn = document.createElement('button')
@@ -11275,6 +11433,7 @@
         box.appendChild(title)
         box.appendChild(toolbarRow)
         box.appendChild(cols)
+        box.appendChild(historyRow)
         box.appendChild(btnRow)
 
         const syncConfirmEnabled = () => { confirmBtn.disabled = !textarea.value.trim() }
@@ -11310,6 +11469,30 @@
           })
         })
 
+        const renderFormulaHistoryPicker = async () => {
+          const history = loadFormulaHistory()
+          historyItemsWrap.innerHTML = ''
+          if (!history.length) { historyRow.style.display = 'none'; return }
+          historyRow.style.display = 'flex'
+          await katexReady
+          if (!document.body.contains(box)) return // dialog closed while waiting
+          history.forEach(histLatex => {
+            const item = document.createElement('button')
+            item.type = 'button'
+            item.className = 'formulaHistoryItem'
+            item.title = histLatex
+            item.innerHTML = katexRenderCache.has(histLatex) ? katexRenderCache.get(histLatex) : safeRenderToString(histLatex)
+            katexRenderCache.set(histLatex, item.innerHTML)
+            item.addEventListener('click', () => {
+              textarea.value = histLatex
+              textarea.focus()
+              updatePreview()
+            })
+            historyItemsWrap.appendChild(item)
+          })
+        }
+        renderFormulaHistoryPicker()
+
         cancelBtn.addEventListener('click', () => close())
 
         confirmBtn.addEventListener('click', async () => {
@@ -11329,59 +11512,12 @@
                 widget.setAttribute('data-latex', latex)
                 hydrateKatexWidgets(editor)
                 editor.dispatchEvent(new Event('input', { bubbles: true }))
+                recordFormulaInHistory(latex)
               }
             }
           } else if (isInsertIntoActiveEditor && document.body.contains(targetEditor)) {
-            const widget = document.createElement('span')
-            widget.className = 'katex-widget'
-            widget.setAttribute('contenteditable', 'false')
-            widget.setAttribute('data-widget-id', uuid())
-            widget.setAttribute('data-latex', latex)
-            widget.setAttribute('data-math-inline', app.style.mathInline ? '1' : '0')
-            widget.setAttribute('data-math-align', String(app.style.mathAlign))
-            widget.textContent = latex
-
-            let range = null
-            if (targetSavedRange && targetEditor.contains(targetSavedRange.startContainer)) {
-              range = targetSavedRange.cloneRange()
-            } else {
-              // No usable saved caret (e.g. focus never entered the editor's
-              // text) — fall back to appending at the end of its content.
-              range = document.createRange()
-              range.selectNodeContents(targetEditor)
-              range.collapse(false)
-            }
-            // Either source above can resolve to a range whose container is
-            // the editor itself (e.g. a brand-new shape's caret, placed via
-            // this app's own placeCaretAtEnd — selectNodeContents+collapse at
-            // the editor level, not inside its one row <div>). insertNode on
-            // such a range drops the widget as a stray direct child of the
-            // editor instead of inside the proper row, which later confuses
-            // row-isolation logic. Descend into the adjacent row's content so
-            // the widget always lands inside an actual row.
-            if (range.startContainer === targetEditor) {
-              const idx = range.startOffset
-              const refRow = idx > 0 ? targetEditor.childNodes[idx - 1] : targetEditor.firstChild
-              if (refRow && refRow.nodeType === Node.ELEMENT_NODE && !refRow.classList.contains('katex-widget')) {
-                const fixed = document.createRange()
-                if (idx > 0) fixed.setStart(refRow, refRow.childNodes.length)
-                else fixed.setStart(refRow, 0)
-                fixed.collapse(true)
-                range = fixed
-              }
-            }
-            range.deleteContents()
-            range.insertNode(widget)
-            range.setStartAfter(widget)
-            range.collapse(true)
-            const sel = window.getSelection()
-            sel.removeAllRanges()
-            sel.addRange(range)
-            _richSavedRange = range.cloneRange()
-
-            hydrateKatexWidgets(targetEditor)
-            if (widget.getAttribute('data-math-inline') === '0') isolateWidgetToOwnRow(widget)
-            targetEditor.dispatchEvent(new Event('input', { bubbles: true }))
+            insertFormulaWidgetAtCursor(targetEditor, latex)
+            recordFormulaInHistory(latex)
           } else {
             const s = shapeDefaults()
             s.type = 'text'
@@ -11410,6 +11546,7 @@
             pushHistory()
             render()
             markDirty()
+            recordFormulaInHistory(latex)
           }
           close()
         })
