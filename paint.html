@@ -77,6 +77,11 @@
     .btn.primary{ border-color: rgba(78,161,255,0.45); background: rgba(78,161,255,0.12); }
     .btn.danger{ border-color: rgba(255,90,106,0.45); background: rgba(255,90,106,0.10); }
     .btn.icon{ width: 26px; padding: 0; justify-content: center; }
+    .borderSideIcon{ width: 12px; height: 12px; border: 1px solid var(--border); border-radius: 2px; box-sizing: border-box; }
+    .borderSideIcon.side-top{ border-top: 2.5px solid currentColor; }
+    .borderSideIcon.side-right{ border-right: 2.5px solid currentColor; }
+    .borderSideIcon.side-bottom{ border-bottom: 2.5px solid currentColor; }
+    .borderSideIcon.side-left{ border-left: 2.5px solid currentColor; }
     .btn.iconWide{
       width: 76px;
       padding: 0 6px;
@@ -1331,7 +1336,19 @@
             <!-- Stroke / border section headers (per type) -->
             <div class='row hidden' id='rowRectBorderHeader' style='margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--border);'>
               <label style='font-weight: 600; color: var(--text);'>Border</label>
-              <div></div>
+              <div style='display:flex; gap:6px; justify-content:flex-end;'>
+                <button class='btn icon primary' id='btnRectBorderLeft' type='button' aria-label='Toggle left border' aria-pressed='true' title='Toggle left border'><span class='borderSideIcon side-left'></span></button>
+                <button class='btn icon primary' id='btnRectBorderTop' type='button' aria-label='Toggle top border' aria-pressed='true' title='Toggle top border'><span class='borderSideIcon side-top'></span></button>
+                <button class='btn icon primary' id='btnRectBorderBottom' type='button' aria-label='Toggle bottom border' aria-pressed='true' title='Toggle bottom border'><span class='borderSideIcon side-bottom'></span></button>
+                <button class='btn icon primary' id='btnRectBorderRight' type='button' aria-label='Toggle right border' aria-pressed='true' title='Toggle right border'><span class='borderSideIcon side-right'></span></button>
+              </div>
+            </div>
+            <div class='row hidden' id='rowRectBorderStyle'>
+              <label>Corner style</label>
+              <div style='display:grid;grid-template-columns:1fr 1fr;gap:10px;'>
+                <button class='btn' id='btnRectCornerSharp' type='button' aria-pressed='true'>Sharp</button>
+                <button class='btn' id='btnRectCornerRound' type='button' aria-pressed='false'>Round</button>
+              </div>
             </div>
             <div class='row hidden' id='rowCircleStrokeHeader' style='margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--border);'>
               <label style='font-weight: 600; color: var(--text);'>Stroke</label>
@@ -1351,12 +1368,12 @@
             </div>
             <div class='row hidden' id='rowArrowHeadStyle'>
               <label>Style</label>
-              <select id='arrowHeadStyle'>
-                <option value='triangle-sharp'>Triangle (sharp)</option>
-                <option value='triangle-rounded'>Triangle (rounded)</option>
-                <option value='v-shaped-sharp'>V-shaped (sharp)</option>
-                <option value='v-shaped-rounded'>V-shaped (rounded)</option>
-              </select>
+              <div class='segGroup' id='arrowHeadStyleGroup' style='display:flex; gap:6px;'>
+                <button class='btn icon' id='btnArrowHeadTriangleSharp' type='button' data-value='triangle-sharp' aria-pressed='false' title='Triangle (sharp)'><svg width='16' height='16' viewBox='0 0 16 16'><path d='M3 3 L13 8 L3 13 Z' fill='currentColor'/></svg></button>
+                <button class='btn icon' id='btnArrowHeadTriangleRounded' type='button' data-value='triangle-rounded' aria-pressed='true' title='Triangle (rounded)'><svg width='16' height='16' viewBox='0 0 16 16'><path d='M5.236 4.118 L8.53 5.764 Q13 8 8.53 10.236 L5.236 11.882 Q3 13 3 10.5 L3 5.5 Q3 3 5.236 4.118 Z' fill='currentColor'/></svg></button>
+                <button class='btn icon' id='btnArrowHeadVSharp' type='button' data-value='v-shaped-sharp' aria-pressed='false' title='V-shaped (sharp)'><svg width='16' height='16' viewBox='0 0 16 16' fill='none' stroke='currentColor' stroke-width='1.6' stroke-linejoin='miter' stroke-linecap='butt'><path d='M3 3 L13 8 L3 13'/></svg></button>
+                <button class='btn icon' id='btnArrowHeadVRounded' type='button' data-value='v-shaped-rounded' aria-pressed='false' title='V-shaped (rounded)'><svg width='16' height='16' viewBox='0 0 16 16' fill='none' stroke='currentColor' stroke-width='1.6' stroke-linejoin='round' stroke-linecap='round'><path d='M3 3 L13 8 L3 13'/></svg></button>
+              </div>
             </div>
             <div class='row hidden' id='rowArrowHeadColor'>
               <label>Color</label>
@@ -1432,12 +1449,12 @@
             </div>
             <div class='row hidden' id='rowPenArrowStyle'>
               <label>Style</label>
-              <select id='penArrowStyle'>
-                <option value='triangle-sharp'>Triangle (sharp)</option>
-                <option value='triangle-rounded'>Triangle (rounded)</option>
-                <option value='v-shaped-sharp'>V-shaped (sharp)</option>
-                <option value='v-shaped-rounded' selected>V-shaped (rounded)</option>
-              </select>
+              <div class='segGroup' id='penArrowStyleGroup' style='display:flex; gap:6px;'>
+                <button class='btn icon' id='btnPenArrowTriangleSharp' type='button' data-value='triangle-sharp' aria-pressed='false' title='Triangle (sharp)'><svg width='16' height='16' viewBox='0 0 16 16'><path d='M3 3 L13 8 L3 13 Z' fill='currentColor'/></svg></button>
+                <button class='btn icon' id='btnPenArrowTriangleRounded' type='button' data-value='triangle-rounded' aria-pressed='false' title='Triangle (rounded)'><svg width='16' height='16' viewBox='0 0 16 16'><path d='M5.236 4.118 L8.53 5.764 Q13 8 8.53 10.236 L5.236 11.882 Q3 13 3 10.5 L3 5.5 Q3 3 5.236 4.118 Z' fill='currentColor'/></svg></button>
+                <button class='btn icon' id='btnPenArrowVSharp' type='button' data-value='v-shaped-sharp' aria-pressed='false' title='V-shaped (sharp)'><svg width='16' height='16' viewBox='0 0 16 16' fill='none' stroke='currentColor' stroke-width='1.6' stroke-linejoin='miter' stroke-linecap='butt'><path d='M3 3 L13 8 L3 13'/></svg></button>
+                <button class='btn icon' id='btnPenArrowVRounded' type='button' data-value='v-shaped-rounded' aria-pressed='true' title='V-shaped (rounded)'><svg width='16' height='16' viewBox='0 0 16 16' fill='none' stroke='currentColor' stroke-width='1.6' stroke-linejoin='round' stroke-linecap='round'><path d='M3 3 L13 8 L3 13'/></svg></button>
+              </div>
             </div>
             <div class='row hidden' id='rowPenArrowColor'>
               <label>Color</label>
@@ -1535,7 +1552,19 @@
             </div>
             <div class='row hidden' id='rowTextareaBorderHeader' style='margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--border);'>
               <label style='font-weight: 600; color: var(--text);'>Border</label>
-              <div></div>
+              <div style='display:flex; gap:6px; justify-content:flex-end;'>
+                <button class='btn icon primary' id='btnTextBorderLeft' type='button' aria-label='Toggle left border' aria-pressed='true' title='Toggle left border'><span class='borderSideIcon side-left'></span></button>
+                <button class='btn icon primary' id='btnTextBorderTop' type='button' aria-label='Toggle top border' aria-pressed='true' title='Toggle top border'><span class='borderSideIcon side-top'></span></button>
+                <button class='btn icon primary' id='btnTextBorderBottom' type='button' aria-label='Toggle bottom border' aria-pressed='true' title='Toggle bottom border'><span class='borderSideIcon side-bottom'></span></button>
+                <button class='btn icon primary' id='btnTextBorderRight' type='button' aria-label='Toggle right border' aria-pressed='true' title='Toggle right border'><span class='borderSideIcon side-right'></span></button>
+              </div>
+            </div>
+            <div class='row hidden' id='rowTextareaBorderStyle'>
+              <label>Corner style</label>
+              <div style='display:grid;grid-template-columns:1fr 1fr;gap:10px;'>
+                <button class='btn' id='btnTextCornerSharp' type='button' aria-pressed='true'>Sharp</button>
+                <button class='btn' id='btnTextCornerRound' type='button' aria-pressed='false'>Round</button>
+              </div>
             </div>
             <div class='row hidden' id='rowTextareaBorderWidth'>
               <label>Width</label>
@@ -1589,7 +1618,19 @@
             <!-- Image sections -->
             <div class='row hidden' id='rowImageBorderHeader' style='margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--border);'>
               <label style='font-weight: 600; color: var(--text);'>Border</label>
-              <div></div>
+              <div style='display:flex; gap:6px; justify-content:flex-end;'>
+                <button class='btn icon primary' id='btnImageBorderLeft' type='button' aria-label='Toggle left border' aria-pressed='true' title='Toggle left border'><span class='borderSideIcon side-left'></span></button>
+                <button class='btn icon primary' id='btnImageBorderTop' type='button' aria-label='Toggle top border' aria-pressed='true' title='Toggle top border'><span class='borderSideIcon side-top'></span></button>
+                <button class='btn icon primary' id='btnImageBorderBottom' type='button' aria-label='Toggle bottom border' aria-pressed='true' title='Toggle bottom border'><span class='borderSideIcon side-bottom'></span></button>
+                <button class='btn icon primary' id='btnImageBorderRight' type='button' aria-label='Toggle right border' aria-pressed='true' title='Toggle right border'><span class='borderSideIcon side-right'></span></button>
+              </div>
+            </div>
+            <div class='row hidden' id='rowImageBorderStyle'>
+              <label>Corner style</label>
+              <div style='display:grid;grid-template-columns:1fr 1fr;gap:10px;'>
+                <button class='btn' id='btnImageCornerSharp' type='button' aria-pressed='true'>Sharp</button>
+                <button class='btn' id='btnImageCornerRound' type='button' aria-pressed='false'>Round</button>
+              </div>
             </div>
             <div class='row hidden' id='rowImageBorderWidth'>
               <label>Border width</label>
@@ -1673,6 +1714,9 @@
         if (v === 'v-shaped-rounded') return v
         return 'triangle-sharp'
       }
+      const normalizeBorderStyle = (value) => {
+        return String(value || '').trim().toLowerCase() === 'round' ? 'round' : 'sharp'
+      }
       const normalizeRotationDeg = (value) => {
         const n = Math.round(Number(value) || 0)
         const wrapped = ((n % 360) + 360) % 360
@@ -1718,6 +1762,38 @@
         if (!el) return
         el.checked = !!value
       }
+      const setToggleButtonState = (id, pressed) => {
+        const el = $('#' + id)
+        if (!el) return
+        el.classList.toggle('primary', !!pressed)
+        el.setAttribute('aria-pressed', String(!!pressed))
+      }
+      const setCornerStyleButtons = (sharpId, roundId, style) => {
+        const isSharp = normalizeBorderStyle(style) !== 'round'
+        setToggleButtonState(sharpId, isSharp)
+        setToggleButtonState(roundId, !isSharp)
+      }
+      const setSegGroupValue = (groupId, value) => {
+        const group = $('#' + groupId)
+        if (!group) return
+        const v = normalizeArrowHeadStyle(value)
+        $$('[data-value]', group).forEach((btn) => setToggleButtonState(btn.id, btn.dataset.value === v))
+      }
+      const getSegGroupValue = (groupId) => {
+        const group = $('#' + groupId)
+        const active = group ? group.querySelector('[aria-pressed="true"]') : null
+        return normalizeArrowHeadStyle(active ? active.dataset.value : null)
+      }
+      const wireSegGroup = (groupId, onChange) => {
+        const group = $('#' + groupId)
+        if (!group) return
+        $$('[data-value]', group).forEach((btn) => {
+          btn.addEventListener('click', () => {
+            setSegGroupValue(groupId, btn.dataset.value)
+            onChange()
+          })
+        })
+      }
       const downloadBlob = (filename, blob) => {
         const url = URL.createObjectURL(blob)
         const a = document.createElement('a')
@@ -1733,6 +1809,18 @@
         el.textContent = msg
         el.classList.add('show')
         setTimeout(() => el.classList.remove('show'), ms)
+      }
+      const showArrowConvertPrompt = (shapeId) => {
+        const el = $('#toast')
+        if (app.arrowConvertTimeout) clearTimeout(app.arrowConvertTimeout)
+        el.innerHTML = "Convert to arrow? <span class='kbd'>Y</span>"
+        el.classList.add('show')
+        app.pendingArrowConvertShapeId = shapeId
+        app.arrowConvertTimeout = setTimeout(() => {
+          el.classList.remove('show')
+          app.pendingArrowConvertShapeId = null
+          app.arrowConvertTimeout = null
+        }, 3000)
       }
       const updateRotationValueDisplay = (value) => {
         const out = $('#rotationValue')
@@ -1967,6 +2055,8 @@
         cropModeId: null,
         marqueeBox: null,
         alignGuides: null, // { vLines: [x,...], hLines: [y,...] } active during move drag
+        pendingArrowConvertShapeId: null, // pen shape awaiting a 'Y' press to turn its head on
+        arrowConvertTimeout: null,
 
         // view
         canvas: { width: 1200, height: 800, bg: 'rgb(255,255,255)' },
@@ -1995,6 +2085,11 @@
           textBorderWidth: 0,
           textBorderColor: '#111111',
           textBorderAlpha: 1,
+          textBorderTop: true,
+          textBorderRight: true,
+          textBorderBottom: true,
+          textBorderLeft: true,
+          textBorderStyle: 'sharp',
           textPadding: 5,
           textBackground: '#ffffff',
           textBackgroundAlpha: 0.25,
@@ -2011,6 +2106,11 @@
           imageBorder: '#111111',
           imageBorderAlpha: 1,
           imageBorderWidth: 0,
+          imageBorderTop: true,
+          imageBorderRight: true,
+          imageBorderBottom: true,
+          imageBorderLeft: true,
+          imageBorderStyle: 'sharp',
           imageFlipH: false,
           imageFlipV: false,
           imageTransparencyEnabled: false,
@@ -2020,6 +2120,11 @@
           penFlipV: false,
           rectFlipH: false,
           rectFlipV: false,
+          rectBorderTop: true,
+          rectBorderRight: true,
+          rectBorderBottom: true,
+          rectBorderLeft: true,
+          rectBorderStyle: 'sharp',
           circleFlipH: false,
           circleFlipV: false,
           lineFlipH: false,
@@ -2631,6 +2736,47 @@
         el.setAttribute('vector-effect', 'non-scaling-stroke')
       }
 
+      // Draws the enabled sides of a border as a single filled <path> that sits entirely
+      // OUTSIDE the shape's x/y/w/h box (inner edge flush with the shape, outer edge
+      // strokeWidth further out) so growing the width never shrinks the shape's visible
+      // interior. Each enabled side is a straight bar; where two adjacent sides are both
+      // enabled, a corner piece (sharp square, or quarter-circle for `rounded`) fills the
+      // gap between them seamlessly. A lone side with no enabled neighbor ends flush at
+      // the shape's corner, with no cap/flourish.
+      const buildBorderPath = (x, y, w, h, { top, right, bottom, left, stroke, strokeWidth, rounded }) => {
+        const sw = strokeWidth
+        if (sw <= 0 || !(top || right || bottom || left)) return null
+        const segs = []
+        if (top) segs.push(`M ${x} ${y - sw} L ${x + w} ${y - sw} L ${x + w} ${y} L ${x} ${y} Z`)
+        if (bottom) segs.push(`M ${x} ${y + h} L ${x + w} ${y + h} L ${x + w} ${y + h + sw} L ${x} ${y + h + sw} Z`)
+        if (left) segs.push(`M ${x - sw} ${y} L ${x} ${y} L ${x} ${y + h} L ${x - sw} ${y + h} Z`)
+        if (right) segs.push(`M ${x + w} ${y} L ${x + w + sw} ${y} L ${x + w + sw} ${y + h} L ${x + w} ${y + h} Z`)
+        if (top && left) {
+          segs.push(rounded
+            ? `M ${x} ${y} L ${x} ${y - sw} A ${sw} ${sw} 0 0 0 ${x - sw} ${y} Z`
+            : `M ${x - sw} ${y - sw} L ${x} ${y - sw} L ${x} ${y} L ${x - sw} ${y} Z`)
+        }
+        if (top && right) {
+          segs.push(rounded
+            ? `M ${x + w} ${y} L ${x + w} ${y - sw} A ${sw} ${sw} 0 0 1 ${x + w + sw} ${y} Z`
+            : `M ${x + w} ${y - sw} L ${x + w + sw} ${y - sw} L ${x + w + sw} ${y} L ${x + w} ${y} Z`)
+        }
+        if (bottom && left) {
+          segs.push(rounded
+            ? `M ${x} ${y + h} L ${x} ${y + h + sw} A ${sw} ${sw} 0 0 1 ${x - sw} ${y + h} Z`
+            : `M ${x - sw} ${y + h} L ${x} ${y + h} L ${x} ${y + h + sw} L ${x - sw} ${y + h + sw} Z`)
+        }
+        if (bottom && right) {
+          segs.push(rounded
+            ? `M ${x + w} ${y + h} L ${x + w} ${y + h + sw} A ${sw} ${sw} 0 0 0 ${x + w + sw} ${y + h} Z`
+            : `M ${x + w} ${y + h} L ${x + w + sw} ${y + h} L ${x + w + sw} ${y + h + sw} L ${x + w} ${y + h + sw} Z`)
+        }
+        const path = svgEl('path', { d: segs.join(' ') })
+        path.setAttribute('fill', stroke)
+        path.setAttribute('stroke', 'none')
+        return path
+      }
+
       const buildLineLikeElement = (s) => {
         const st = s.style || {}
         const x1 = Number(s.x1 || 0)
@@ -2820,9 +2966,26 @@
             const ty = flipV ? (2 * cy) : 0
             transforms.push(`matrix(${sx} 0 0 ${sy} ${tx} ${ty})`)
           }
-          const rectEl = svgEl('rect', { x: s.x, y: s.y, width: s.w, height: s.h, rx: 2, ry: 2 })
-          applyStyleAttrs(rectEl, s)
-          el = rectEl
+          const borderTop = !!(st.rectBorderTop ?? app.style.rectBorderTop ?? true)
+          const borderRight = !!(st.rectBorderRight ?? app.style.rectBorderRight ?? true)
+          const borderBottom = !!(st.rectBorderBottom ?? app.style.rectBorderBottom ?? true)
+          const borderLeft = !!(st.rectBorderLeft ?? app.style.rectBorderLeft ?? true)
+          const borderStyle = normalizeBorderStyle(st.rectBorderStyle ?? app.style.rectBorderStyle)
+          // No rx/ry here: the border is drawn as a separate outward-only path flush
+          // against this rect's sharp corners, so rounding the fill would leave a gap.
+          const rectEl = svgEl('rect', { x: s.x, y: s.y, width: s.w, height: s.h })
+          rectEl.setAttribute('fill', rgbaFromHexAlpha(st.fill || '#ffffff', st.fillAlpha ?? 0))
+          rectEl.setAttribute('stroke', 'none')
+          const rectGroup = svgEl('g')
+          rectGroup.appendChild(rectEl)
+          const rectBorder = buildBorderPath(s.x, s.y, s.w, s.h, {
+            top: borderTop, right: borderRight, bottom: borderBottom, left: borderLeft,
+            stroke: rgbaFromHexAlpha(st.stroke || '#111111', st.strokeAlpha ?? 1),
+            strokeWidth: st.strokeWidth ?? 3,
+            rounded: borderStyle !== 'sharp',
+          })
+          if (rectBorder) rectGroup.appendChild(rectBorder)
+          el = rectGroup
         } else if (s.type === 'ellipse') {
           const st = s.style || {}
           const flipH = !!(st.circleFlipH ?? app.style.circleFlipH)
@@ -2962,13 +3125,19 @@
           // Border drawn over the visible (crop-adjusted) area, outside the clip so it's never cut
           const borderW = Math.max(0, Number(st.imageBorderWidth ?? app.style.imageBorderWidth ?? 0))
           if (borderW > 0) {
-            const border = svgEl('rect', { x: visX, y: visY, width: visW, height: visH })
-            border.setAttribute('fill', 'none')
-            border.setAttribute('stroke', rgbaFromHexAlpha(st.imageBorder || app.style.imageBorder || '#111111', st.imageBorderAlpha ?? app.style.imageBorderAlpha ?? 1))
-            border.setAttribute('stroke-width', String(borderW))
-            border.setAttribute('stroke-linejoin', 'round')
-            border.setAttribute('vector-effect', 'non-scaling-stroke')
-            outerEl.appendChild(border)
+            const borderTop = !!(st.imageBorderTop ?? app.style.imageBorderTop ?? true)
+            const borderRight = !!(st.imageBorderRight ?? app.style.imageBorderRight ?? true)
+            const borderBottom = !!(st.imageBorderBottom ?? app.style.imageBorderBottom ?? true)
+            const borderLeft = !!(st.imageBorderLeft ?? app.style.imageBorderLeft ?? true)
+            const borderColor = rgbaFromHexAlpha(st.imageBorder || app.style.imageBorder || '#111111', st.imageBorderAlpha ?? app.style.imageBorderAlpha ?? 1)
+            const borderStyle = normalizeBorderStyle(st.imageBorderStyle ?? app.style.imageBorderStyle)
+            const imageBorder = buildBorderPath(visX, visY, visW, visH, {
+              top: borderTop, right: borderRight, bottom: borderBottom, left: borderLeft,
+              stroke: borderColor,
+              strokeWidth: borderW,
+              rounded: borderStyle !== 'sharp',
+            })
+            if (imageBorder) outerEl.appendChild(imageBorder)
           }
 
           el = outerEl
@@ -2993,12 +3162,13 @@
           const textWrap = svgEl('g')
 
           // Render background if enabled (alpha > 0)
+          // No rx/ry: the border is a separate outward-only path flush against this
+          // rect's sharp corners, so rounding the background would leave a gap.
           const bgAlpha = st.textBackgroundAlpha ?? app.style.textBackgroundAlpha ?? 0
           if (bgAlpha > 0) {
             const background = svgEl('rect', {
               x: s.x, y: s.y,
               width: Math.max(0, s.w), height: Math.max(0, s.h),
-              rx: 2, ry: 2
             })
             background.setAttribute('fill', rgbaFromHexAlpha(st.textBackground || app.style.textBackground || '#ffffff', bgAlpha))
             background.setAttribute('stroke', 'none')
@@ -3008,16 +3178,19 @@
           // Render border if enabled (width > 0)
           const borderWidth = st.textBorderWidth ?? app.style.textBorderWidth ?? 0
           if (borderWidth > 0) {
-            const border = svgEl('rect', {
-              x: s.x, y: s.y,
-              width: Math.max(0, s.w), height: Math.max(0, s.h),
-              rx: 2, ry: 2
+            const borderTop = !!(st.textBorderTop ?? app.style.textBorderTop ?? true)
+            const borderRight = !!(st.textBorderRight ?? app.style.textBorderRight ?? true)
+            const borderBottom = !!(st.textBorderBottom ?? app.style.textBorderBottom ?? true)
+            const borderLeft = !!(st.textBorderLeft ?? app.style.textBorderLeft ?? true)
+            const borderColor = rgbaFromHexAlpha(st.textBorderColor || app.style.textBorderColor || '#111111', st.textBorderAlpha ?? app.style.textBorderAlpha ?? 1)
+            const borderStyle = normalizeBorderStyle(st.textBorderStyle ?? app.style.textBorderStyle)
+            const textBorder = buildBorderPath(s.x, s.y, Math.max(0, s.w), Math.max(0, s.h), {
+              top: borderTop, right: borderRight, bottom: borderBottom, left: borderLeft,
+              stroke: borderColor,
+              strokeWidth: borderWidth,
+              rounded: borderStyle !== 'sharp',
             })
-            border.setAttribute('fill', 'none')
-            border.setAttribute('stroke', rgbaFromHexAlpha(st.textBorderColor || app.style.textBorderColor || '#111111', st.textBorderAlpha ?? app.style.textBorderAlpha ?? 1))
-            border.setAttribute('stroke-width', String(borderWidth))
-            border.setAttribute('vector-effect', 'non-scaling-stroke')
-            textWrap.appendChild(border)
+            if (textBorder) textWrap.appendChild(textBorder)
           }
 
           // Render rich text via foreignObject
@@ -3920,6 +4093,18 @@
         try { localStorage.setItem(SCHEMA_MARKER_KEY, String(DB_VERSION)) } catch {}
       }
 
+      // Last-viewed drawing, tracked separately from updatedAt (which only moves
+      // on edit/autosave). Lets boot() reopen whatever the user was last LOOKING
+      // at — e.g. a drawing merely clicked open, never edited — rather than
+      // whichever drawing happens to have the newest edit timestamp.
+      const LAST_VIEWED_KEY = 'paint_html_last_viewed_id'
+      const saveLastViewedId = (id) => {
+        try { localStorage.setItem(LAST_VIEWED_KEY, id) } catch {}
+      }
+      const loadLastViewedId = () => {
+        try { return localStorage.getItem(LAST_VIEWED_KEY) } catch { return null }
+      }
+
       // Ensure at least one album exists and every drawing belongs to a valid album.
       // Cheap enough to run every boot: album list is tiny and the drawing scan
       // uses the lightweight meta store (which carries albumId), fetching a full
@@ -4702,6 +4887,7 @@
         app.drawing = rec
         // Opening a drawing makes its album the active (expanded) album.
         if (rec.albumId) app.activeAlbumId = rec.albumId
+        saveLastViewedId(rec.id)
         app.shapes = structuredClone(rec.shapes || [])
         for (const shape of app.shapes) {
           if (shape?.type === 'line') commitStoredLineVisualFlip(shape)
@@ -4756,6 +4942,7 @@
         // seed history
         app.activeId = rec.id
         app.drawing = rec
+        saveLastViewedId(rec.id)
         app.shapes = []
         app.canvas.width = rec.width
         app.canvas.height = rec.height
@@ -5416,6 +5603,18 @@
       let _richSavedRange = null
       let _richActiveEditor = null
       let _richActiveShapeId = null
+      // True once a trusted (real keystroke/execCommand) input has happened
+      // since the last checkpoint. Lets Cmd+Z flush the just-typed text into
+      // its own undo step first — otherwise the first Cmd+Z during typing
+      // would jump straight to the pre-edit-session snapshot (since plain
+      // typing is never itself checkpointed) and, finding the shape didn't
+      // exist yet at that point, tear down the whole edit session.
+      let _richSessionDirty = false
+      // While true, the editor's 'blur' handler treats a blur as internal
+      // housekeeping (forcing a real focus-out/in cycle to restart Chrome's
+      // caret-blink animation) rather than the user clicking away — see
+      // resyncActiveEditorAfterHistoryJump.
+      let _richSuppressBlurFinish = false
 
       // =========================================================
       // KaTeX formula rendering
@@ -7097,6 +7296,7 @@
         hydrateKatexWidgets(editor)
         if (widget.getAttribute('data-math-inline') === '0') isolateWidgetToOwnRow(widget)
         editor.dispatchEvent(new Event('input', { bubbles: true }))
+        checkpointTextEdit(editor, _richActiveShapeId)
         return widget
       }
 
@@ -7207,6 +7407,216 @@
           }
         }
         clearHighlight()
+      }
+
+      // Delete/Backspace on a highlighted formula must act on the formula
+      // itself, not the stale real caret (see exitHighlightedFormula). An
+      // inline formula is just one element among others on its row, so only
+      // the widget is removed; a non-inline formula is guaranteed alone on
+      // its own row (isolateWidgetToOwnRow), so the whole row goes with it —
+      // there is nothing else there to leave behind.
+      // Commits the editor's current content into the shape right now —
+      // same persistence rules as finish()'s commit (formulas are collapsed
+      // to their raw-latex fallback before capture, never baked HTML) —
+      // WITHOUT exiting edit mode, then re-hydrates the live editor back to
+      // its rendered appearance so nothing visually changes. Used both for
+      // discrete formula actions (insert/delete/update) and, debounced, for
+      // plain typing (see the editor's 'input' listener) — giving every kind
+      // of in-session edit its own undo/redo checkpoint, mirroring how
+      // shape-level create/delete already push history, while still letting
+      // the user keep editing afterward.
+      const checkpointTextEdit = (editor, shapeId) => {
+        const s = getShapeById(shapeId)
+        if (!s || s.type !== 'text') return
+        editor.querySelectorAll('.katex-widget[data-latex]').forEach(w => {
+          w.textContent = w.getAttribute('data-latex')
+          w.classList.remove('katex-widget-active')
+        })
+        s.text = editor.innerHTML.replace(/&#8203;/g, '​').replace(/​/g, '')
+        if (!s.text || s.text.replace(/<[^>]*>/g, '').trim() === '') {
+          s.text = '<div>&#8203;</div>'
+        }
+        fitTextShapeToContent(s)
+        if (isTextWrapEnabled(s)) s.w = Math.max(getTextMinBoxSize(s).minW, s.w)
+        pushHistory()
+        markDirty()
+        _richSessionDirty = false
+        hydrateKatexWidgets(editor)
+        editor.dispatchEvent(new Event('input', { bubbles: true }))
+      }
+
+      // Flattens editor content into a plain string for diffing across an
+      // undo/redo jump: each formula widget counts as exactly one opaque
+      // placeholder character (so unrelated changes to its rendered markup
+      // can't shift offsets), and each top-level row contributes one '\n'
+      // separator. placeCaretAtFlatOffset (below) walks the same way, so
+      // offsets computed from one are valid in the other.
+      const FORMULA_FLAT_PLACEHOLDER = '￼'
+      const flattenEditorText = (root) => {
+        const parts = []
+        const visit = (node) => {
+          if (node.nodeType === Node.TEXT_NODE) { parts.push(node.nodeValue); return }
+          if (node.nodeType !== Node.ELEMENT_NODE) return
+          if (node.classList && node.classList.contains('katex-widget')) { parts.push(FORMULA_FLAT_PLACEHOLDER); return }
+          if (node.tagName === 'BR') { parts.push('\n'); return }
+          node.childNodes.forEach(visit)
+        }
+        const rows = Array.from(root.childNodes)
+        rows.forEach((row, i) => {
+          visit(row)
+          if (i < rows.length - 1) parts.push('\n')
+        })
+        return parts.join('')
+      }
+
+      // Places the caret at a character offset into flattenEditorText(root)'s
+      // output. A formula widget is atomic — an offset landing on one places
+      // the caret just before or after it rather than "inside".
+      const placeCaretAtFlatOffset = (root, targetOffset) => {
+        let remaining = Math.max(0, targetOffset)
+        const range = document.createRange()
+        let placed = false
+        const visit = (node) => {
+          if (placed) return
+          if (node.nodeType === Node.TEXT_NODE) {
+            const len = node.nodeValue.length
+            if (remaining <= len) { range.setStart(node, remaining); placed = true; return }
+            remaining -= len
+            return
+          }
+          if (node.nodeType !== Node.ELEMENT_NODE) return
+          if (node.classList && node.classList.contains('katex-widget')) {
+            if (remaining <= 0) { range.setStartBefore(node); placed = true; return }
+            remaining -= 1
+            if (remaining <= 0) { range.setStartAfter(node); placed = true }
+            return
+          }
+          if (node.tagName === 'BR') {
+            if (remaining <= 0) { range.setStartBefore(node); placed = true; return }
+            remaining -= 1
+            return
+          }
+          for (const child of node.childNodes) {
+            visit(child)
+            if (placed) return
+          }
+        }
+        const rows = Array.from(root.childNodes)
+        for (let i = 0; i < rows.length && !placed; i++) {
+          visit(rows[i])
+          if (placed) break
+          if (i < rows.length - 1) {
+            if (remaining <= 0) { range.selectNodeContents(rows[i]); range.collapse(false); placed = true; break }
+            remaining -= 1 // the '\n' row separator
+          }
+        }
+        if (!placed) { range.selectNodeContents(root); range.collapse(false) }
+        else range.collapse(true)
+        const sel = window.getSelection()
+        sel.removeAllRanges()
+        sel.addRange(range)
+        return range
+      }
+
+      // Cmd/Ctrl+Z inside an active edit session calls the app's OWN undo/
+      // redo (this app's native plain-'z' shortcut is deliberately a normal
+      // letter while typing, and the browser's native contenteditable undo
+      // doesn't track the raw DOM mutations formula edits make, which is
+      // exactly why they weren't undoable before). Since undo/redo replace
+      // app.shapes wholesale, the open editor's DOM — built from the
+      // PREVIOUS app.shapes state — must be resynced from the (now
+      // reverted/reapplied) shape afterward, or a later finish() would
+      // silently re-overwrite the jump with stale content.
+      const resyncActiveEditorAfterHistoryJump = () => {
+        if (!_richActiveEditor || !_richActiveShapeId) return
+        const editor = _richActiveEditor
+        const s = getShapeById(_richActiveShapeId)
+        if (!s || s.type !== 'text') {
+          // The shape this session was editing no longer exists after the
+          // jump — nothing valid to keep editing or to commit to.
+          _richActiveEditor = null
+          _richActiveShapeId = null
+          _richSavedRange = null
+          _richSessionDirty = false
+          if (editor.parentNode) editor.remove()
+          updateRichTextPanelButtons()
+          syncMathFormulaPanelFromHighlight()
+          return
+        }
+        _richSessionDirty = false
+        const flatBefore = flattenEditorText(editor)
+        editor.innerHTML = normalizeRichText(s.text || '')
+        hydrateKatexWidgets(editor)
+        editor.querySelectorAll('.katex-widget[data-math-inline="0"]').forEach(isolateWidgetToOwnRow)
+        const flatAfter = flattenEditorText(editor)
+        // Land the caret right after whatever text the jump just
+        // changed — i.e. right after the restored text when undoing a
+        // deletion — rather than always at the end: find how much of the
+        // start/end is unchanged (common prefix/suffix) and place the
+        // caret at the end of the differing middle section.
+        const maxPrefix = Math.min(flatBefore.length, flatAfter.length)
+        let prefixLen = 0
+        while (prefixLen < maxPrefix && flatBefore[prefixLen] === flatAfter[prefixLen]) prefixLen++
+        const maxSuffix = maxPrefix - prefixLen
+        let suffixLen = 0
+        while (suffixLen < maxSuffix &&
+               flatBefore[flatBefore.length - 1 - suffixLen] === flatAfter[flatAfter.length - 1 - suffixLen]) suffixLen++
+        const targetOffset = flatAfter.length - suffixLen
+        const r = placeCaretAtFlatOffset(editor, targetOffset)
+        _richSavedRange = r.cloneRange()
+        // The editor never lost DOM focus, but Chrome's native caret-blink
+        // animation can get stuck invisible after a script-driven innerHTML
+        // replacement + Selection change while already focused — calling
+        // focus() on an already-focused element is a no-op for restarting
+        // it. Force an actual blur→focus transition instead (suppressing
+        // the blur handler's finish(true) for this internal cycle), which
+        // reliably restarts the blink.
+        _richSuppressBlurFinish = true
+        editor.blur()
+        editor.focus()
+        _richSuppressBlurFinish = false
+        // Re-apply the selection: a real blur/focus cycle can collapse it.
+        const sel = window.getSelection()
+        sel.removeAllRanges()
+        sel.addRange(r)
+        syncMathFormulaPanelFromHighlight()
+        editor.dispatchEvent(new Event('input', { bubbles: true }))
+      }
+
+      const deleteHighlightedFormula = (editor, widget) => {
+        const isInline = widget.getAttribute('data-math-inline') !== '0'
+        if (isInline) {
+          const r = document.createRange()
+          r.setStartBefore(widget)
+          r.collapse(true)
+          widget.remove()
+          const sel = window.getSelection()
+          sel.removeAllRanges()
+          sel.addRange(r)
+          _richSavedRange = r.cloneRange()
+        } else {
+          const row = widget.closest('div, li')
+          if (row) {
+            const parent = row.parentNode
+            const prevRow = row.previousElementSibling
+            const nextRow = row.nextElementSibling
+            row.remove()
+            if (parent.children.length === 0) {
+              // Nothing left at all — restore the normal empty-row placeholder.
+              const placeholder = document.createElement('div')
+              placeholder.innerHTML = '&#8203;'
+              parent.appendChild(placeholder)
+              placeCaretAtRowEdge(placeholder, false, false)
+            } else if (prevRow) {
+              placeCaretAtRowEdge(prevRow, true, false)
+            } else if (nextRow) {
+              placeCaretAtRowEdge(nextRow, false, false)
+            }
+          }
+        }
+        syncMathFormulaPanelFromHighlight()
+        editor.dispatchEvent(new Event('input', { bubbles: true }))
+        checkpointTextEdit(editor, _richActiveShapeId)
       }
 
       const startTextEdit = (shapeId, clientX, clientY) => {
@@ -7321,6 +7731,7 @@
         // Set up rich-text engine state
         _richActiveEditor = editor
         _richActiveShapeId = shapeId
+        _richSessionDirty = false
 
         const placeCaretAtEnd = () => {
           const sel = window.getSelection()
@@ -7388,6 +7799,7 @@
           _richActiveEditor = null
           _richActiveShapeId = null
           _richSavedRange = null
+          _richSessionDirty = false
           syncMathFormulaPanelFromHighlight()
           updateRichTextPanelButtons()
           if (shapeEl) shapeEl.style.visibility = ''
@@ -7416,11 +7828,29 @@
           setTool('select')
         }
 
-        editor.addEventListener('input', () => {
+        // Debounced so a pause in typing (not every keystroke) becomes its
+        // own undo checkpoint — fine-grained enough that Cmd+Z mid-session
+        // lands on recent content instead of jumping back to session start,
+        // coarse enough not to flood history with one entry per character.
+        const debouncedCheckpoint = debounce(() => {
+          if (_richActiveEditor !== editor || !_richSessionDirty) return
+          checkpointTextEdit(editor, shapeId)
+        }, 700)
+
+        editor.addEventListener('input', (ev) => {
           // If the demoted widget happens to be the highlighted one, keep the
           // Math formula panel's Inline/Alignment controls in sync live.
           if (demoteAdjacentNonInlineFormulas(editor)) syncMathFormulaPanelFromHighlight()
           syncSize()
+          // Only real user edits (trusted events) count as "dirty" — our own
+          // synthetic re-dispatches (checkpointTextEdit's own re-hydration,
+          // resyncActiveEditorAfterHistoryJump, the checkbox-toggle handler)
+          // use `new Event(...)`, which is always untrusted, so they don't
+          // loop back into scheduling another checkpoint of themselves.
+          if (ev.isTrusted) {
+            _richSessionDirty = true
+            debouncedCheckpoint()
+          }
         })
 
         // Clicking a checkbox while editing toggles it without moving the caret.
@@ -7492,6 +7922,23 @@
             return
           }
 
+          // Cmd/Ctrl+Z / Cmd/Ctrl+Shift+Z: route to the app's own undo/redo
+          // (see resyncActiveEditorAfterHistoryJump for why the browser's
+          // native contenteditable undo can't be relied on here, and why the
+          // editor must be resynced after jumping app.shapes to a different
+          // snapshot). Flush any not-yet-checkpointed typing into its own
+          // history entry FIRST — otherwise the first Cmd+Z of a session
+          // would jump straight past the "just created, empty" snapshot
+          // (plain typing isn't itself checkpointed, only debounced/flushed),
+          // finding no shape there yet and tearing down the edit session.
+          if (modPressed && !ev.altKey && ev.key.toLowerCase() === 'z') {
+            ev.preventDefault(); ev.stopPropagation()
+            if (_richSessionDirty) checkpointTextEdit(editor, shapeId)
+            if (ev.shiftKey) redo(); else undo()
+            resyncActiveEditorAfterHistoryJump()
+            return
+          }
+
           // A highlighted formula stands in for the caret — Left/Right/Home/
           // End (and Mac Cmd+Left/Right) act relative to IT, not the stale
           // real selection. Any other key drops the highlight so the real
@@ -7505,6 +7952,11 @@
               else if (ev.key === 'ArrowRight' && !ev.metaKey) action = 'right'
               if (action) {
                 exitHighlightedFormula(highlightedWidget, action)
+                ev.preventDefault(); ev.stopPropagation()
+                return
+              }
+              if (ev.key === 'Delete' || ev.key === 'Backspace') {
+                deleteHighlightedFormula(editor, highlightedWidget)
                 ev.preventDefault(); ev.stopPropagation()
                 return
               }
@@ -7554,6 +8006,7 @@
         editor.addEventListener('paste', handleRichTextPaste)
 
         editor.addEventListener('blur', (ev) => {
+          if (_richSuppressBlurFinish) return
           // Don't finish if focus moved to a richtext format button
           const related = ev.relatedTarget
           if (related && (related.hasAttribute('data-richtext-btn') || related.closest?.('[data-richtext-btn]'))) return
@@ -7787,7 +8240,7 @@
           s.style.fillAlpha = 0
           s.style.penLockAspect = app.style.penLockAspect
           s.style.penSmoothness = app.style.penSmoothness
-          s.style.penArrowSize = app.style.penArrowSize
+          s.style.penArrowSize = 0
           app.shapes.push(s)
           app.activeShapeId = s.id
           selectSingle(s.id)
@@ -8433,6 +8886,10 @@
             }
           }
 
+          if (s && s.type === 'pen' && (s.points || []).length >= 2) {
+            showArrowConvertPrompt(s.id)
+          }
+
           pushHistory()
           setTool('select')
         } else if (app.dragMode === 'crop') {
@@ -8537,11 +8994,11 @@
         // deliberately NOT in this list — they're per-formula, not per-shape,
         // and their visibility is driven solely by syncMathFormulaPanelFromHighlight
         // (shown only while a specific formula widget is highlighted in the editor).
-        const textareaRows = ['rowTextareaTextHeader', 'rowTextareaFontSize', 'rowRichTextFormat', 'rowRichTextHighlight', 'rowBulletList', 'rowTextareaTextColor', 'rowTextareaTextAlpha', 'rowTextareaWrapText', 'rowTextareaBorderHeader', 'rowTextareaBorderWidth', 'rowTextareaBorderColor', 'rowTextareaBorderAlpha', 'rowTextareaPadding', 'rowTextareaBackgroundHeader', 'rowTextareaBackgroundColor', 'rowTextareaBackgroundAlpha']
-        const imageRows = ['rowImageGeneralHeader', 'rowImageLockAspect', 'rowImageAlpha', 'rowImageFlip', 'rowImageBorderHeader', 'rowImageBorderWidth', 'rowImageBorderColor', 'rowImageBorderAlpha', 'rowImageTransparencyHeader', 'rowImageTransparencyEnabled', 'rowImageTransparencyColor', 'rowImageTransparencyTolerance']
+        const textareaRows = ['rowTextareaTextHeader', 'rowTextareaFontSize', 'rowRichTextFormat', 'rowRichTextHighlight', 'rowBulletList', 'rowTextareaTextColor', 'rowTextareaTextAlpha', 'rowTextareaWrapText', 'rowTextareaBorderHeader', 'rowTextareaBorderStyle', 'rowTextareaBorderWidth', 'rowTextareaBorderColor', 'rowTextareaBorderAlpha', 'rowTextareaPadding', 'rowTextareaBackgroundHeader', 'rowTextareaBackgroundColor', 'rowTextareaBackgroundAlpha']
+        const imageRows = ['rowImageGeneralHeader', 'rowImageLockAspect', 'rowImageAlpha', 'rowImageFlip', 'rowImageBorderHeader', 'rowImageBorderStyle', 'rowImageBorderWidth', 'rowImageBorderColor', 'rowImageBorderAlpha', 'rowImageTransparencyHeader', 'rowImageTransparencyEnabled', 'rowImageTransparencyColor', 'rowImageTransparencyTolerance']
         const cropRows = ['rowImageCrop']
         const lineLikeRows = ['rowLineLikeGeneralHeader', 'rowLineLikeArrowHeader', 'rowLineLikeLineHeader', 'rowArrowHeadDoubleSided', 'rowArrowHeadSize', 'rowArrowHeadStyle', 'rowArrowHeadColor', 'rowArrowHeadAlpha', 'rowArrowHeadWidth', 'rowArrowHeadAngle', 'rowLineStyle', 'rowLineLockAspect', 'rowArrowLockAspect', 'rowLineLikeFlip']
-        const rectSectionRows = ['rowRectGeneralHeader', 'rowRectLockAspect', 'rowRectBorderHeader', 'rowRectFillHeader', 'rowRectFlip']
+        const rectSectionRows = ['rowRectGeneralHeader', 'rowRectLockAspect', 'rowRectBorderHeader', 'rowRectBorderStyle', 'rowRectFillHeader', 'rowRectFlip']
         const circleSectionRows = ['rowCircleGeneralHeader', 'rowCircleStrokeHeader', 'rowCircleFillHeader', 'rowCircleLockAspect', 'rowCircleFlip']
         const penOnlyRows = ['rowPenGeneralHeader', 'rowPenStrokeHeader', 'rowPenTransformHeader', 'rowPenSmoothness', 'rowPenArrowHeader', 'rowPenArrowDoubleSided', 'rowPenArrowSize', 'rowPenArrowStyle', 'rowPenArrowColor', 'rowPenArrowAlpha', 'rowPenArrowWidth', 'rowPenArrowAngle', 'rowPenLockAspect', 'rowPenFlip']
         const textareaFlipRows = ['rowTextFlip']
@@ -8695,6 +9152,11 @@
           btnFlipV.classList.toggle('primary', flipV)
           btnFlipH.setAttribute('aria-pressed', String(flipH))
           btnFlipV.setAttribute('aria-pressed', String(flipV))
+          setToggleButtonState('btnImageBorderTop', st.imageBorderTop ?? app.style.imageBorderTop ?? true)
+          setToggleButtonState('btnImageBorderRight', st.imageBorderRight ?? app.style.imageBorderRight ?? true)
+          setToggleButtonState('btnImageBorderBottom', st.imageBorderBottom ?? app.style.imageBorderBottom ?? true)
+          setToggleButtonState('btnImageBorderLeft', st.imageBorderLeft ?? app.style.imageBorderLeft ?? true)
+          setCornerStyleButtons('btnImageCornerSharp', 'btnImageCornerRound', st.imageBorderStyle ?? app.style.imageBorderStyle)
           syncCropButtonState(s)
           // Sync transparency properties
           setCheckedValue('imageTransparencyEnabled', st.imageTransparencyEnabled ?? app.style.imageTransparencyEnabled)
@@ -8716,7 +9178,7 @@
           setInputValue('strokeAlpha', st.strokeAlpha ?? app.style.strokeAlpha)
           setInputValue('lineStyle', normalizeLineStyle(st.lineStyle ?? app.style.lineStyle))
           setInputValue('arrowHeadSize', Math.max(0, Number(st.arrowHeadSize ?? (s.type === 'line' ? 0 : app.style.arrowHeadSize))))
-          setInputValue('arrowHeadStyle', normalizeArrowHeadStyle(st.arrowHeadStyle ?? app.style.arrowHeadStyle))
+          setSegGroupValue('arrowHeadStyleGroup', st.arrowHeadStyle ?? app.style.arrowHeadStyle)
           setCheckedValue('arrowHeadDoubleSided', !!(st.arrowHeadDoubleSided ?? app.style.arrowHeadDoubleSided))
           setInputValue('arrowHeadColor', st.arrowHeadColor || app.style.arrowHeadColor)
           setInputValue('arrowHeadAlpha', st.arrowHeadAlpha ?? app.style.arrowHeadAlpha)
@@ -8747,7 +9209,7 @@
           setInputValue('penSmoothness', st.penSmoothness ?? app.style.penSmoothness)
           setCheckedValue('penLockAspect', st.penLockAspect ?? app.style.penLockAspect)
           setInputValue('penArrowSize',  st.penArrowSize  ?? 0)
-          setInputValue('penArrowStyle', normalizeArrowHeadStyle(st.penArrowStyle ?? 'v-shaped-rounded'))
+          setSegGroupValue('penArrowStyleGroup', st.penArrowStyle ?? 'v-shaped-rounded')
           setInputValue('penArrowColor', st.penArrowColor || '#111111')
           setInputValue('penArrowAlpha', st.penArrowAlpha ?? 1)
           setInputValue('penArrowWidth', st.penArrowWidth ?? 3)
@@ -8807,6 +9269,11 @@
           $('#btnRectFlipV').classList.toggle('primary', rectFlipV)
           $('#btnRectFlipH').setAttribute('aria-pressed', String(rectFlipH))
           $('#btnRectFlipV').setAttribute('aria-pressed', String(rectFlipV))
+          setToggleButtonState('btnRectBorderTop', st.rectBorderTop ?? app.style.rectBorderTop ?? true)
+          setToggleButtonState('btnRectBorderRight', st.rectBorderRight ?? app.style.rectBorderRight ?? true)
+          setToggleButtonState('btnRectBorderBottom', st.rectBorderBottom ?? app.style.rectBorderBottom ?? true)
+          setToggleButtonState('btnRectBorderLeft', st.rectBorderLeft ?? app.style.rectBorderLeft ?? true)
+          setCornerStyleButtons('btnRectCornerSharp', 'btnRectCornerRound', st.rectBorderStyle ?? app.style.rectBorderStyle)
         }
         if (s.type === 'text') {
           // Populate new textarea section properties
@@ -8826,6 +9293,11 @@
           $('#btnTextFlipV').classList.toggle('primary', textFlipV)
           $('#btnTextFlipH').setAttribute('aria-pressed', String(textFlipH))
           $('#btnTextFlipV').setAttribute('aria-pressed', String(textFlipV))
+          setToggleButtonState('btnTextBorderTop', st.textBorderTop ?? app.style.textBorderTop ?? true)
+          setToggleButtonState('btnTextBorderRight', st.textBorderRight ?? app.style.textBorderRight ?? true)
+          setToggleButtonState('btnTextBorderBottom', st.textBorderBottom ?? app.style.textBorderBottom ?? true)
+          setToggleButtonState('btnTextBorderLeft', st.textBorderLeft ?? app.style.textBorderLeft ?? true)
+          setCornerStyleButtons('btnTextCornerSharp', 'btnTextCornerRound', st.textBorderStyle ?? app.style.textBorderStyle)
           syncCropButtonState(s)
         } else {
           syncCropButtonState(s)
@@ -8857,6 +9329,11 @@
         const imageBorderColor = $('#imageBorderColor').value
         const imageBorderAlpha = Number($('#imageBorderAlpha').value)
         const imageBorderWidth = Number($('#imageBorderWidth').value)
+        const imageBorderTop = $('#btnImageBorderTop').getAttribute('aria-pressed') === 'true'
+        const imageBorderRight = $('#btnImageBorderRight').getAttribute('aria-pressed') === 'true'
+        const imageBorderBottom = $('#btnImageBorderBottom').getAttribute('aria-pressed') === 'true'
+        const imageBorderLeft = $('#btnImageBorderLeft').getAttribute('aria-pressed') === 'true'
+        const imageBorderStyle = $('#btnImageCornerRound').getAttribute('aria-pressed') === 'true' ? 'round' : 'sharp'
         const imageFlipH = $('#btnFlipH').getAttribute('aria-pressed') === 'true'
         const imageFlipV = $('#btnFlipV').getAttribute('aria-pressed') === 'true'
         const penFlipH = $('#btnPenFlipH').getAttribute('aria-pressed') === 'true'
@@ -8869,12 +9346,22 @@
         const lineLikeFlipV = $('#btnLineLikeFlipV').getAttribute('aria-pressed') === 'true'
         const textFlipH = $('#btnTextFlipH').getAttribute('aria-pressed') === 'true'
         const textFlipV = $('#btnTextFlipV').getAttribute('aria-pressed') === 'true'
+        const rectBorderTop = $('#btnRectBorderTop').getAttribute('aria-pressed') === 'true'
+        const rectBorderRight = $('#btnRectBorderRight').getAttribute('aria-pressed') === 'true'
+        const rectBorderBottom = $('#btnRectBorderBottom').getAttribute('aria-pressed') === 'true'
+        const rectBorderLeft = $('#btnRectBorderLeft').getAttribute('aria-pressed') === 'true'
+        const rectBorderStyle = $('#btnRectCornerRound').getAttribute('aria-pressed') === 'true' ? 'round' : 'sharp'
+        const textBorderTop = $('#btnTextBorderTop').getAttribute('aria-pressed') === 'true'
+        const textBorderRight = $('#btnTextBorderRight').getAttribute('aria-pressed') === 'true'
+        const textBorderBottom = $('#btnTextBorderBottom').getAttribute('aria-pressed') === 'true'
+        const textBorderLeft = $('#btnTextBorderLeft').getAttribute('aria-pressed') === 'true'
+        const textBorderStyle = $('#btnTextCornerRound').getAttribute('aria-pressed') === 'true' ? 'round' : 'sharp'
         const imageTransparencyEnabled = $('#imageTransparencyEnabled').checked
         const imageTransparencyColor = $('#imageTransparencyColor').value
         const imageTransparencyTolerance = Number($('#imageTransparencyTolerance').value)
         const arrowHeadDoubleSided = $('#arrowHeadDoubleSided').checked
         const arrowHeadSize = Number($('#arrowHeadSize').value)
-        const arrowHeadStyle = normalizeArrowHeadStyle($('#arrowHeadStyle').value)
+        const arrowHeadStyle = getSegGroupValue('arrowHeadStyleGroup')
         const arrowHeadColor = $('#arrowHeadColor').value
         const arrowHeadAlpha = Number($('#arrowHeadAlpha').value)
         const arrowHeadWidth = Number($('#arrowHeadWidth').value)
@@ -8897,6 +9384,11 @@
             s.style.imageBorder = imageBorderColor
             s.style.imageBorderAlpha = imageBorderAlpha
             s.style.imageBorderWidth = imageBorderWidth
+            s.style.imageBorderTop = imageBorderTop
+            s.style.imageBorderRight = imageBorderRight
+            s.style.imageBorderBottom = imageBorderBottom
+            s.style.imageBorderLeft = imageBorderLeft
+            s.style.imageBorderStyle = imageBorderStyle
             s.style.imageFlipH = imageFlipH
             s.style.imageFlipV = imageFlipV
             s.style.imageTransparencyEnabled = imageTransparencyEnabled
@@ -8953,7 +9445,7 @@
             s.style.penFlipH = penFlipH
             s.style.penFlipV = penFlipV
             s.style.penArrowSize  = Math.max(0, Number($('#penArrowSize').value))
-            s.style.penArrowStyle = normalizeArrowHeadStyle($('#penArrowStyle').value)
+            s.style.penArrowStyle = getSegGroupValue('penArrowStyleGroup')
             s.style.penArrowColor = $('#penArrowColor').value
             s.style.penArrowAlpha = Number($('#penArrowAlpha').value)
             s.style.penArrowWidth = Math.max(0, Number($('#penArrowWidth').value))
@@ -8995,6 +9487,11 @@
             s.style.textBackgroundAlpha = textareaBackgroundAlpha
             s.style.textFlipH = textFlipH
             s.style.textFlipV = textFlipV
+            s.style.textBorderTop = textBorderTop
+            s.style.textBorderRight = textBorderRight
+            s.style.textBorderBottom = textBorderBottom
+            s.style.textBorderLeft = textBorderLeft
+            s.style.textBorderStyle = textBorderStyle
             // Keep text shape as a tight envelope when spacing/font/wrap changes.
             fitTextShapeToContent(s)
           } else {
@@ -9005,6 +9502,11 @@
               s.style.rectLockAspect = rectLockAspect
               s.style.rectFlipH = rectFlipH
               s.style.rectFlipV = rectFlipV
+              s.style.rectBorderTop = rectBorderTop
+              s.style.rectBorderRight = rectBorderRight
+              s.style.rectBorderBottom = rectBorderBottom
+              s.style.rectBorderLeft = rectBorderLeft
+              s.style.rectBorderStyle = rectBorderStyle
             }
             if (s.type === 'ellipse') {
               const prevFlipH = !!(s.style.circleFlipH ?? app.style.circleFlipH)
@@ -10320,6 +10822,24 @@
           return
         }
 
+        // 'Y' within the post-pen-draw prompt window turns the stroke's arrow head on
+        if (ev.key.toLowerCase() === 'y' && app.pendingArrowConvertShapeId) {
+          ev.preventDefault()
+          const s = getShapeById(app.pendingArrowConvertShapeId)
+          if (s) {
+            s.style.penArrowSize = app.style.penArrowSize
+            render()
+            syncPropsFromSelection()
+            pushHistory()
+            markDirty()
+          }
+          if (app.arrowConvertTimeout) clearTimeout(app.arrowConvertTimeout)
+          app.arrowConvertTimeout = null
+          app.pendingArrowConvertShapeId = null
+          $('#toast').classList.remove('show')
+          return
+        }
+
         // '+' opens the AI generators quick menu (first item: SVG generator).
         if (ev.key === '+') {
           ev.preventDefault()
@@ -10737,6 +11257,40 @@
           if (norm) out.push(norm)
         }
         return out
+      }
+
+      // "Ask AI for a formula" (KaTeX formula dialog) — same goGPT-style backend
+      // as the SVG generator above (llmOpenConversation/llmSend), just a
+      // different prompt/output contract: raw LaTeX source instead of SVG markup.
+      const buildFormulaGenPrompt = (request) => (
+        `You are a LaTeX/KaTeX formula assistant embedded in a diagramming app. ` +
+        `The user describes a formula in plain language, and you reply with ONLY ` +
+        `its LaTeX source so it can be inserted directly into a KaTeX renderer.\n\n` +
+        `Request: "${request}"\n\n` +
+        `Output requirements — follow exactly:\n` +
+        `- Output ONLY the raw LaTeX source for the formula. No prose, no explanation, ` +
+        `no markdown code fences, no leading/trailing text like "Here is the formula:".\n` +
+        `- Do NOT wrap it in math-mode delimiters — no $, $$, \\(...\\), or \\[...\\].\n` +
+        `- Use only syntax KaTeX supports (KaTeX implements a large but incomplete subset ` +
+        `of LaTeX math mode — avoid packages, \\usepackage, \\newcommand, or exotic macros).\n` +
+        `- Produce exactly one self-contained expression, suitable for inline math rendering.\n` +
+        `- If the request is ambiguous, pick the single most standard/common interpretation ` +
+        `rather than asking a question — you cannot have a conversation, this is a one-shot request.`
+      )
+
+      // Strips the delimiters/fences a model might add despite instructions
+      // (markdown code fences, $…$, \(…\), \[…\]) and trims surrounding prose
+      // lines, since LLM output isn't fully reliable even with explicit
+      // formatting instructions.
+      const extractLatexFromLlmResponse = (raw) => {
+        let text = String(raw || '').trim()
+        const fence = text.match(/^```[a-zA-Z]*\n?([\s\S]*?)\n?```$/)
+        if (fence) text = fence[1].trim()
+        if (/^\$\$[\s\S]*\$\$$/.test(text)) text = text.slice(2, -2).trim()
+        else if (/^\$[\s\S]*\$$/.test(text)) text = text.slice(1, -1).trim()
+        else if (/^\\\([\s\S]*\\\)$/.test(text)) text = text.slice(2, -2).trim()
+        else if (/^\\\[[\s\S]*\\\]$/.test(text)) text = text.slice(2, -2).trim()
+        return text.trim()
       }
 
       // Synchronous data URL for icon previews (<img src>). Insertion uses the async
@@ -11364,6 +11918,7 @@
           maxWidth: '720px',
           onClose: () => {
             if (editorToRestore && document.body.contains(editorToRestore)) editorToRestore.focus()
+            if (aiAbortController) aiAbortController.abort()
           }
         })
         box.setAttribute('data-richtext-btn', '1')
@@ -11371,6 +11926,25 @@
         const title = document.createElement('div')
         title.style.cssText = 'font-weight:600;color:var(--text);'
         title.textContent = isUpdate ? 'Edit KaTeX formula' : 'KaTeX formula'
+
+        // "Ask AI for a formula" — describe it in plain language, the answer
+        // (raw LaTeX only, validated before accepting) is spliced into the
+        // source textarea at the current cursor, same as a snippet pick.
+        const aiRow = document.createElement('div')
+        aiRow.style.cssText = 'display:flex;gap:8px;align-items:center;'
+        const aiInput = document.createElement('input')
+        aiInput.type = 'text'
+        aiInput.className = 'textEditIgnore'
+        aiInput.placeholder = 'Ask AI for a formula… e.g. "quadratic formula"'
+        aiInput.style.cssText = 'flex:1;min-width:0;padding:7px 10px;border-radius:8px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font:inherit;'
+        const aiBtn = document.createElement('button')
+        aiBtn.className = 'btn'
+        aiBtn.textContent = 'Generate'
+        const aiStatus = document.createElement('span')
+        aiStatus.style.cssText = 'font-size:12px;color:var(--muted);white-space:nowrap;'
+        aiRow.appendChild(aiInput)
+        aiRow.appendChild(aiBtn)
+        aiRow.appendChild(aiStatus)
 
         const toolbarRow = document.createElement('div')
         toolbarRow.style.cssText = 'display:flex;gap:8px;align-items:center;'
@@ -11431,6 +12005,7 @@
         btnRow.appendChild(confirmBtn)
 
         box.appendChild(title)
+        box.appendChild(aiRow)
         box.appendChild(toolbarRow)
         box.appendChild(cols)
         box.appendChild(historyRow)
@@ -11469,6 +12044,53 @@
           })
         })
 
+        let aiAbortController = null
+        const runAiGenerate = async () => {
+          const request = aiInput.value.trim()
+          if (!request) return
+          if (aiAbortController) aiAbortController.abort()
+          const controller = new AbortController()
+          aiAbortController = controller
+          aiBtn.disabled = true
+          aiInput.disabled = true
+          aiStatus.style.color = 'var(--muted)'
+          aiStatus.textContent = 'Generating…'
+          try {
+            const conversationId = await llmOpenConversation({ signal: controller.signal })
+            const raw = await llmSend(conversationId, buildFormulaGenPrompt(request), { signal: controller.signal })
+            const cleaned = extractLatexFromLlmResponse(raw)
+            if (!cleaned) throw new Error('No formula returned')
+            await katexReady
+            if (!window.katex) throw new Error('Math engine unavailable')
+            window.katex.renderToString(cleaned, { throwOnError: true }) // validate before accepting
+            const start = textarea.selectionStart ?? textarea.value.length
+            const end = textarea.selectionEnd ?? textarea.value.length
+            textarea.value = textarea.value.slice(0, start) + cleaned + textarea.value.slice(end)
+            const caret = start + cleaned.length
+            textarea.focus()
+            textarea.setSelectionRange(caret, caret)
+            updatePreview()
+            aiStatus.textContent = 'Inserted at cursor.'
+          } catch (err) {
+            if (err?.name === 'AbortError' || controller.signal.aborted) return
+            console.error(err)
+            aiStatus.style.color = '#ff6b6b'
+            aiStatus.textContent = /HTTP|fetch|NetworkError|Failed to fetch/i.test(String(err?.message))
+              ? 'Could not reach the AI backend.'
+              : 'Could not generate a valid formula — try rephrasing.'
+          } finally {
+            if (aiAbortController === controller) aiAbortController = null
+            aiBtn.disabled = false
+            aiInput.disabled = false
+          }
+        }
+        aiBtn.addEventListener('click', runAiGenerate)
+        aiInput.addEventListener('keydown', (e) => {
+          e.stopPropagation() // keep app shortcuts from firing while typing
+          if (e.key === 'Enter') { e.preventDefault(); runAiGenerate() }
+          else if (e.key === 'Escape') { e.preventDefault(); close() }
+        })
+
         const renderFormulaHistoryPicker = async () => {
           const history = loadFormulaHistory()
           historyItemsWrap.innerHTML = ''
@@ -11484,8 +12106,12 @@
             item.innerHTML = katexRenderCache.has(histLatex) ? katexRenderCache.get(histLatex) : safeRenderToString(histLatex)
             katexRenderCache.set(histLatex, item.innerHTML)
             item.addEventListener('click', () => {
-              textarea.value = histLatex
+              const start = textarea.selectionStart ?? textarea.value.length
+              const end = textarea.selectionEnd ?? textarea.value.length
+              textarea.value = textarea.value.slice(0, start) + histLatex + textarea.value.slice(end)
+              const caret = start + histLatex.length
               textarea.focus()
+              textarea.setSelectionRange(caret, caret)
               updatePreview()
             })
             historyItemsWrap.appendChild(item)
@@ -11512,6 +12138,7 @@
                 widget.setAttribute('data-latex', latex)
                 hydrateKatexWidgets(editor)
                 editor.dispatchEvent(new Event('input', { bubbles: true }))
+                checkpointTextEdit(editor, shapeId)
                 recordFormulaInHistory(latex)
               }
             }
@@ -12019,9 +12646,9 @@
         $('#textareaTextColor').addEventListener('change', applyTextColor)
         $('#arrowHeadDoubleSided').addEventListener('input', applyPropsToSelection)
         $('#lineStyle').addEventListener('change', applyPropsToSelection)
-        $('#arrowHeadStyle').addEventListener('change', applyPropsToSelection)
+        wireSegGroup('arrowHeadStyleGroup', applyPropsToSelection)
         $('#arrowHeadColor').addEventListener('input', applyPropsToSelection)
-        $('#penArrowStyle').addEventListener('change', applyPropsToSelection)
+        wireSegGroup('penArrowStyleGroup', applyPropsToSelection)
         $('#penArrowColor').addEventListener('input', applyPropsToSelection)
         $('#penArrowDoubleSided').addEventListener('input', applyPropsToSelection)
         $('#textareaWrapText').addEventListener('input', () => {
@@ -12108,6 +12735,35 @@
         wireFlipToggle('btnLineLikeFlipV')
         wireFlipToggle('btnTextFlipH')
         wireFlipToggle('btnTextFlipV')
+        wireFlipToggle('btnRectBorderTop')
+        wireFlipToggle('btnRectBorderRight')
+        wireFlipToggle('btnRectBorderBottom')
+        wireFlipToggle('btnRectBorderLeft')
+        wireFlipToggle('btnTextBorderTop')
+        wireFlipToggle('btnTextBorderRight')
+        wireFlipToggle('btnTextBorderBottom')
+        wireFlipToggle('btnTextBorderLeft')
+        const wireExclusiveToggle = (aId, bId) => {
+          const a = $('#' + aId)
+          const b = $('#' + bId)
+          if (!a || !b) return
+          const select = (chosen, other) => {
+            chosen.setAttribute('aria-pressed', 'true')
+            chosen.classList.add('primary')
+            other.setAttribute('aria-pressed', 'false')
+            other.classList.remove('primary')
+            applyPropsToSelection()
+          }
+          a.addEventListener('click', () => select(a, b))
+          b.addEventListener('click', () => select(b, a))
+        }
+        wireExclusiveToggle('btnRectCornerSharp', 'btnRectCornerRound')
+        wireExclusiveToggle('btnTextCornerSharp', 'btnTextCornerRound')
+        wireExclusiveToggle('btnImageCornerSharp', 'btnImageCornerRound')
+        wireFlipToggle('btnImageBorderTop')
+        wireFlipToggle('btnImageBorderRight')
+        wireFlipToggle('btnImageBorderBottom')
+        wireFlipToggle('btnImageBorderLeft')
         $('#btnCropMode').addEventListener('click', () => {
           const id = Array.from(app.selectedIds)[0]
           if (!id) return
@@ -12281,7 +12937,12 @@
         // refresh the gallery at the end, so we don't build it separately here.
         const list = await idbMetaList(app.db)
         if (list.length) {
-          await loadDrawing(list[0].id)
+          // Reopen whatever was last VIEWED (clicked open), not whichever
+          // drawing happens to have the newest edit timestamp — falls back to
+          // most-recently-edited if that drawing was deleted or never recorded.
+          const lastViewedId = loadLastViewedId()
+          const target = lastViewedId && list.some(d => d.id === lastViewedId) ? lastViewedId : list[0].id
+          await loadDrawing(target)
         } else {
           await createNewDrawing()
         }
