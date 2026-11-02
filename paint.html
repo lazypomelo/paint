@@ -808,7 +808,7 @@
 
     /* Selection visuals (SVG) */
     .selBox{ fill: none; stroke: var(--sel); stroke-width: 1.5; stroke-dasharray: 6 4; vector-effect: non-scaling-stroke; }
-    .selBox.selBoxGroup{ stroke: #22c55e; }
+    .selBox.selBoxGroup{ stroke: #22c55e; stroke-dasharray: 2 4; stroke-linecap: round; }
     .handle{ fill: var(--handle); stroke: var(--handleStroke); stroke-width: 1; vector-effect: non-scaling-stroke; }
     .hit{ fill: transparent; stroke: transparent; pointer-events: stroke; }
     .shape{ cursor: default; }
@@ -1336,7 +1336,7 @@
             <!-- Stroke / border section headers (per type) -->
             <div class='row hidden' id='rowRectBorderHeader' style='margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--border);'>
               <label style='font-weight: 600; color: var(--text);'>Border</label>
-              <div style='display:flex; gap:6px; justify-content:flex-end;'>
+              <div style='display:flex; gap:6px; justify-content:flex-start;'>
                 <button class='btn icon primary' id='btnRectBorderLeft' type='button' aria-label='Toggle left border' aria-pressed='true' title='Toggle left border'><span class='borderSideIcon side-left'></span></button>
                 <button class='btn icon primary' id='btnRectBorderTop' type='button' aria-label='Toggle top border' aria-pressed='true' title='Toggle top border'><span class='borderSideIcon side-top'></span></button>
                 <button class='btn icon primary' id='btnRectBorderBottom' type='button' aria-label='Toggle bottom border' aria-pressed='true' title='Toggle bottom border'><span class='borderSideIcon side-bottom'></span></button>
@@ -1552,7 +1552,7 @@
             </div>
             <div class='row hidden' id='rowTextareaBorderHeader' style='margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--border);'>
               <label style='font-weight: 600; color: var(--text);'>Border</label>
-              <div style='display:flex; gap:6px; justify-content:flex-end;'>
+              <div style='display:flex; gap:6px; justify-content:flex-start;'>
                 <button class='btn icon primary' id='btnTextBorderLeft' type='button' aria-label='Toggle left border' aria-pressed='true' title='Toggle left border'><span class='borderSideIcon side-left'></span></button>
                 <button class='btn icon primary' id='btnTextBorderTop' type='button' aria-label='Toggle top border' aria-pressed='true' title='Toggle top border'><span class='borderSideIcon side-top'></span></button>
                 <button class='btn icon primary' id='btnTextBorderBottom' type='button' aria-label='Toggle bottom border' aria-pressed='true' title='Toggle bottom border'><span class='borderSideIcon side-bottom'></span></button>
@@ -1618,7 +1618,7 @@
             <!-- Image sections -->
             <div class='row hidden' id='rowImageBorderHeader' style='margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--border);'>
               <label style='font-weight: 600; color: var(--text);'>Border</label>
-              <div style='display:flex; gap:6px; justify-content:flex-end;'>
+              <div style='display:flex; gap:6px; justify-content:flex-start;'>
                 <button class='btn icon primary' id='btnImageBorderLeft' type='button' aria-label='Toggle left border' aria-pressed='true' title='Toggle left border'><span class='borderSideIcon side-left'></span></button>
                 <button class='btn icon primary' id='btnImageBorderTop' type='button' aria-label='Toggle top border' aria-pressed='true' title='Toggle top border'><span class='borderSideIcon side-top'></span></button>
                 <button class='btn icon primary' id='btnImageBorderBottom' type='button' aria-label='Toggle bottom border' aria-pressed='true' title='Toggle bottom border'><span class='borderSideIcon side-bottom'></span></button>
@@ -10604,6 +10604,7 @@
         app.hideSelectionDuringDrag = true
         render()
         app.hideSelectionDuringDrag = false
+        renderSelectionOverlay()
         markDirty()
         syncTextDragHandleAfterKeyboard()
       }
@@ -10777,6 +10778,7 @@
         app.hideSelectionDuringDrag = true
         render()
         app.hideSelectionDuringDrag = false
+        renderSelectionOverlay()
         markDirty()
         syncTextDragHandleAfterKeyboard()
       }
@@ -11076,18 +11078,7 @@
         }
       }
 
-      /* ======================================================================
-         AI generators — the "+" quick menu
-         Press '+' to open a small menu of generators. The first (and, for now,
-         only) item is "SVG generator": it fires SVG_VARIANT_COUNT independent,
-         parallel LLM requests (one per variant) and shows them as a grid of
-         loading placeholders that are swapped for icons as each request lands —
-         the user can select/import/refine from whichever have already arrived
-         without waiting for the rest. Clicking an icon selects it; Import inserts
-         the selected icon(s) into the drawing as image shapes (reusing the
-         SVG-paste path). Add future generators by pushing more items into
-         GENERATOR_ITEMS.
-      ====================================================================== */
+      /* AI generators — the "+" quick menu */
 
       // goGPT-style backend. paint.html is opened from the filesystem, so point at
       // the local API server. Override at runtime with window.PAINT_LLM_API_BASE.
