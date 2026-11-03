@@ -6950,40 +6950,243 @@
         return tmp.innerHTML
       }
 
+      // Splits pasted text into plain-text and formula segments.
+      // `$...$` becomes an inline formula, `$$...$$` a block (own-row) one —
+      // but only when the content between the dollars contains no whitespace
+      // (spaces, tabs, line breaks); otherwise the dollars stay as literal
+      // text (e.g. "$5 and $6"). A backslash-escaped `\$` is never a
+      // delimiter. When a candidate pair doesn't qualify, only the opening
+      // delimiter is skipped, so its closing `$` can still open the next
+      // formula ("$5 or $x^2$" → "$5 or " + x²).
+      // Returns [{ text } | { latex, display }].
+      const splitPastedMath = (text) => {
+        const segs = []
+        let buf = ''
+        let i = 0
+        const flush = () => { if (buf) { segs.push({ text: buf }); buf = '' } }
+        const findClose = (from, delim, allowNewline) => {
+          for (let j = from; j < text.length; j++) {
+            const c = text[j]
+            if (c === '\\') { j++; continue }
+            if (c === '\n' && !allowNewline) return -1
+            if (text.startsWith(delim, j)) return j
+          }
+          return -1
+        }
+        while (i < text.length) {
+          const c = text[i]
+          if (c === '\\') { buf += text.slice(i, i + 2); i += 2; continue }
+          if (c === '$') {
+            const display = text[i + 1] === '$'
+            const delim = display ? '$$' : '$'
+            const start = i + delim.length
+            const end = findClose(start, delim, display)
+            const latex = end > start ? text.slice(start, end) : ''
+            if (latex && !/\s/.test(latex)) {
+              flush()
+              segs.push({ latex, display })
+              i = end + delim.length
+            } else {
+              buf += delim
+              i += delim.length
+            }
+            continue
+          }
+          buf += c
+          i++
+        }
+        flush()
+        return segs
+      }
+
+      // Rendered-markup cache fill + hydration for freshly pasted formulas.
+      // If KaTeX hasn't loaded yet, the widgets show their LaTeX fallback text
+      // until it does, then get hydrated and the editor re-fitted.
+      const renderPastedFormulas = (editor, latexList) => {
+        const fill = () => {
+          latexList.forEach(l => { if (!katexRenderCache.has(l)) katexRenderCache.set(l, safeRenderToString(l)) })
+          hydrateKatexWidgets(editor)
+        }
+        if (window.katex) { fill(); return }
+        katexReady.then(() => {
+          if (!window.katex || !document.body.contains(editor)) return
+          fill()
+          editor.dispatchEvent(new Event('input', { bubbles: true }))
+        })
+      }
+
+      // Post-insert step shared by both paste paths: renders the pasted
+      // widgets and moves each block ($$) formula onto its own row, keeping
+      // the caret where the paste ended (a marker span survives the row
+      // splitting; if it got dropped with an otherwise-empty trailing row,
+      // the caret goes on a fresh row after the last block formula).
+      const finalizePastedFormulas = (editor, widgets) => {
+        if (!widgets.length) return
+        renderPastedFormulas(editor, widgets.map(w => w.getAttribute('data-latex')))
+        const blockWidgets = widgets.filter(w => w.getAttribute('data-math-inline') === '0')
+        if (!blockWidgets.length) return
+        const sel = window.getSelection()
+        let marker = null
+        if (sel.rangeCount && editor.contains(sel.getRangeAt(0).startContainer)) {
+          marker = document.createElement('span')
+          marker.id = 'rte-paste-caret'
+          const r = sel.getRangeAt(0); r.collapse(false); r.insertNode(marker)
+        }
+        blockWidgets.forEach(w => isolateWidgetToOwnRow(w))
+        const range = document.createRange()
+        const liveMarker = editor.querySelector('#rte-paste-caret')
+        if (liveMarker) {
+          range.setStartBefore(liveMarker); range.collapse(true)
+          liveMarker.remove()
+        } else {
+          const lastRow = blockWidgets[blockWidgets.length - 1].closest('div, li')
+          const caretRow = document.createElement('div')
+          const zw = document.createTextNode('​')
+          caretRow.appendChild(zw)
+          if (lastRow && lastRow !== editor) lastRow.parentNode.insertBefore(caretRow, lastRow.nextSibling)
+          else editor.appendChild(caretRow)
+          range.setStart(zw, 1); range.collapse(true)
+        }
+        sel.removeAllRanges(); sel.addRange(range)
+        _richSavedRange = range.cloneRange()
+      }
+
+      // Replaces formulas inside the text nodes of sanitized paste HTML with
+      // private-use placeholder tokens (<index>). Widgets are
+      // swapped in only after insertion (see replacePastePlaceholders), since
+      // Chrome's insertHTML mangles contenteditable=false spans. Formulas split
+      // across several elements aren't found here — the caller compares the
+      // count against the plain-text version and falls back to it then.
+      const convertMathInPasteHtml = (html) => {
+        const tmp = document.createElement('div')
+        tmp.innerHTML = html
+        const textNodes = []
+        const walker = document.createTreeWalker(tmp, NodeFilter.SHOW_TEXT)
+        while (walker.nextNode()) if (walker.currentNode.nodeValue.includes('$')) textNodes.push(walker.currentNode)
+        const formulas = []
+        textNodes.forEach(tn => {
+          const segs = splitPastedMath(tn.nodeValue)
+          if (!segs.some(s => s.latex)) return
+          tn.nodeValue = segs.map(seg => {
+            if (seg.latex == null) return seg.text
+            formulas.push(seg)
+            return `${formulas.length - 1}`
+          }).join('')
+        })
+        return { html: tmp.innerHTML, formulas }
+      }
+
+      // Swaps the placeholder tokens left by convertMathInPasteHtml for real
+      // formula widgets. Returns the created widgets.
+      const replacePastePlaceholders = (editor, formulas) => {
+        const widgets = []
+        const textNodes = []
+        const walker = document.createTreeWalker(editor, NodeFilter.SHOW_TEXT)
+        while (walker.nextNode()) if (walker.currentNode.nodeValue.includes('')) textNodes.push(walker.currentNode)
+        textNodes.forEach(tn => {
+          const parts = tn.nodeValue.split(/(\d+)/)
+          const frag = document.createDocumentFragment()
+          parts.forEach((part, k) => {
+            if (k % 2 === 0) { if (part) frag.appendChild(document.createTextNode(part)); return }
+            const seg = formulas[Number(part)]
+            if (!seg) return
+            const w = createFormulaWidgetEl(seg.latex, { mathInline: !seg.display })
+            widgets.push(w)
+            frag.appendChild(w)
+          })
+          // Keep the caret if it sits inside this text node: put it after the
+          // replacement content.
+          const sel = window.getSelection()
+          const caretHere = sel.rangeCount && sel.getRangeAt(0).startContainer === tn
+          const last = frag.lastChild
+          tn.parentNode.replaceChild(frag, tn)
+          if (caretHere && last) {
+            const r = document.createRange(); r.setStartAfter(last); r.collapse(true)
+            sel.removeAllRanges(); sel.addRange(r)
+          }
+        })
+        return widgets
+      }
+
       const handleRichTextPaste = (e) => {
         e.preventDefault()
         const clipboard = e.clipboardData || window.clipboardData
         const sel = window.getSelection()
         if (!sel.rangeCount || !_richActiveEditor) return
-        const range = sel.getRangeAt(0)
+        const editor = _richActiveEditor
+        let range = sel.getRangeAt(0)
         range.deleteContents()
+
+        const text = clipboard.getData('text/plain')
+        const segs = text ? splitPastedMath(text) : []
+        const plainFormulaCount = segs.filter(s => s.latex != null).length
+        // Formula widgets must land inside a row so block ($$) ones can be
+        // moved onto their own row (see descendEditorLevelRange).
+        if (plainFormulaCount) {
+          range = descendEditorLevelRange(editor, range)
+          sel.removeAllRanges(); sel.addRange(range)
+        }
 
         // Prefer HTML paste to preserve bold/italic/color/etc. formatting
         const htmlData = clipboard.getData('text/html')
         if (htmlData) {
-          const sanitized = sanitizeRichPasteHtml(htmlData)
-          if (sanitized) {
+          let sanitized = sanitizeRichPasteHtml(htmlData)
+          let htmlFormulas = []
+          if (sanitized && sanitized.includes('$')) {
+            const converted = convertMathInPasteHtml(sanitized)
+            sanitized = converted.html
+            htmlFormulas = converted.formulas
+          }
+          // If the HTML split some formulas across elements (e.g. syntax-
+          // highlighted source), use the plain text instead so every formula
+          // still renders.
+          if (sanitized && htmlFormulas.length >= plainFormulaCount) {
             sel.removeAllRanges(); sel.addRange(range)
             document.execCommand('insertHTML', false, sanitized)
+            const widgets = htmlFormulas.length ? replacePastePlaceholders(editor, htmlFormulas) : []
+            finalizePastedFormulas(editor, widgets)
             if (sel.rangeCount) _richSavedRange = sel.getRangeAt(0).cloneRange()
             syncEditorRowIndentMetadata()
             updateRichTextPanelButtons()
-            if (_richActiveEditor) _richActiveEditor.dispatchEvent(new Event('input', { bubbles: true }))
+            editor.dispatchEvent(new Event('input', { bubbles: true }))
             return
           }
         }
 
-        const text = clipboard.getData('text/plain')
         if (!text) return
-        const lines = text.split(/\r?\n/)
 
-        if (lines.length === 1) {
-          const textNode = document.createTextNode(lines[0])
-          range.insertNode(textNode)
-          range.setStartAfter(textNode); range.collapse(true)
+        // Each pasted line becomes an array of nodes (text and formula widgets).
+        const widgets = []
+        const lineNodes = [[]]
+        segs.forEach(seg => {
+          if (seg.latex != null) {
+            const w = createFormulaWidgetEl(seg.latex, { mathInline: !seg.display })
+            widgets.push(w)
+            lineNodes[lineNodes.length - 1].push(w)
+            return
+          }
+          seg.text.split(/\r?\n/).forEach((part, k) => {
+            if (k > 0) lineNodes.push([])
+            if (part) lineNodes[lineNodes.length - 1].push(document.createTextNode(part))
+          })
+        })
+        lineNodes.forEach((nodes, k) => {
+          const isEdge = k === 0 || k === lineNodes.length - 1
+          if (!nodes.length) nodes.push(document.createTextNode(isEdge ? '' : '​'))
+        })
+        const lastLine = lineNodes[lineNodes.length - 1]
+        const caretAnchor = lastLine[lastLine.length - 1]
+        const appendAll = (parent, nodes) => nodes.forEach(n => parent.appendChild(n))
+
+        if (lineNodes.length === 1) {
+          const frag = document.createDocumentFragment()
+          appendAll(frag, lineNodes[0])
+          range.insertNode(frag)
+          range.setStartAfter(caretAnchor); range.collapse(true)
           sel.removeAllRanges(); sel.addRange(range)
           _richSavedRange = range.cloneRange()
-          if (_richActiveEditor) _richActiveEditor.dispatchEvent(new Event('input', { bubbles: true }))
+          finalizePastedFormulas(editor, widgets)
+          editor.dispatchEvent(new Event('input', { bubbles: true }))
           return
         }
 
@@ -7011,28 +7214,25 @@
         }
 
         const firstBlock = wrapBlock(isList ? 'UL' : 'DIV', currentBlock.style.cssText)
-        const firstText = document.createTextNode(lines[0])
-        if (isList) { const li = document.createElement('li'); li.appendChild(leftFrag); li.appendChild(firstText); firstBlock.appendChild(li) }
-        else { firstBlock.appendChild(leftFrag); firstBlock.appendChild(firstText) }
+        if (isList) { const li = document.createElement('li'); li.appendChild(leftFrag); appendAll(li, lineNodes[0]); firstBlock.appendChild(li) }
+        else { firstBlock.appendChild(leftFrag); appendAll(firstBlock, lineNodes[0]) }
         currentBlock.parentNode.insertBefore(firstBlock, currentBlock)
 
-        for (let i = 1; i < lines.length - 1; i++) {
+        for (let i = 1; i < lineNodes.length - 1; i++) {
           const lb = wrapBlock(isList ? 'UL' : 'DIV', currentBlock.style.cssText)
-          const tn = document.createTextNode(lines[i] || '\u200B')
-          if (isList) { const li = document.createElement('li'); li.appendChild(tn); lb.appendChild(li) }
-          else lb.appendChild(tn)
+          if (isList) { const li = document.createElement('li'); appendAll(li, lineNodes[i]); lb.appendChild(li) }
+          else appendAll(lb, lineNodes[i])
           currentBlock.parentNode.insertBefore(lb, currentBlock)
         }
 
         const lastBlock = wrapBlock(isList ? 'UL' : 'DIV', currentBlock.style.cssText)
-        const lastText = document.createTextNode(lines[lines.length - 1])
         if (isList) {
-          const li = document.createElement('li'); li.appendChild(lastText)
+          const li = document.createElement('li'); appendAll(li, lastLine)
           const origLi = currentBlock.querySelector('li') || currentBlock
           while (origLi.firstChild) li.appendChild(origLi.firstChild)
           lastBlock.appendChild(li)
         } else {
-          lastBlock.appendChild(lastText)
+          appendAll(lastBlock, lastLine)
           while (currentBlock.firstChild) lastBlock.appendChild(currentBlock.firstChild)
         }
         currentBlock.parentNode.replaceChild(lastBlock, currentBlock)
@@ -7042,9 +7242,10 @@
         }
 
         const newRange = document.createRange()
-        newRange.setStart(lastText, lines[lines.length - 1].length); newRange.collapse(true)
+        newRange.setStartAfter(caretAnchor); newRange.collapse(true)
         sel.removeAllRanges(); sel.addRange(newRange)
         _richSavedRange = newRange.cloneRange()
+        finalizePastedFormulas(editor, widgets)
         updateRichTextPanelButtons()
         // Resize editor overlay to fit the pasted content
         if (_richActiveEditor) _richActiveEditor.dispatchEvent(new Event('input', { bubbles: true }))
@@ -7245,8 +7446,29 @@
       // formula dialog's "insert at cursor" flow and the Cmd/Ctrl+V
       // formula-paste shortcut. Returns the inserted widget element, or null
       // if `editor` is no longer attached.
-      const insertFormulaWidgetAtCursor = (editor, latex, { mathInline = app.style.mathInline, mathAlign = app.style.mathAlign } = {}) => {
-        if (!editor || !document.body.contains(editor)) return null
+      // A range can resolve to a container that is the editor itself (e.g. a
+      // brand-new shape's caret, placed via this app's own placeCaretAtEnd —
+      // selectNodeContents+collapse at the editor level, not inside its one
+      // row <div>). Inserting at such a range drops nodes as stray direct
+      // children of the editor instead of inside the proper row, which later
+      // confuses row-isolation logic. Returns a collapsed range descended into
+      // the adjacent row's content instead (or the original range if fine).
+      const descendEditorLevelRange = (editor, range) => {
+        if (range.startContainer !== editor) return range
+        const idx = range.startOffset
+        const refRow = idx > 0 ? editor.childNodes[idx - 1] : editor.firstChild
+        if (refRow && refRow.nodeType === Node.ELEMENT_NODE && !refRow.classList.contains('katex-widget')) {
+          const fixed = document.createRange()
+          if (idx > 0) fixed.setStart(refRow, refRow.childNodes.length)
+          else fixed.setStart(refRow, 0)
+          fixed.collapse(true)
+          return fixed
+        }
+        return range
+      }
+
+      // Builds a (not yet inserted, not yet hydrated) formula widget element.
+      const createFormulaWidgetEl = (latex, { mathInline = app.style.mathInline, mathAlign = app.style.mathAlign } = {}) => {
         const widget = document.createElement('span')
         widget.className = 'katex-widget'
         widget.setAttribute('contenteditable', 'false')
@@ -7255,6 +7477,12 @@
         widget.setAttribute('data-math-inline', mathInline ? '1' : '0')
         widget.setAttribute('data-math-align', String(mathAlign))
         widget.textContent = latex
+        return widget
+      }
+
+      const insertFormulaWidgetAtCursor = (editor, latex, opts = {}) => {
+        if (!editor || !document.body.contains(editor)) return null
+        const widget = createFormulaWidgetEl(latex, opts)
 
         let range = null
         if (_richSavedRange && editor.contains(_richSavedRange.startContainer)) {
@@ -7266,24 +7494,7 @@
           range.selectNodeContents(editor)
           range.collapse(false)
         }
-        // Either source above can resolve to a range whose container is the
-        // editor itself (e.g. a brand-new shape's caret, placed via this
-        // app's own placeCaretAtEnd — selectNodeContents+collapse at the
-        // editor level, not inside its one row <div>). insertNode on such a
-        // range drops the widget as a stray direct child of the editor
-        // instead of inside the proper row, which later confuses row-
-        // isolation logic. Descend into the adjacent row's content instead.
-        if (range.startContainer === editor) {
-          const idx = range.startOffset
-          const refRow = idx > 0 ? editor.childNodes[idx - 1] : editor.firstChild
-          if (refRow && refRow.nodeType === Node.ELEMENT_NODE && !refRow.classList.contains('katex-widget')) {
-            const fixed = document.createRange()
-            if (idx > 0) fixed.setStart(refRow, refRow.childNodes.length)
-            else fixed.setStart(refRow, 0)
-            fixed.collapse(true)
-            range = fixed
-          }
-        }
+        range = descendEditorLevelRange(editor, range)
         range.deleteContents()
         range.insertNode(widget)
         range.setStartAfter(widget)
@@ -12298,21 +12509,165 @@
         markDirty()
       }
 
-      const promptPaperSize = () => {
+      // How far a shape is drawn outside its geometric box (stroke, borders, arrowheads).
+      const getShapeVisualOverhang = (s) => {
+        const st = s.style || {}
+        if (s.type === 'rect' || s.type === 'ellipse') return Math.max(0, Number(st.strokeWidth ?? 3)) / 2
+        if (s.type === 'pen') {
+          const half = Math.max(0, Number(st.strokeWidth ?? 3)) / 2
+          return half + Math.max(0, Number(st.penArrowSize ?? 0))
+        }
+        // shapeBBox already includes the line's stroke width; only arrowheads stick out.
+        if (s.type === 'line') return Math.max(0, Number(st.arrowHeadSize ?? 0))
+        if (s.type === 'text') return Math.max(0, Number(st.textBorderWidth ?? app.style.textBorderWidth ?? 0)) / 2
+        return 0
+      }
+
+      // Union of the drawn area of every shape (groups are skipped; their children
+      // live in app.shapes too). Returns null for an empty drawing.
+      const getContentBounds = () => {
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
+        for (const s of app.shapes) {
+          if (!s || s.type === 'group') continue
+          const bb = shapeBBox(s)
+          if (!bb || !Number.isFinite(bb.x) || !Number.isFinite(bb.y)) continue
+          const pad = getShapeVisualOverhang(s)
+          minX = Math.min(minX, bb.x - pad)
+          minY = Math.min(minY, bb.y - pad)
+          maxX = Math.max(maxX, bb.x + bb.w + pad)
+          maxY = Math.max(maxY, bb.y + bb.h + pad)
+        }
+        if (!Number.isFinite(minX)) return null
+        return { minX, minY, maxX, maxY }
+      }
+
+      // Grow the paper just enough to show every shape. Content sticking out past
+      // the top/left edge is shifted right/down first. Never shrinks the paper.
+      const fitPaperToContent = () => {
         if (!app.drawing) return
+        const b = getContentBounds()
+        if (!b) { toast('Nothing to fit'); return }
 
-        const curW = app.canvas.width || 1200
-        const curH = app.canvas.height || 800
-        const v = prompt('Paper size in px (e.g. 1200x800):', `${curW}x${curH}`)
-        if (v == null) return
+        const dx = b.minX < 0 ? Math.ceil(-b.minX) : 0
+        const dy = b.minY < 0 ? Math.ceil(-b.minY) : 0
+        const needW = Math.ceil(b.maxX + dx)
+        const needH = Math.ceil(b.maxY + dy)
+        const nextW = clamp(Math.max(app.canvas.width, needW), 1, 20000)
+        const nextH = clamp(Math.max(app.canvas.height, needH), 1, 20000)
 
-        const parsed = parsePaperSize(v)
-        if (!parsed) {
-          alert('Invalid size. Use e.g. 1200x800 (min 1x1).')
+        if (!dx && !dy && nextW === app.canvas.width && nextH === app.canvas.height) {
+          toast('Canvas already fits all content')
           return
         }
 
-        applyPaperSize(parsed.w, parsed.h)
+        if (dx || dy) {
+          for (const s of app.shapes) {
+            if (s && s.type !== 'group') moveShapeBy(s, dx, dy)
+          }
+        }
+        app.canvas.width = nextW
+        app.canvas.height = nextH
+
+        pushHistory()
+        render()
+        markDirty()
+        toast(`Canvas ${nextW}×${nextH}` + (dx || dy ? ` (content shifted ${dx}, ${dy})` : ''))
+      }
+
+      let _paperSizePopup = null
+      let _paperSizeOutside = null
+      const closePaperSizePopup = () => {
+        if (_paperSizeOutside) { document.removeEventListener('click', _paperSizeOutside, true); _paperSizeOutside = null }
+        if (_paperSizePopup) { _paperSizePopup.remove(); _paperSizePopup = null }
+      }
+
+      // Paper size picker: 1200×800 preset, fit-to-content, and a manual WxH field.
+      const promptPaperSize = (ev) => {
+        if (!app.drawing) return
+        if (_paperSizePopup) { closePaperSizePopup(); return }
+        const btn = ev?.currentTarget || $('#btnPaperSize')
+
+        const el = document.createElement('div')
+        el.style.cssText = [
+          'position:fixed', 'z-index:10000',
+          'background:var(--panel)', 'border:1px solid var(--border)',
+          'border-radius:8px', 'padding:10px',
+          'box-shadow:0 6px 20px rgba(0,0,0,.5)',
+          'display:flex', 'flex-direction:column', 'gap:8px', 'min-width:200px'
+        ].join(';')
+
+        const head = document.createElement('div')
+        head.textContent = 'Paper size'
+        head.style.cssText = 'font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;opacity:.55;'
+        el.appendChild(head)
+
+        const row = document.createElement('div')
+        row.style.cssText = 'display:flex;gap:6px;'
+        const mkBtn = (label, title, handler) => {
+          const b = document.createElement('button')
+          b.className = 'btn'
+          b.type = 'button'
+          b.style.cssText = 'flex:1;text-align:center;'
+          b.textContent = label
+          b.title = title
+          b.addEventListener('click', () => { closePaperSizePopup(); handler() })
+          row.appendChild(b)
+        }
+        mkBtn('1200×800', 'Set paper to 1200×800 px', () => applyPaperSize(1200, 800))
+        mkBtn('Fit content', 'Grow the paper so every object is visible', fitPaperToContent)
+        el.appendChild(row)
+
+        const form = document.createElement('form')
+        form.style.cssText = 'display:flex;gap:6px;'
+        const input = document.createElement('input')
+        input.type = 'text'
+        input.value = `${app.canvas.width || 1200}x${app.canvas.height || 800}`
+        input.placeholder = 'e.g. 1200x800'
+        input.title = 'Paper size in px (e.g. 1200x800)'
+        input.style.cssText = 'flex:1;min-width:0;'
+        const apply = document.createElement('button')
+        apply.className = 'btn'
+        apply.type = 'submit'
+        apply.textContent = 'Apply'
+        form.appendChild(input)
+        form.appendChild(apply)
+        form.addEventListener('submit', (e) => {
+          e.preventDefault()
+          const parsed = parsePaperSize(input.value)
+          if (!parsed) {
+            toast('Invalid size. Use e.g. 1200x800 (min 1x1).')
+            input.focus()
+            return
+          }
+          closePaperSizePopup()
+          applyPaperSize(parsed.w, parsed.h)
+        })
+        input.addEventListener('keydown', (e) => {
+          e.stopPropagation()  // keep app shortcuts from firing while typing
+          if (e.key === 'Escape') closePaperSizePopup()
+        })
+        el.appendChild(form)
+
+        document.body.appendChild(el)
+        _paperSizePopup = el
+
+        const rect = btn.getBoundingClientRect()
+        const h = el.offsetHeight || 110
+        const w = el.offsetWidth || 220
+        let top  = rect.bottom + 4
+        let left = rect.left
+        if (top  + h > window.innerHeight) top  = Math.max(4, rect.top - h - 4)
+        if (left + w > window.innerWidth)  left = window.innerWidth - w - 8
+        if (left < 4) left = 4
+        el.style.top  = top  + 'px'
+        el.style.left = left + 'px'
+        input.focus()
+        input.select()
+
+        _paperSizeOutside = (e) => {
+          if (_paperSizePopup && !_paperSizePopup.contains(e.target) && !btn.contains(e.target)) closePaperSizePopup()
+        }
+        document.addEventListener('click', _paperSizeOutside, true)
       }
 
 
@@ -12653,7 +13008,17 @@
             s.style = s.style || {}
             s.style.textWrap = wrapEnabled
             fitTextShapeToContent(s)
-            if (wrapEnabled) s.w = getMaxTextLineWidth(s)
+            if (wrapEnabled) {
+              s.w = getMaxTextLineWidth(s)
+              // If the box sticks out past the canvas's right edge, shrink it so the
+              // wrapped content fits inside the canvas. Boxes already inside keep their width.
+              const canvasRight = app.canvas.width
+              if (s.x + s.w > canvasRight) {
+                const { minW } = getTextMinBoxSize(s)
+                s.w = Math.max(minW, Math.floor(canvasRight - s.x))
+                fitTextShapeToContent(s)  // re-measure height at the new wrap width
+              }
+            }
           }
           pushHistory()
           render()
