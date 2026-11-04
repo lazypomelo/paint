@@ -7032,14 +7032,41 @@
           marker.id = 'rte-paste-caret'
           const r = sel.getRangeAt(0); r.collapse(false); r.insertNode(marker)
         }
-        blockWidgets.forEach(w => isolateWidgetToOwnRow(w))
+        // isolateWidgetToOwnRow rebuilds the content before/after a widget
+        // from clones, so later widgets in the same row get replaced by
+        // copies — look each one up again by id rather than holding refs.
+        const lastTextIn = (node, fromEnd) => {
+          if (!node) return null
+          if (node.nodeType === Node.TEXT_NODE) return node
+          const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT)
+          let found = null
+          while (walker.nextNode()) { found = walker.currentNode; if (!fromEnd) break }
+          return found
+        }
+        const blockIds = blockWidgets.map(w => w.getAttribute('data-widget-id'))
+        let lastBlock = null
+        blockIds.forEach(id => {
+          const w = editor.querySelector(`.katex-widget[data-widget-id="${id}"]`)
+          if (!w) return
+          isolateWidgetToOwnRow(w)
+          lastBlock = w
+          // A pasted line break right next to the formula (e.g. from a <pre>
+          // block, where the whole paste is one row with "\n" characters) is
+          // now redundant, since the formula has its own row.
+          const row = w.parentNode
+          if (!row || row === editor) return
+          const before = lastTextIn(row.previousSibling, true)
+          if (before && /\r?\n$/.test(before.nodeValue)) before.nodeValue = before.nodeValue.replace(/\r?\n$/, '')
+          const after = lastTextIn(row.nextSibling, false)
+          if (after && /^\r?\n/.test(after.nodeValue)) after.nodeValue = after.nodeValue.replace(/^\r?\n/, '')
+        })
         const range = document.createRange()
         const liveMarker = editor.querySelector('#rte-paste-caret')
         if (liveMarker) {
           range.setStartBefore(liveMarker); range.collapse(true)
           liveMarker.remove()
         } else {
-          const lastRow = blockWidgets[blockWidgets.length - 1].closest('div, li')
+          const lastRow = lastBlock ? lastBlock.closest('div, li') : null
           const caretRow = document.createElement('div')
           const zw = document.createTextNode('​')
           caretRow.appendChild(zw)
