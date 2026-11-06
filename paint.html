@@ -938,6 +938,8 @@
       pointer-events: none;
     }
     .toast.show{ opacity: 1; }
+    .toast.show .toastAction{ pointer-events: auto; cursor: pointer; }
+    .toast .toastAction:hover{ background: rgba(255,255,255,0.14); }
     @keyframes svgSlotSpin { to { transform: rotate(360deg); } }
     .svgSlotSpinner {
       width: 22px;
@@ -1000,13 +1002,13 @@
       left: calc(var(--math-align-pct, 50) * 1%);
       transform: translateX(calc(var(--math-align-pct, 50) * -1%));
     }
+    #btnKatexFormula .katex{
+      font-size: 1.05em;
+      line-height: 1;
+    }
     .katex-error{
       color: #ff6b6b;
       font-family: monospace;
-    }
-    .generatorKatexLabel{
-      font-family: 'Cambria Math', 'STIX Two Math', serif;
-      font-style: italic;
     }
     .formulaProgressPill{
       position: fixed;
@@ -1598,6 +1600,13 @@
             <div class='row hidden' id='rowTextareaMathHeader' style='margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--border);'>
               <label style='font-weight: 600; color: var(--text);'>Math formula</label>
               <div></div>
+            </div>
+            <div class='row hidden' id='rowTextareaFormula'>
+              <label>Formula format</label>
+              <div style='display:flex; gap:6px; flex-wrap:wrap;'>
+              <button class='btn' id='btnKatexFormula' type='button' data-richtext-btn title='Ctrl+Shift+F' aria-label='KaTeX'>KaTeX</button>
+              <button class='btn' id='btnKatexUnrender' type='button' data-richtext-btn title='Unrender'>Plain text</button>
+              </div>
             </div>
             <div class='row hidden' id='rowTextareaMathInline' data-richtext-btn>
               <label>Inline</label>
@@ -6707,6 +6716,75 @@
         return true
       }
 
+      // Backspace/Delete with a collapsed caret on an EMPTY row (nothing but
+      // zero-width spaces / <br> / a checklist marker — bullet or not, any
+      // indent) removes that whole row in one press. Natively it takes 2-3
+      // presses: first the placeholder zero-width space goes, then (bullet
+      // rows, via handleRichTextBackspace) the bullet, and only then the row.
+      // Backspace lands the caret at the end of the previous row (start of
+      // the next one if there is none); Delete at the start of the next row
+      // (end of the previous one if there is none). The editor's only row
+      // is never removed — that falls through to the normal handling.
+      const handleRichTextEmptyRowDelete = (e) => {
+        if (e.key !== 'Backspace' && e.key !== 'Delete') return false
+        if (e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return false
+        const editor = _richActiveEditor
+        const sel = window.getSelection()
+        if (!editor || !sel.rangeCount || !sel.isCollapsed) return false
+        const caret = descendEditorLevelRange(editor, sel.getRangeAt(0).cloneRange())
+        if (!editor.contains(caret.startContainer)) return false
+
+        const rows = Array.from(editor.querySelectorAll(':scope > div, :scope > p, li'))
+        let el = caret.startContainer.nodeType === 3 ? caret.startContainer.parentNode : caret.startContainer
+        const row = rows.slice().reverse().find(r => r === el || r.contains(el))
+        if (!row || rows.length < 2) return false
+
+        const probe = row.cloneNode(true)
+        probe.querySelectorAll('.rte-check').forEach(m => m.remove())
+        if (probe.querySelector('img, .katex-widget, ul, ol')) return false
+        if (probe.textContent.replace(/[\u200B\uFEFF\r\n]/g, '') !== '') return false
+
+        e.preventDefault()
+        e.stopPropagation()
+        const idx = rows.indexOf(row)
+        const prev = rows[idx - 1] || null
+        const next = rows[idx + 1] || null
+        const target = e.key === 'Backspace' ? (prev || next) : (next || prev)
+        const toEnd = target === prev
+
+        const list = row.tagName === 'LI' ? row.parentNode : null
+        row.remove()
+        if (list && list !== editor && !list.querySelector('li')) list.remove()
+
+        // Caret at the end/start of the target row's text (row-boundary
+        // placement only when it has no text node, e.g. a lone formula).
+        const texts = []
+        const walker = document.createTreeWalker(target, NodeFilter.SHOW_TEXT, {
+          acceptNode: (n) => n.parentNode.closest('.katex-widget, .rte-check') ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT
+        })
+        while (walker.nextNode()) texts.push(walker.currentNode)
+        const lastEl = toEnd ? target.lastChild : target.firstChild
+        const edgeIsWidget = lastEl && lastEl.nodeType === 1 && lastEl.classList.contains('katex-widget')
+        if (texts.length && !edgeIsWidget) {
+          const filled = texts.filter(n => n.nodeValue.length)
+          const pool = filled.length ? filled : texts
+          const t = toEnd ? pool[pool.length - 1] : pool[0]
+          const r = document.createRange()
+          r.setStart(t, toEnd ? t.nodeValue.length : 0)
+          r.collapse(true)
+          sel.removeAllRanges()
+          sel.addRange(r)
+          _richSavedRange = r.cloneRange()
+        } else {
+          placeCaretAtRowEdge(target, toEnd, false)
+        }
+
+        syncEditorRowIndentMetadata()
+        updateRichTextPanelButtons()
+        editor.dispatchEvent(new Event('input', { bubbles: true }))
+        return true
+      }
+
       // Enter splits the current row and carries over explicit row indentation/style.
       // This keeps auto-created rows consistent with Tab/Shift+Tab/Backspace logic.
       const handleRichTextEnter = (e) => {
@@ -6951,24 +7029,27 @@
       }
 
       // Splits pasted text into plain-text and formula segments.
-      // `$...$` becomes an inline formula, `$$...$$` a block (own-row) one —
-      // but only when the content between the dollars contains no whitespace
-      // (spaces, tabs, line breaks); otherwise the dollars stay as literal
-      // text (e.g. "$5 and $6"). A backslash-escaped `\$` is never a
-      // delimiter. When a candidate pair doesn't qualify, only the opening
-      // delimiter is skipped, so its closing `$` can still open the next
-      // formula ("$5 or $x^2$" → "$5 or " + x²).
-      // Returns [{ text } | { latex, display }].
+      // `$...$` becomes an inline formula, `$$...$$` a block (own-row) one.
+      // Delimiters are matched strictly per text row: a formula never spans a
+      // line break, so an opening `$`/`$$` with no matching closer later on
+      // the same row stays literal text (dollars on following rows are never
+      // paired with it). Whitespace inside the delimiters is allowed and
+      // trimmed before rendering; a pair enclosing only whitespace stays
+      // literal. A backslash-escaped `\$` is never a delimiter.
+      // Returns [{ text } | { latex, display, start, end, source }] — start/end
+      // are the indices of the opening delimiter and just past the closing one;
+      // source is that exact original text (delimiters and inner spacing),
+      // kept on the widget so the formula can be unrendered back to it.
       const splitPastedMath = (text) => {
         const segs = []
         let buf = ''
         let i = 0
         const flush = () => { if (buf) { segs.push({ text: buf }); buf = '' } }
-        const findClose = (from, delim, allowNewline) => {
+        const findClose = (from, delim) => {
           for (let j = from; j < text.length; j++) {
             const c = text[j]
             if (c === '\\') { j++; continue }
-            if (c === '\n' && !allowNewline) return -1
+            if (c === '\n' || c === '\r') return -1
             if (text.startsWith(delim, j)) return j
           }
           return -1
@@ -6980,11 +7061,11 @@
             const display = text[i + 1] === '$'
             const delim = display ? '$$' : '$'
             const start = i + delim.length
-            const end = findClose(start, delim, display)
-            const latex = end > start ? text.slice(start, end) : ''
-            if (latex && !/\s/.test(latex)) {
+            const end = findClose(start, delim)
+            const latex = end > start ? text.slice(start, end).trim() : ''
+            if (latex) {
               flush()
-              segs.push({ latex, display })
+              segs.push({ latex, display, start: i, end: end + delim.length, source: text.slice(i, end + delim.length) })
               i = end + delim.length
             } else {
               buf += delim
@@ -7019,7 +7100,8 @@
       // widgets and moves each block ($$) formula onto its own row, keeping
       // the caret where the paste ended (a marker span survives the row
       // splitting; if it got dropped with an otherwise-empty trailing row,
-      // the caret goes on a fresh row after the last block formula).
+      // the caret goes on a fresh row after the last block formula — unless
+      // that formula was alone on its row, which needs no extra row).
       const finalizePastedFormulas = (editor, widgets) => {
         if (!widgets.length) return
         renderPastedFormulas(editor, widgets.map(w => w.getAttribute('data-latex')))
@@ -7043,6 +7125,15 @@
           while (walker.nextNode()) { found = walker.currentNode; if (!fromEnd) break }
           return found
         }
+        // Was each block formula alone on its row (ignoring blank text, <br>s
+        // and the caret marker)? Recorded before isolation reshapes the rows.
+        const isBlankNode = (n) => n === marker
+          || (n.nodeType === Node.TEXT_NODE && !n.nodeValue.replace(/[\u200B\s]/g, ''))
+          || (n.nodeType === Node.ELEMENT_NODE && !n.querySelector('img, .katex-widget') && !n.textContent.replace(/[\u200B\s]/g, ''))
+        const aloneIds = new Set(blockWidgets.filter(w => {
+          const row = w.closest('div, li')
+          return row && row !== editor && Array.from(row.childNodes).every(n => n === w || isBlankNode(n))
+        }).map(w => w.getAttribute('data-widget-id')))
         const blockIds = blockWidgets.map(w => w.getAttribute('data-widget-id'))
         let lastBlock = null
         blockIds.forEach(id => {
@@ -7065,6 +7156,29 @@
         if (liveMarker) {
           range.setStartBefore(liveMarker); range.collapse(true)
           liveMarker.remove()
+        } else if (lastBlock && aloneIds.has(lastBlock.getAttribute('data-widget-id'))) {
+          // The formula was alone on its row: no extra empty row for the caret.
+          // Continue at the start of the next row if there is one, else stay
+          // right after the formula.
+          const lastRow = lastBlock.closest('div, li')
+          let next = lastRow && lastRow !== editor ? lastRow.nextElementSibling : null
+          if (next && (next.tagName === 'UL' || next.tagName === 'OL')) next = next.querySelector('li')
+          if (next) {
+            const w = document.createTreeWalker(next, NodeFilter.SHOW_TEXT, {
+              acceptNode: (n) => n.parentNode.closest('.katex-widget, .rte-check') ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT
+            })
+            const t = w.nextNode()
+            if (t) range.setStart(t, 0)
+            else range.setStart(next, 0)
+          } else {
+            // A zero-width-space text node gives the caret a stable home right
+            // after the formula (it doesn't count as adjacent content, so the
+            // formula stays a block one — see demoteAdjacentNonInlineFormulas).
+            const zw = document.createTextNode('\u200B')
+            lastBlock.parentNode.insertBefore(zw, lastBlock.nextSibling)
+            range.setStart(zw, 1)
+          }
+          range.collapse(true)
         } else {
           const lastRow = lastBlock ? lastBlock.closest('div, li') : null
           const caretRow = document.createElement('div')
@@ -7117,7 +7231,7 @@
             if (k % 2 === 0) { if (part) frag.appendChild(document.createTextNode(part)); return }
             const seg = formulas[Number(part)]
             if (!seg) return
-            const w = createFormulaWidgetEl(seg.latex, { mathInline: !seg.display })
+            const w = createFormulaWidgetEl(seg.latex, { mathInline: !seg.display, source: seg.source })
             widgets.push(w)
             frag.appendChild(w)
           })
@@ -7135,14 +7249,109 @@
         return widgets
       }
 
+      // "Paste as plain text?" offer shown after each paste in edit mode.
+      // Holds the editor's pre-paste HTML + selection (as child-index paths,
+      // valid again once that HTML is restored) so 'y' / the button can
+      // redo the paste as plain text with the shape's default size/color.
+      let _plainPasteOffer = null
+      const _nodePathFrom = (root, node) => {
+        const path = []
+        while (node && node !== root) {
+          const parent = node.parentNode
+          if (!parent) return null
+          path.unshift(Array.prototype.indexOf.call(parent.childNodes, node))
+          node = parent
+        }
+        return node === root ? path : null
+      }
+      const _nodeFromPath = (root, path) => path.reduce((n, i) => (n && n.childNodes[i]) || null, root)
+      const dismissPlainPasteOffer = () => {
+        if (!_plainPasteOffer) return
+        clearTimeout(_plainPasteOffer.timeout)
+        const el = $('#toast')
+        if (el && el.contains(_plainPasteOffer.btn)) el.classList.remove('show')
+        _plainPasteOffer = null
+      }
+      const showPlainPasteOffer = (offer) => {
+        dismissPlainPasteOffer()
+        const el = $('#toast')
+        if (!el) return
+        el.innerHTML = "Paste as plain text? "
+        const btn = document.createElement('span')
+        btn.className = 'kbd toastAction'
+        btn.textContent = 'Y'
+        btn.title = 'Paste as plain text (Y)'
+        // Keep focus in the editor (a blur would end the edit session).
+        btn.addEventListener('pointerdown', (ev) => { ev.preventDefault(); ev.stopPropagation() })
+        btn.addEventListener('mousedown', (ev) => { ev.preventDefault(); ev.stopPropagation() })
+        btn.addEventListener('click', (ev) => { ev.preventDefault(); ev.stopPropagation(); applyPlainPasteOffer() })
+        el.appendChild(btn)
+        el.classList.add('show')
+        offer.btn = btn
+        offer.timeout = setTimeout(dismissPlainPasteOffer, 3000)
+        _plainPasteOffer = offer
+      }
+      const applyPlainPasteOffer = () => {
+        const offer = _plainPasteOffer
+        dismissPlainPasteOffer()
+        if (!offer || offer.editor !== _richActiveEditor || !offer.editor.isConnected) return false
+        const editor = offer.editor
+        editor.innerHTML = offer.html
+        const sc = _nodeFromPath(editor, offer.start.path)
+        const ec = _nodeFromPath(editor, offer.end.path)
+        if (!sc || !ec) return false
+        const range = document.createRange()
+        try {
+          range.setStart(sc, offer.start.offset)
+          range.setEnd(ec, offer.end.offset)
+        } catch (_) { return false }
+        const sel = window.getSelection()
+        sel.removeAllRanges(); sel.addRange(range)
+        editor.focus()
+        const text = offer.text
+        insertRichPaste({ getData: (t) => (t === 'text/plain' ? text : '') }, { plain: true })
+        return true
+      }
+
       const handleRichTextPaste = (e) => {
         e.preventDefault()
         const clipboard = e.clipboardData || window.clipboardData
         const sel = window.getSelection()
         if (!sel.rangeCount || !_richActiveEditor) return
         const editor = _richActiveEditor
+        const r0 = sel.getRangeAt(0)
+        const startPath = _nodePathFrom(editor, r0.startContainer)
+        const endPath = _nodePathFrom(editor, r0.endContainer)
+        const offer = (startPath && endPath) ? {
+          editor,
+          html: editor.innerHTML,
+          start: { path: startPath, offset: r0.startOffset },
+          end: { path: endPath, offset: r0.endOffset },
+          text: clipboard.getData('text/plain') || ''
+        } : null
+        insertRichPaste(clipboard, { plain: false })
+        if (offer && offer.text && _richActiveEditor === editor) showPlainPasteOffer(offer)
+      }
+
+      // Inserts clipboard content at the current selection of the active
+      // editor. `plain`: ignore HTML and force the shape's default font
+      // size and color with no background on the inserted text.
+      const insertRichPaste = (clipboard, { plain = false } = {}) => {
+        const sel = window.getSelection()
+        if (!sel.rangeCount || !_richActiveEditor) return
+        const editor = _richActiveEditor
         let range = sel.getRangeAt(0)
         range.deleteContents()
+        const makeTextNode = (str) => {
+          const tn = document.createTextNode(str)
+          if (!plain || !str) return tn
+          const span = document.createElement('span')
+          span.style.fontSize = editor.style.fontSize
+          span.style.color = editor.style.color
+          span.style.backgroundColor = 'transparent'
+          span.appendChild(tn)
+          return span
+        }
 
         const text = clipboard.getData('text/plain')
         const segs = text ? splitPastedMath(text) : []
@@ -7155,7 +7364,7 @@
         }
 
         // Prefer HTML paste to preserve bold/italic/color/etc. formatting
-        const htmlData = clipboard.getData('text/html')
+        const htmlData = plain ? '' : clipboard.getData('text/html')
         if (htmlData) {
           let sanitized = sanitizeRichPasteHtml(htmlData)
           let htmlFormulas = []
@@ -7187,14 +7396,14 @@
         const lineNodes = [[]]
         segs.forEach(seg => {
           if (seg.latex != null) {
-            const w = createFormulaWidgetEl(seg.latex, { mathInline: !seg.display })
+            const w = createFormulaWidgetEl(seg.latex, { mathInline: !seg.display, source: seg.source })
             widgets.push(w)
             lineNodes[lineNodes.length - 1].push(w)
             return
           }
           seg.text.split(/\r?\n/).forEach((part, k) => {
             if (k > 0) lineNodes.push([])
-            if (part) lineNodes[lineNodes.length - 1].push(document.createTextNode(part))
+            if (part) lineNodes[lineNodes.length - 1].push(makeTextNode(part))
           })
         })
         lineNodes.forEach((nodes, k) => {
@@ -7345,7 +7554,6 @@
       // session ends (finish()), and defensively on every selection sync.
       const syncMathFormulaPanelFromHighlight = () => {
         const widget = getActiveFormulaWidget()
-        setRowHidden('rowTextareaMathHeader', !widget)
         setRowHidden('rowTextareaMathInline', !widget)
         if (!widget) {
           setRowHidden('rowTextareaMathAlign', true)
@@ -7393,6 +7601,24 @@
       // sibling check meaningful regardless of how the surrounding content
       // got there (typed just now, loaded from a save, programmatically
       // inserted, …).
+      // data-split-of on a row: space-separated ids of block formulas that row
+      // was split off from by isolateWidgetToOwnRow (see unrenderFormulaWidget).
+      const addFormulaSplitMark = (row, id) => {
+        if (!id) return
+        const ids = (row.getAttribute('data-split-of') || '').split(' ').filter(Boolean)
+        if (!ids.includes(id)) ids.push(id)
+        row.setAttribute('data-split-of', ids.join(' '))
+      }
+      const takeFormulaSplitMark = (row, id) => {
+        if (!row || !id) return false
+        const ids = (row.getAttribute('data-split-of') || '').split(' ').filter(Boolean)
+        if (!ids.includes(id)) return false
+        const rest = ids.filter(x => x !== id)
+        if (rest.length) row.setAttribute('data-split-of', rest.join(' '))
+        else row.removeAttribute('data-split-of')
+        return true
+      }
+
       const isolateWidgetToOwnRow = (widget) => {
         const row = widget.closest('div, li')
         // Guard against a widget that ended up a stray direct child of the
@@ -7433,10 +7659,13 @@
           widgetRow = document.createElement('div')
           widgetRow.appendChild(widget) // moves the real node out of `row`
 
+          // Rows split off around the formula are marked with its id, so
+          // unrendering it can merge them back into the original single row.
           const parent = row.parentNode
-          if (hasContent(beforeRow)) parent.insertBefore(beforeRow, row)
+          const wid = widget.getAttribute('data-widget-id')
+          if (hasContent(beforeRow)) { addFormulaSplitMark(beforeRow, wid); parent.insertBefore(beforeRow, row) }
           parent.insertBefore(widgetRow, row)
-          if (hasContent(afterRow)) parent.insertBefore(afterRow, row)
+          if (hasContent(afterRow)) { addFormulaSplitMark(afterRow, wid); parent.insertBefore(afterRow, row) }
           parent.removeChild(row)
         }
 
@@ -7495,7 +7724,9 @@
       }
 
       // Builds a (not yet inserted, not yet hydrated) formula widget element.
-      const createFormulaWidgetEl = (latex, { mathInline = app.style.mathInline, mathAlign = app.style.mathAlign } = {}) => {
+      // `source`: the original `$...$` / `$$...$$` text the formula was rendered
+      // from (optional data-source attribute; see getFormulaSourceText).
+      const createFormulaWidgetEl = (latex, { mathInline = app.style.mathInline, mathAlign = app.style.mathAlign, source } = {}) => {
         const widget = document.createElement('span')
         widget.className = 'katex-widget'
         widget.setAttribute('contenteditable', 'false')
@@ -7503,6 +7734,7 @@
         widget.setAttribute('data-latex', latex)
         widget.setAttribute('data-math-inline', mathInline ? '1' : '0')
         widget.setAttribute('data-math-align', String(mathAlign))
+        if (source) widget.setAttribute('data-source', source)
         widget.textContent = latex
         return widget
       }
@@ -7536,6 +7768,412 @@
         editor.dispatchEvent(new Event('input', { bubbles: true }))
         checkpointTextEdit(editor, _richActiveShapeId)
         return widget
+      }
+
+      // Flattens a text row for `$` formula matching: its text plus the text
+      // nodes it came from (pieces, with their start offsets). Formula
+      // widgets, <br>s and nested lists act as line breaks so a pair can never
+      // span them; zero-width spaces map to plain spaces (same length, so
+      // indices stay valid; trimmed later). `formulas` are the row's `$`
+      // pairs (splitPastedMath segments with start/end indices).
+      const scanFormulaRow = (row) => {
+        const pieces = []
+        let text = ''
+        const walk = (node) => {
+          for (const c of node.childNodes) {
+            if (c.nodeType === 3) {
+              pieces.push({ node: c, start: text.length, len: c.nodeValue.length })
+              text += c.nodeValue.replace(/\u200B/g, ' ')
+            } else if (c.nodeType === 1) {
+              if (c.tagName === 'BR' || c.tagName === 'UL' || c.tagName === 'OL' || c.classList.contains('katex-widget')) text += '\n'
+              else walk(c)
+            }
+          }
+        }
+        walk(row)
+        const formulas = (pieces.length && text.includes('$'))
+          ? splitPastedMath(text).filter(seg => seg.latex != null)
+          : []
+        return { pieces, text, formulas }
+      }
+
+      // Replaces the given `$` pairs of a scanned row (scanFormulaRow) by
+      // formula widgets that remember their exact source text. Returns the
+      // new widgets in row order. Works on detached DOM too.
+      const replaceFormulaHitsInRow = (pieces, hits) => {
+        const locate = (pos, preferNext) => {
+          const p = preferNext
+            ? pieces.find(q => pos >= q.start && pos < q.start + q.len)
+            : pieces.find(q => pos > q.start && pos <= q.start + q.len)
+          return p ? [p.node, pos - p.start] : null
+        }
+        // Back to front, so earlier pieces' offsets stay valid.
+        const out = []
+        for (const hit of hits.slice().reverse()) {
+          const latex = hit.latex.replace(/\s+/g, ' ').trim()
+          const a = locate(hit.start, true)
+          const b = locate(hit.end, false)
+          if (!latex || !a || !b) continue
+          const r = document.createRange()
+          r.setStart(a[0], a[1])
+          r.setEnd(b[0], b[1])
+          const source = r.toString().replace(/\u200B/g, '')
+          const widget = createFormulaWidgetEl(latex, { mathInline: !hit.display, source })
+          r.deleteContents()
+          r.insertNode(widget)
+          out.unshift(widget)
+        }
+        return out
+      }
+
+      // "Create/convert to KaTeX" action (properties panel Formula button,
+      // Cmd/Ctrl+Shift+F) while editing text. Uses the same per-row matching
+      // rules as paste (splitPastedMath) — a formula never spans rows:
+      // - caret (or < 2 selected chars): converts the `$...$` / `$$...$$` pair
+      //   the caret sits in (between the delimiters, or right before/after);
+      // - selection of 2+ chars: converts every pair, on each selected row,
+      //   that overlaps the selection.
+      // Returns { converted, selectedText } — when nothing was converted the
+      // caller opens the formula dialog seeded with selectedText.
+      const convertTypedFormulasInSelection = () => {
+        const editor = _richActiveEditor
+        const none = { converted: false, selectedText: '' }
+        if (!editor || !document.body.contains(editor)) return none
+        if (!_richSavedRange || !editor.contains(_richSavedRange.startContainer)) return none
+        // Only a collapsed caret needs descending into a row; a selection
+        // (e.g. Cmd+A, anchored at the editor itself) must be kept intact.
+        const range = _richSavedRange.collapsed
+          ? descendEditorLevelRange(editor, _richSavedRange.cloneRange())
+          : _richSavedRange.cloneRange()
+        // Selected text as one row (it may seed the single-line formula
+        // dialog): row boundaries, <br>s and line-break characters all become
+        // single spaces instead of being dropped or kept as newlines; formula
+        // widgets contribute their LaTeX source.
+        const selectionAsSingleRow = () => {
+          let out = ''
+          const walk = (node) => {
+            for (const c of node.childNodes) {
+              if (c.nodeType === 3) out += c.nodeValue
+              else if (c.nodeType === 1 && c.classList.contains('katex-widget')) {
+                // A formula contributes its LaTeX source, not its rendered markup.
+                out += ' ' + (c.getAttribute('data-latex') || '') + ' '
+              } else if (c.nodeType === 1) {
+                const isBlock = /^(DIV|P|LI|UL|OL|BR)$/.test(c.tagName)
+                if (isBlock) out += ' '
+                walk(c)
+                if (isBlock) out += ' '
+              }
+            }
+          }
+          walk(range.cloneContents())
+          return out.replace(/\u200B/g, '').replace(/\s+/g, ' ').trim()
+        }
+        const selectedText = range.collapsed ? '' : selectionAsSingleRow()
+        const multi = selectedText.length >= 2
+
+        // Rows: <div>/<p> directly under the editor, plus every <li>.
+        const rows = Array.from(editor.querySelectorAll(':scope > div, :scope > p, li'))
+          .filter(row => range.intersectsNode(row))
+        // Position of a DOM boundary point within a flattened row.
+        const posOf = (pieces, node, offset) => {
+          const own = pieces.find(p => p.node === node)
+          if (own) return own.start + offset
+          const pt = document.createRange()
+          pt.setStart(node, offset)
+          let pos = 0
+          pieces.forEach(p => { if (pt.comparePoint(p.node, 0) < 0) pos = p.start + p.len })
+          return pos
+        }
+        const widgets = []
+        for (const row of rows) {
+          const { pieces, text, formulas } = scanFormulaRow(row)
+          if (!formulas.length) continue
+          let hits
+          if (multi) {
+            const selStart = row.contains(range.startContainer) ? posOf(pieces, range.startContainer, range.startOffset) : 0
+            const selEnd = row.contains(range.endContainer) ? posOf(pieces, range.endContainer, range.endOffset) : text.length
+            hits = formulas.filter(f => f.start < selEnd && f.end > selStart)
+          } else {
+            if (!row.contains(range.startContainer)) continue
+            const c = posOf(pieces, range.startContainer, range.startOffset)
+            const hit = formulas.find(f => f.start < c && c < f.end)
+              || formulas.find(f => f.end === c)
+              || formulas.find(f => f.start === c)
+            hits = hit ? [hit] : []
+          }
+          widgets.push(...replaceFormulaHitsInRow(pieces, hits))
+          if (!multi && widgets.length) break
+        }
+        if (!widgets.length) return { converted: false, selectedText }
+
+        const caret = document.createRange()
+        caret.setStartAfter(widgets[widgets.length - 1])
+        caret.collapse(true)
+        const sel = window.getSelection()
+        sel.removeAllRanges()
+        sel.addRange(caret)
+        _richSavedRange = caret.cloneRange()
+        editor.focus()
+        const ids = widgets.map(w => w.getAttribute('data-widget-id'))
+        finalizePastedFormulas(editor, widgets)
+        if (multi) {
+          // Keep the converted span selected, so the action can toggle it
+          // straight back (see unrenderFormulasInSelection). Block-formula
+          // isolation may have replaced widgets by copies — re-find by id.
+          const live = ids.map(id => editor.querySelector(`.katex-widget[data-widget-id="${id}"]`)).filter(Boolean)
+          if (live.length) {
+            const r = document.createRange()
+            r.setStartBefore(live[0])
+            r.setEndAfter(live[live.length - 1])
+            sel.removeAllRanges()
+            sel.addRange(r)
+            _richSavedRange = r.cloneRange()
+          }
+        }
+        editor.dispatchEvent(new Event('input', { bubbles: true }))
+        checkpointTextEdit(editor, _richActiveShapeId)
+        widgets.forEach(w => recordFormulaInHistory(w.getAttribute('data-latex')))
+        return { converted: true, selectedText }
+      }
+
+      // Original text of a formula: its data-source (exact `$...$`/`$$...$$`
+      // text it was rendered from) while that still matches the formula's
+      // current LaTeX and inline/block mode; otherwise (edited in the dialog,
+      // mode toggled, or a formula made without typed source) rebuilt as
+      // `$latex$` / `$$latex$$`.
+      const getFormulaSourceText = (widget) => {
+        const latex = widget.getAttribute('data-latex') || ''
+        const isBlock = widget.getAttribute('data-math-inline') === '0'
+        const norm = (t) => String(t).replace(/\s+/g, ' ').trim()
+        const src = widget.getAttribute('data-source')
+        if (src) {
+          const segs = splitPastedMath(src)
+          if (segs.length === 1 && segs[0].latex != null && segs[0].display === isBlock && norm(segs[0].latex) === norm(latex)) return src
+        }
+        return isBlock ? `$$${latex}$$` : `$${latex}$`
+      }
+
+      // Replaces a formula widget by its original source text (a new text
+      // node, returned). A block formula's own row is merged back with the
+      // rows isolateWidgetToOwnRow split off it (data-split-of), restoring
+      // the single original row; without such marks the text keeps that row.
+      const unrenderFormulaWidget = (editor, widget) => {
+        const textNode = document.createTextNode(getFormulaSourceText(widget))
+        const id = widget.getAttribute('data-widget-id')
+        const row = widget.parentNode
+        const isOwnRow = widget.getAttribute('data-math-inline') === '0' && row && row !== editor
+          && row.parentNode === editor && row.tagName === 'DIV'
+          && Array.from(row.childNodes).every(n => n === widget || (n.nodeType === 3 && !n.nodeValue.replace(/​/g, '').trim()))
+        if (!isOwnRow) { widget.replaceWith(textNode); return textNode }
+
+        const neighbourRow = (el, fromEnd) => {
+          if (el && (el.tagName === 'UL' || el.tagName === 'OL')) el = fromEnd ? el.lastElementChild : el.firstElementChild
+          return el && (el.tagName === 'DIV' || el.tagName === 'LI' || el.tagName === 'P') ? el : null
+        }
+        const prevSib = row.previousElementSibling
+        const nextSib = row.nextElementSibling
+        const before = neighbourRow(prevSib, true)
+        const after = neighbourRow(nextSib, false)
+        const mergeBefore = takeFormulaSplitMark(before, id)
+        const mergeAfter = takeFormulaSplitMark(after, id)
+        if (mergeBefore) {
+          before.appendChild(textNode)
+          if (mergeAfter) {
+            while (after.firstChild) before.appendChild(after.firstChild)
+            const afterList = after.parentNode !== editor ? after.parentNode : null
+            after.remove()
+            if (afterList && !afterList.children.length) afterList.remove()
+          }
+          row.remove()
+          // A list split around the formula row (splitListAroundChild) whose
+          // two halves now touch again becomes one list.
+          if (prevSib && nextSib && prevSib.isConnected && nextSib.isConnected && prevSib.nextElementSibling === nextSib
+            && (prevSib.tagName === 'UL' || prevSib.tagName === 'OL') && prevSib.tagName === nextSib.tagName
+            && prevSib.getAttribute('data-list-type') === nextSib.getAttribute('data-list-type')) {
+            while (nextSib.firstChild) prevSib.appendChild(nextSib.firstChild)
+            nextSib.remove()
+          }
+        } else if (mergeAfter) {
+          after.insertBefore(textNode, after.firstChild)
+          row.remove()
+        } else {
+          row.replaceChildren(textNode)
+        }
+        return textNode
+      }
+
+      // The formula widget immediately next to a collapsed caret (after it
+      // preferred, else before it), skipping zero-width-space-only text.
+      const formulaWidgetAdjacentToCaret = (range) => {
+        const isBlank = (n) => n && n.nodeType === 3 && !n.nodeValue.replace(/​/g, '')
+        const isWidget = (n) => n && n.nodeType === 1 && n.classList.contains('katex-widget')
+        const c = range.startContainer, o = range.startOffset
+        let prev, next
+        if (c.nodeType === 3) {
+          prev = c.nodeValue.slice(0, o).replace(/​/g, '') ? null : c.previousSibling
+          next = c.nodeValue.slice(o).replace(/​/g, '') ? null : c.nextSibling
+        } else {
+          prev = c.childNodes[o - 1] || null
+          next = c.childNodes[o] || null
+        }
+        while (isBlank(prev)) prev = prev.previousSibling
+        while (isBlank(next)) next = next.nextSibling
+        return isWidget(prev) ? prev : (isWidget(next) ? next : null)
+      }
+
+      // Unrenders formula widgets back to their original `$` text: the
+      // click-highlighted widget, else every widget a (non-collapsed)
+      // selection touches, else the one directly next to a collapsed caret.
+      // The restored text stays selected (caret: placed after it), so the
+      // Render action can turn it straight back into formulas.
+      // Returns true if anything was unrendered.
+      const unrenderFormulasInSelection = () => {
+        const editor = _richActiveEditor
+        if (!editor || !document.body.contains(editor)) return false
+        const highlighted = getActiveFormulaWidget()
+        const range = _richSavedRange
+        if (!highlighted && (!range || !editor.contains(range.commonAncestorContainer))) return false
+        let targets
+        if (highlighted) {
+          highlighted.classList.remove('katex-widget-active')
+          targets = [highlighted]
+        } else if (range.collapsed) {
+          const w = formulaWidgetAdjacentToCaret(range)
+          targets = w ? [w] : []
+        } else {
+          targets = Array.from(editor.querySelectorAll('.katex-widget')).filter(w => range.intersectsNode(w))
+        }
+        if (!targets.length) return false
+        const collapsed = !!highlighted || range.collapsed
+        const restored = targets.map(w => unrenderFormulaWidget(editor, w))
+        const first = restored[0]
+        const last = restored[restored.length - 1]
+        const r = document.createRange()
+        if (collapsed) {
+          r.setStart(last, last.nodeValue.length)
+          r.collapse(true)
+        } else {
+          r.setStart(first, 0)
+          r.setEnd(last, last.nodeValue.length)
+        }
+        const sel = window.getSelection()
+        sel.removeAllRanges()
+        sel.addRange(r)
+        _richSavedRange = r.cloneRange()
+        editor.focus()
+        syncMathFormulaPanelFromHighlight()
+        editor.dispatchEvent(new Event('input', { bubbles: true }))
+        checkpointTextEdit(editor, _richActiveShapeId)
+        return true
+      }
+
+      // The single formula widget the user has selected in the open editor:
+      // the click-highlighted one, or else a text selection whose only
+      // content is exactly one widget (ignoring whitespace/zero-width spaces).
+      const getSingleSelectedFormulaWidget = () => {
+        const editor = _richActiveEditor
+        if (!editor) return null
+        const highlighted = getActiveFormulaWidget()
+        if (highlighted) return highlighted
+        const range = _richSavedRange
+        if (!range || range.collapsed || !editor.contains(range.commonAncestorContainer)) return null
+        const frag = range.cloneContents()
+        const widgets = frag.querySelectorAll('.katex-widget')
+        if (widgets.length !== 1) return null
+        const id = widgets[0].getAttribute('data-widget-id')
+        widgets[0].remove()
+        if (frag.textContent.replace(/[\s​]/g, '')) return null
+        return id ? editor.querySelector(`.katex-widget[data-widget-id="${id}"]`) : null
+      }
+
+      // "KaTeX - Render" button / Cmd+Ctrl+Shift+F (render only — unrendering
+      // is the separate Unrender button, see runFormulaUnrenderAction):
+      // - a single selected formula opens in the formula dialog for editing
+      //   (same as clicking a highlighted one);
+      // - otherwise renders the `$` text at the caret / in the selection;
+      // - failing that, opens the formula dialog (seeded with the selected
+      //   text, which the confirmed formula then replaces).
+      // Outside text editing it renders every `$` pair in the selected text
+      // shapes (never creates a new shape; no text shape selected -> no-op).
+      const runFormulaAction = () => {
+        if (!_richActiveEditor) { renderFormulasInSelectedShapes(); return }
+        const widget = getSingleSelectedFormulaWidget()
+        if (widget) {
+          widget.classList.remove('katex-widget-active')
+          syncMathFormulaPanelFromHighlight()
+          openFormulaDialog({
+            shapeId: _richActiveShapeId,
+            widgetId: widget.getAttribute('data-widget-id'),
+            latex: widget.getAttribute('data-latex') || ''
+          })
+          return
+        }
+        const res = convertTypedFormulasInSelection()
+        if (!res.converted) openFormulaDialog({ latex: res.selectedText })
+      }
+
+      // Outside text editing, the KaTeX / Plain text buttons (and Cmd/Ctrl+
+      // Shift+F for KaTeX) act on the selected text shapes' stored HTML as a
+      // whole: render every `$` pair, or unrender every formula. No text
+      // shape selected -> nothing happens. `mutate(container)` edits a
+      // detached copy of one shape's rows and returns true if it changed.
+      const editSelectedTextShapesHtml = (mutate) => {
+        const ctx = getSelectionPropsContext()
+        if (!ctx.hasSelection) return false
+        const changedShapes = []
+        for (const s of ctx.selectedShapes) {
+          if (s.type !== 'text' || !s.text) continue
+          const container = document.createElement('div')
+          container.innerHTML = s.text
+          if (!mutate(container)) continue
+          s.text = container.innerHTML
+          changedShapes.push(s)
+        }
+        if (!changedShapes.length) return false
+        // Fill the render cache now (when KaTeX is loaded) so the refit below
+        // measures real formula sizes; otherwise the async pass renders them.
+        if (window.katex) {
+          changedShapes.forEach(s => extractLatexStrings(s.text).forEach(l => {
+            if (!katexRenderCache.has(l)) katexRenderCache.set(l, safeRenderToString(l))
+          }))
+        }
+        changedShapes.forEach(s => fitTextShapeToContent(s))
+        pushHistory(); render(); markDirty()
+        syncPropsFromSelection()
+        if (!window.katex) renderFormulasForShapes(changedShapes).then(() => changedShapes.forEach(s => fitTextShapeToContent(s)))
+        return true
+      }
+      const shapeRows = (container) => Array.from(container.querySelectorAll(':scope > div, :scope > p, li'))
+      const renderFormulasInSelectedShapes = () => editSelectedTextShapesHtml((container) => {
+        const widgets = []
+        shapeRows(container).forEach(row => {
+          const { pieces, formulas } = scanFormulaRow(row)
+          if (formulas.length) widgets.push(...replaceFormulaHitsInRow(pieces, formulas))
+        })
+        if (!widgets.length) return false
+        // Stored widgets hold their LaTeX as fallback text (createFormulaWidgetEl
+        // does); block ($$) ones get their own row, as in the editor.
+        const blockIds = widgets.filter(w => w.getAttribute('data-math-inline') === '0').map(w => w.getAttribute('data-widget-id'))
+        blockIds.forEach(id => {
+          const w = container.querySelector(`.katex-widget[data-widget-id="${id}"]`)
+          const row = w && w.closest('div, li')
+          if (row && row !== container && container.contains(row)) isolateWidgetToOwnRow(w)
+        })
+        widgets.forEach(w => recordFormulaInHistory(w.getAttribute('data-latex')))
+        return true
+      })
+      const unrenderFormulasInSelectedShapes = () => editSelectedTextShapesHtml((container) => {
+        const widgets = Array.from(container.querySelectorAll('.katex-widget'))
+        widgets.forEach(w => unrenderFormulaWidget(container, w))
+        return widgets.length > 0
+      })
+
+      // "Unrender" button (no keyboard shortcut): turns the click-highlighted
+      // formula, every formula the selection touches, or the one right next
+      // to the caret back into its original `$...$` / `$$...$$` text.
+      const runFormulaUnrenderAction = () => {
+        if (!_richActiveEditor) { unrenderFormulasInSelectedShapes(); return }
+        if (!unrenderFormulasInSelection()) toast('Select rendered formulas to unrender')
       }
 
       // Resolves the row (<div> or <li> directly under the editor) containing
@@ -7613,6 +8251,16 @@
         }
         if (!row) { clearHighlight(); return }
 
+        if (action === 'up' || action === 'down') {
+          const r = document.createRange()
+          if (action === 'up') r.setStartBefore(widget); else r.setStartAfter(widget)
+          r.collapse(true)
+          const sel = window.getSelection()
+          sel.removeAllRanges(); sel.addRange(r)
+          _richSavedRange = r.cloneRange()
+          clearHighlight()
+          return
+        }
         if (action === 'home') { placeCaretAtRowEdge(row, false, false); clearHighlight(); return }
         if (action === 'end')  { placeCaretAtRowEdge(row, true,  false); clearHighlight(); return }
 
@@ -8034,6 +8682,7 @@
         let finish = (commit) => {
           if (didFinish) return
           didFinish = true
+          dismissPlainPasteOffer()
           _richActiveEditor = null
           _richActiveShapeId = null
           _richSavedRange = null
@@ -8134,6 +8783,17 @@
         })
 
         editor.addEventListener('keydown', (ev) => {
+          // 'Y' right after a paste re-pastes it as plain text; any other
+          // key (besides bare modifiers) withdraws the offer, since a later
+          // re-paste would roll back whatever was typed in between.
+          if (_plainPasteOffer && !['Shift', 'Control', 'Alt', 'Meta', 'CapsLock'].includes(ev.key)) {
+            if (ev.key.toLowerCase() === 'y' && !ev.metaKey && !ev.ctrlKey && !ev.altKey) {
+              ev.preventDefault(); ev.stopPropagation()
+              applyPlainPasteOffer()
+              return
+            }
+            dismissPlainPasteOffer()
+          }
           const highlightedWidget = getActiveFormulaWidget()
           const modPressed = isMac() ? ev.metaKey : ev.ctrlKey
 
@@ -8177,6 +8837,13 @@
             return
           }
 
+          // Cmd/Ctrl+Shift+F: formula action — checked before the highlight
+          // handling below, which would otherwise drop a highlighted formula
+          // (the action opens that formula for editing).
+          if (modKey(ev) && ev.shiftKey && !ev.altKey && (ev.code === 'KeyF' || ev.key.toLowerCase() === 'f')) {
+            ev.preventDefault(); ev.stopPropagation(); runFormulaAction(); return
+          }
+
           // A highlighted formula stands in for the caret — Left/Right/Home/
           // End (and Mac Cmd+Left/Right) act relative to IT, not the stale
           // real selection. Any other key drops the highlight so the real
@@ -8191,6 +8858,16 @@
               if (action) {
                 exitHighlightedFormula(highlightedWidget, action)
                 ev.preventDefault(); ev.stopPropagation()
+                return
+              }
+              // Up/Down: anchor the real caret right beside the formula
+              // (before it for Up, after it for Down) and let the browser's
+              // native vertical caret movement proceed from there — the stale
+              // selection may be elsewhere or even inside the formula's
+              // non-editable KaTeX markup, where native Up/Down does nothing.
+              if (ev.key === 'ArrowUp' || ev.key === 'ArrowDown') {
+                exitHighlightedFormula(highlightedWidget, ev.key === 'ArrowUp' ? 'up' : 'down')
+                ev.stopPropagation()
                 return
               }
               if (ev.key === 'Delete' || ev.key === 'Backspace') {
@@ -8212,6 +8889,7 @@
             return
           }
           if (ev.key === 'Enter' && handleRichTextEnter(ev)) return
+          if (handleRichTextEmptyRowDelete(ev)) return
           if (ev.key === 'Backspace' && handleRichTextBackspace(ev)) return
           if (ev.key === 'Tab') { handleRichTextIndent(ev); return }
           if (ev.key === 'Escape') { ev.preventDefault(); ev.stopPropagation(); finish(true); return }
@@ -9228,11 +9906,12 @@
         }
 
         const commonRows = ['rowStroke', 'rowFill', 'rowStrokeWidth', 'rowStrokeAlpha', 'rowFillAlpha', 'rowRotation']
-        // Math formula rows (rowTextareaMathHeader/MathInline/MathAlign) are
-        // deliberately NOT in this list — they're per-formula, not per-shape,
-        // and their visibility is driven solely by syncMathFormulaPanelFromHighlight
+        // The Math formula section header and its Formula format row (KaTeX /
+        // Plain text buttons) are always shown for text. The per-formula rows
+        // (rowTextareaMathInline/MathAlign) are deliberately NOT in this list —
+        // their visibility is driven solely by syncMathFormulaPanelFromHighlight
         // (shown only while a specific formula widget is highlighted in the editor).
-        const textareaRows = ['rowTextareaTextHeader', 'rowTextareaFontSize', 'rowRichTextFormat', 'rowRichTextHighlight', 'rowBulletList', 'rowTextareaTextColor', 'rowTextareaTextAlpha', 'rowTextareaWrapText', 'rowTextareaBorderHeader', 'rowTextareaBorderStyle', 'rowTextareaBorderWidth', 'rowTextareaBorderColor', 'rowTextareaBorderAlpha', 'rowTextareaPadding', 'rowTextareaBackgroundHeader', 'rowTextareaBackgroundColor', 'rowTextareaBackgroundAlpha']
+        const textareaRows = ['rowTextareaTextHeader', 'rowTextareaFontSize', 'rowRichTextFormat', 'rowRichTextHighlight', 'rowBulletList', 'rowTextareaTextColor', 'rowTextareaTextAlpha', 'rowTextareaWrapText', 'rowTextareaBorderHeader', 'rowTextareaBorderStyle', 'rowTextareaBorderWidth', 'rowTextareaBorderColor', 'rowTextareaBorderAlpha', 'rowTextareaPadding', 'rowTextareaBackgroundHeader', 'rowTextareaBackgroundColor', 'rowTextareaBackgroundAlpha', 'rowTextareaMathHeader', 'rowTextareaFormula']
         const imageRows = ['rowImageGeneralHeader', 'rowImageLockAspect', 'rowImageAlpha', 'rowImageFlip', 'rowImageBorderHeader', 'rowImageBorderStyle', 'rowImageBorderWidth', 'rowImageBorderColor', 'rowImageBorderAlpha', 'rowImageTransparencyHeader', 'rowImageTransparencyEnabled', 'rowImageTransparencyColor', 'rowImageTransparencyTolerance']
         const cropRows = ['rowImageCrop']
         const lineLikeRows = ['rowLineLikeGeneralHeader', 'rowLineLikeArrowHeader', 'rowLineLikeLineHeader', 'rowArrowHeadDoubleSided', 'rowArrowHeadSize', 'rowArrowHeadStyle', 'rowArrowHeadColor', 'rowArrowHeadAlpha', 'rowArrowHeadWidth', 'rowArrowHeadAngle', 'rowLineStyle', 'rowLineLockAspect', 'rowArrowLockAspect', 'rowLineLikeFlip']
@@ -11080,6 +11759,16 @@
           return
         }
 
+        // Cmd/Ctrl+Shift+F outside text editing: render the `$` formulas of the
+        // selected text shapes (inside the editor the same shortcut is handled
+        // by its own keydown).
+        if (modKey(ev) && ev.shiftKey && !ev.altKey && (ev.code === 'KeyF' || ev.key.toLowerCase() === 'f')) {
+          ev.preventDefault()
+          ev.stopPropagation()
+          runFormulaAction()
+          return
+        }
+
         // '+' opens the AI generators quick menu (first item: SVG generator).
         if (ev.key === '+') {
           ev.preventDefault()
@@ -12259,6 +12948,12 @@
         textarea.addEventListener('keydown', (e) => {
           e.stopPropagation() // keep app shortcuts (e.g. 't', arrow-nudge) from firing while typing
           if (e.key === 'Escape') { e.preventDefault(); close() }
+          // Enter = the Insert/Update button (Shift+Enter still adds a line
+          // break; ignored mid-IME-composition and while the button is disabled).
+          if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
+            e.preventDefault()
+            if (!confirmBtn.disabled) confirmBtn.click()
+          }
         })
 
         snippetBtn.addEventListener('click', () => {
@@ -12372,6 +13067,8 @@
               }
             }
           } else if (isInsertIntoActiveEditor && document.body.contains(targetEditor)) {
+            // Insert at (replacing) the caret/selection captured at open time.
+            if (targetSavedRange && targetEditor.contains(targetSavedRange.startContainer)) _richSavedRange = targetSavedRange
             insertFormulaWidgetAtCursor(targetEditor, latex)
             recordFormulaInHistory(latex)
           } else {
@@ -12414,7 +13111,6 @@
       // handler. Extend GENERATOR_ITEMS to add more generators later.
       const GENERATOR_ITEMS = [
         { key: 's', label: 'SVG generator', run: openSvgGeneratorPrompt },
-        { key: 'f', label: 'KaTeX formula', labelClass: 'generatorKatexLabel', run: () => openFormulaDialog() },
       ]
       let _plusMenu = null
       let _plusMenuKey = null
@@ -12427,9 +13123,8 @@
       const showPlusMenu = () => {
         closePlusMenu()
         const el = document.createElement('div')
-        // Opening/using this menu must not blur an active text editor — e.g.
-        // the KaTeX formula item inserts directly at the editor's cursor, which
-        // needs that editor (and its saved caret) to still be alive.
+        // Opening/using this menu must not blur an active text editor (its
+        // items may act at the editor's saved caret).
         el.setAttribute('data-richtext-btn', '1')
         el.style.cssText = [
           'position:fixed', 'z-index:10000',
@@ -13248,6 +13943,14 @@
         })
         wireRichBtn('btnBulletList', () => _richActiveEditor ? toggleRichBulletList() : toggleBulletListOnSelectedShapes())
         wireRichBtn('btnChecklist',  () => _richActiveEditor ? toggleRichChecklist()  : toggleChecklistOnSelectedShapes())
+        wireRichBtn('btnKatexFormula', runFormulaAction)
+        wireRichBtn('btnKatexUnrender', runFormulaUnrenderAction)
+        // The button's plain "KaTeX" label is swapped for the real logo, drawn
+        // by KaTeX itself (\KaTeX macro) once it has loaded; offline it stays text.
+        katexReady.then(() => {
+          const b = $('#btnKatexFormula')
+          if (b && window.katex) b.innerHTML = safeRenderToString('\\KaTeX')
+        })
 
         // Highlight color input: prevent stealing focus while editor is open
         const hlColorInput = $('#richHighlightColor')
@@ -13349,6 +14052,7 @@
           btnBulletList:    `Toggle bullet list (${mod}L)`,
           btnChecklist:     `Toggle checklist (${isMac() ? '⌘⇧' : 'Ctrl+Shift+'}L)`,
           btnRichHighlight: `Highlight (${isMac() ? '⌘⇧' : 'Ctrl+Shift+'}H)`,
+          btnKatexFormula:  `${isMac() ? '⌘⇧' : 'Ctrl+Shift+'}F`,
         }
         for (const [id, title] of Object.entries(shortcuts)) $('#' + id)?.setAttribute('title', title)
       })()
