@@ -8021,6 +8021,56 @@
         return isWidget(prev) ? prev : (isWidget(next) ? next : null)
       }
 
+      // The formula widget a plain Left (toEnd=false) / Right (toEnd=true)
+      // arrow press would step onto from a collapsed caret: an inline widget
+      // directly beside the caret on that side (looking through the edges of
+      // inline formatting wrappers and zero-width-space-only text), or — when
+      // the caret sits at its row's very edge — a block (non-inline) widget
+      // alone on the neighbouring row. Returns null otherwise.
+      const formulaWidgetInArrowDirection = (editor, range, toEnd) => {
+        const isBlank = (n) => n && n.nodeType === 3 && !n.nodeValue.replace(/​/g, '')
+        const isWidget = (n) => n && n.nodeType === 1 && n.classList.contains('katex-widget')
+        const isRow = (n) => n === editor || (n.nodeType === 1 && (n.tagName === 'DIV' || n.tagName === 'LI'))
+        const step = (n) => toEnd ? n.nextSibling : n.previousSibling
+        const node = range.startContainer, off = range.startOffset
+        const startEl = node.nodeType === 3 ? node.parentNode : node
+        if (!startEl || !editor.contains(startEl) || startEl.closest('.katex-widget')) return null
+        // `container` is the element whose children are being scanned; `sib`
+        // the first node beside the caret on the arrow's side within it.
+        let container, sib
+        if (node.nodeType === 3) {
+          const rest = toEnd ? node.nodeValue.slice(off) : node.nodeValue.slice(0, off)
+          if (rest.replace(/​/g, '')) return null
+          container = node.parentNode
+          sib = step(node)
+        } else {
+          container = node
+          sib = (toEnd ? node.childNodes[off] : node.childNodes[off - 1]) || null
+        }
+        // Climb out of inline formatting wrappers while the caret is at their edge.
+        while (true) {
+          while (isBlank(sib)) sib = step(sib)
+          if (sib || isRow(container)) break
+          sib = step(container)
+          container = container.parentNode
+          if (!container) return null
+        }
+        // Descend into a neighbouring inline wrapper (e.g. a formatting span
+        // that happens to hold the widget) through its near edge.
+        while (sib && sib.nodeType === 1 && !isWidget(sib) && !isRow(sib)) {
+          let inner = toEnd ? sib.firstChild : sib.lastChild
+          while (isBlank(inner)) inner = step(inner)
+          if (!inner) break
+          sib = inner
+        }
+        if (sib) return isWidget(sib) && sib.getAttribute('data-math-inline') !== '0' ? sib : null
+        // At the row's edge: step onto a block widget isolated on the next/previous row.
+        if (container === editor) return null
+        const nextRow = toEnd ? container.nextElementSibling : container.previousElementSibling
+        const block = nextRow && nextRow.querySelector(':scope > .katex-widget[data-math-inline="0"]')
+        return block || null
+      }
+
       // Unrenders formula widgets back to their original `$` text: the
       // click-highlighted widget, else every widget a (non-collapsed)
       // selection touches, else the one directly next to a collapsed caret.
@@ -8314,11 +8364,15 @@
       const checkpointTextEdit = (editor, shapeId) => {
         const s = getShapeById(shapeId)
         if (!s || s.type !== 'text') return
+        // The highlight is transient UI state — stripped for the capture
+        // below, then put back so a checkpoint never silently drops it.
+        const highlighted = editor.querySelector('.katex-widget.katex-widget-active')
         editor.querySelectorAll('.katex-widget[data-latex]').forEach(w => {
           w.textContent = w.getAttribute('data-latex')
           w.classList.remove('katex-widget-active')
         })
         s.text = editor.innerHTML.replace(/&#8203;/g, '​').replace(/​/g, '')
+        if (highlighted && editor.contains(highlighted)) highlighted.classList.add('katex-widget-active')
         if (!s.text || s.text.replace(/<[^>]*>/g, '').trim() === '') {
           s.text = '<div>&#8203;</div>'
         }
@@ -8879,6 +8933,23 @@
             if (!['Shift', 'Control', 'Alt', 'Meta'].includes(ev.key)) {
               highlightedWidget.classList.remove('katex-widget-active')
               syncMathFormulaPanelFromHighlight()
+            }
+          }
+          // Plain Left/Right with the caret right beside a formula steps ONTO
+          // it — highlighting it exactly as a click would (caret hidden, see
+          // CSS) — instead of jumping over it. The next arrow press leaves it
+          // again via exitHighlightedFormula above.
+          else if ((ev.key === 'ArrowLeft' || ev.key === 'ArrowRight') && !ev.shiftKey && !ev.altKey && !ev.metaKey && !ev.ctrlKey) {
+            const sel = window.getSelection()
+            if (sel.rangeCount && sel.isCollapsed) {
+              const target = formulaWidgetInArrowDirection(editor, sel.getRangeAt(0), ev.key === 'ArrowRight')
+              if (target) {
+                ev.preventDefault(); ev.stopPropagation()
+                _richSavedRange = sel.getRangeAt(0).cloneRange()
+                target.classList.add('katex-widget-active')
+                syncMathFormulaPanelFromHighlight()
+                return
+              }
             }
           }
           if (ev.key === 'Enter' && ev.shiftKey) {
@@ -12832,11 +12903,40 @@
         // (see onDocumentPointerDown in startTextEdit) would then silently no-op
         // on the next outside click. Restore focus to it so that keeps working.
         const editorToRestore = _richActiveEditor
+        // The formula to leave highlighted once the dialog closes (confirmed
+        // or cancelled): the one being edited, or the one just inserted. The
+        // edit session continues as if that formula had been clicked.
+        let restoreWidgetId = isUpdate ? widgetId : null
         const { box, close } = makeCenteredOverlay({
           maxWidth: '720px',
           onClose: () => {
-            if (editorToRestore && document.body.contains(editorToRestore)) editorToRestore.focus()
             if (aiAbortController) aiAbortController.abort()
+            const editor = editorToRestore
+            if (!editor || !document.body.contains(editor)) return
+            // A bare focus() drops the caret at the very start of the text;
+            // put the real selection back where it belongs right after.
+            editor.focus()
+            const widget = restoreWidgetId
+              ? editor.querySelector(`.katex-widget[data-widget-id="${restoreWidgetId}"]`)
+              : null
+            let r = null
+            if (widget) {
+              r = document.createRange()
+              r.setStartAfter(widget)
+              r.collapse(true)
+            } else if (targetSavedRange && editor.contains(targetSavedRange.startContainer)) {
+              r = targetSavedRange.cloneRange()
+            }
+            if (r) {
+              const sel = window.getSelection()
+              sel.removeAllRanges(); sel.addRange(r)
+              _richSavedRange = r.cloneRange()
+            }
+            if (widget) {
+              editor.querySelectorAll('.katex-widget-active').forEach(w => { if (w !== widget) w.classList.remove('katex-widget-active') })
+              widget.classList.add('katex-widget-active')
+            }
+            syncMathFormulaPanelFromHighlight()
           }
         })
         box.setAttribute('data-richtext-btn', '1')
@@ -13069,7 +13169,8 @@
           } else if (isInsertIntoActiveEditor && document.body.contains(targetEditor)) {
             // Insert at (replacing) the caret/selection captured at open time.
             if (targetSavedRange && targetEditor.contains(targetSavedRange.startContainer)) _richSavedRange = targetSavedRange
-            insertFormulaWidgetAtCursor(targetEditor, latex)
+            const inserted = insertFormulaWidgetAtCursor(targetEditor, latex)
+            if (inserted) restoreWidgetId = inserted.getAttribute('data-widget-id')
             recordFormulaInHistory(latex)
           } else {
             const s = shapeDefaults()
