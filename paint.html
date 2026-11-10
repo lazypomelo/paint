@@ -8997,8 +8997,33 @@
           // Don't finish if focus moved to a richtext format button
           const related = ev.relatedTarget
           if (related && (related.hasAttribute('data-richtext-btn') || related.closest?.('[data-richtext-btn]'))) return
+          // The whole window lost focus (Cmd+Tab / switching apps): keep the
+          // edit session alive — focus returns to the editor when the user
+          // comes back (see onWindowFocus below).
+          if (!document.hasFocus()) return
           finish(true)
         })
+
+        // Returning to the app after Cmd+Tab: make sure the still-open editor
+        // regains focus with its caret/selection intact (some browsers don't
+        // restore element focus on their own).
+        let _savedRange = null
+        const onWindowBlur = () => {
+          const sel = window.getSelection()
+          _savedRange = (sel && sel.rangeCount && editor.contains(sel.getRangeAt(0).startContainer))
+            ? sel.getRangeAt(0).cloneRange() : null
+        }
+        const onWindowFocus = () => {
+          if (!editor.isConnected || document.activeElement === editor) return
+          editor.focus({ preventScroll: true })
+          if (_savedRange) {
+            const sel = window.getSelection()
+            sel.removeAllRanges()
+            sel.addRange(_savedRange)
+          }
+        }
+        window.addEventListener('blur', onWindowBlur)
+        window.addEventListener('focus', onWindowFocus)
 
         // Clicking outside the editor blurs it
         const onDocumentPointerDown = (ev) => {
@@ -9013,6 +9038,8 @@
         const origFinish = finish
         finish = (commit) => {
           document.removeEventListener('pointerdown', onDocumentPointerDown)
+          window.removeEventListener('blur', onWindowBlur)
+          window.removeEventListener('focus', onWindowFocus)
           origFinish(commit)
         }
       }
